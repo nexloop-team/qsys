@@ -186,7 +186,11 @@ export function DeleteExpenseButton({ id, name }: { id: string; name: string }) 
       type="button"
       disabled={pending}
       onClick={() => {
-        if (confirm(`Delete "${name}"?`)) start(async () => void (await deleteExpense(id)));
+        if (!confirm(`Delete "${name}"?`)) return;
+        start(async () => {
+          const result = await deleteExpense(id);
+          if (result?.error) alert(result.error);
+        });
       }}
       aria-label={`Delete ${name}`}
       title="Delete"

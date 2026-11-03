@@ -74,7 +74,7 @@ same browser they requested it from. To make the link work from any device, edit
 template (Authentication → Emails) so its link is:
 `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/settings/account?reset=1`
 
-After that, set your **UPI ID** under Settings → Payments so checkout can show a payment QR.
+After that, set your **UPI ID** under Settings → Billing → UPI payments so checkout shows a QR with the exact amount.
 
 ## Database tests
 

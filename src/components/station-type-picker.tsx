@@ -31,7 +31,7 @@ export function StationTypePicker({
       {STATION_TYPES.map((t) => (
         <label
           key={t}
-          className="flex h-11 cursor-pointer items-center gap-2.5 rounded-md border border-line-strong px-3 text-sm font-medium transition-colors hover:bg-hover has-[:checked]:border-fg has-[:checked]:bg-subtle has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"
+          className="flex h-11 cursor-pointer items-center gap-2.5 rounded-lg border border-line-strong px-3 text-sm font-medium transition-colors hover:bg-hover has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"
         >
           <input
             type="checkbox"
@@ -47,7 +47,7 @@ export function StationTypePicker({
                 }
               : { defaultChecked: defaultValue?.includes(t) })}
             disabled={disabled}
-            className="size-4 accent-current"
+            className="size-4"
           />
           <span className="grid size-5 place-items-center text-muted [&_svg]:size-4">{ICON[t]}</span>
           {STATION_TYPE_LABEL[t]}

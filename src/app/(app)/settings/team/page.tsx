@@ -80,7 +80,7 @@ async function Team() {
         >
           <InviteForm />
           {(invites ?? []).length > 0 && (
-            <ul className="mt-4 divide-y divide-line rounded-md border border-line">
+            <ul className="mt-4 divide-y divide-line overflow-hidden rounded-xl border border-line">
               {invites!.map((inv) => (
                 <li key={inv.id} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
                   <span className="num font-semibold tracking-widest">{inv.code}</span>

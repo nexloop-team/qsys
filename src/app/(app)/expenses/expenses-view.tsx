@@ -2,8 +2,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, ReceiptIndianRupee } from "lucide-react";
 import { EXPENSE_CATEGORY_LABEL, type ExpenseCategory } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
-import { Empty, PageHeader, Panel } from "@/components/card";
-import { cx } from "@/components/styles";
+import { Empty, Metric, PageHeader, Panel } from "@/components/card";
 import { AddExpenseButton, DeleteExpenseButton, type TeamMember } from "./expense-forms";
 import { CATEGORY_ICON } from "./category-icons";
 
@@ -89,14 +88,14 @@ export function ExpensesView({
 
       <div className="flex flex-col gap-5">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-          <Figure label="Revenue" value={formatINR(revenue)} sub="From bills this month" />
-          <Figure
+          <Metric label="Revenue" value={formatINR(revenue)} sub="From bills this month" />
+          <Metric
             label="Expenses"
             value={formatINR(total)}
             sub={`${expenses.length} entr${expenses.length === 1 ? "y" : "ies"}`}
           />
-          <Figure label="Salaries" value={formatINR(salaries)} sub={total ? `${Math.round((salaries / total) * 100)}% of expenses` : "None logged"} />
-          <Figure
+          <Metric label="Salaries" value={formatINR(salaries)} sub={total ? `${Math.round((salaries / total) * 100)}% of expenses` : "None logged"} />
+          <Metric
             label="Net profit"
             value={formatINR(net)}
             tone={net < 0 ? "over" : net > 0 ? "ok" : undefined}
@@ -221,34 +220,6 @@ export function ExpensesView({
         </p>
       </div>
     </>
-  );
-}
-
-function Figure({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: "ok" | "over";
-}) {
-  return (
-    <section className="rounded-xl border border-line bg-panel p-4 shadow-card">
-      <h2 className="text-[13px] font-medium text-muted">{label}</h2>
-      <p
-        className={cx(
-          "num mt-2 text-2xl font-semibold tracking-tight",
-          tone === "ok" && "text-ok",
-          tone === "over" && "text-over",
-        )}
-      >
-        {value}
-      </p>
-      {sub && <p className="mt-1 text-xs text-muted">{sub}</p>}
-    </section>
   );
 }
 

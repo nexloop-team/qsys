@@ -115,3 +115,52 @@ export function Stat({ label, value, sub }: { label: string; value: ReactNode; s
     </div>
   );
 }
+
+// Headline number card, used for the KPI rows on Reports, Expenses, Bills and Players.
+export function Metric({
+  label,
+  value,
+  sub,
+  icon,
+  tone,
+  children,
+  className,
+}: {
+  label: string;
+  value: ReactNode;
+  sub?: ReactNode;
+  icon?: ReactNode;
+  tone?: "ok" | "over";
+  children?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cx("flex min-w-0 flex-col rounded-xl border border-line bg-panel p-4 shadow-card", className)}>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="truncate text-[13px] font-medium text-muted">{label}</h2>
+        {icon && <span className="text-faint [&_svg]:size-4">{icon}</span>}
+      </div>
+      <p
+        className={cx(
+          "num mt-2 truncate text-2xl font-semibold tracking-tight",
+          tone === "ok" && "text-ok",
+          tone === "over" && "text-over",
+        )}
+      >
+        {value}
+      </p>
+      {sub && <div className="mt-1 text-xs text-muted">{sub}</div>}
+      {children}
+    </section>
+  );
+}
+
+// Small "only the owner can…" notice.
+export function Notice({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
+  return (
+    <p className="mb-5 flex items-center gap-2 rounded-xl border border-line bg-subtle/60 px-3.5 py-2.5 text-sm text-muted [&_svg]:size-4 [&_svg]:shrink-0">
+      {icon}
+      {children}
+    </p>
+  );
+}

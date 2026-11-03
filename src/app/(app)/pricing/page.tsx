@@ -108,7 +108,7 @@ async function Pricing() {
                           )}
                         </div>
                         {plan.rate_rules.length > 0 && (
-                          <ul className="mt-2 flex flex-col gap-1 border-l border-line-strong pl-3">
+                          <ul className="mt-2.5 flex flex-col gap-1 border-l-2 border-accent/30 pl-3">
                             {plan.rate_rules.map((rule) => (
                               <li key={rule.id} className="flex flex-wrap items-center gap-x-2 text-[13px]">
                                 <span className="font-medium">{rule.name}</span>
@@ -117,10 +117,13 @@ async function Pricing() {
                                 </span>
                                 <span className="num">{formatINR(rule.per_hour)}/hr</span>
                                 {editable && (
-                                  <DeleteButton
-                                    confirmText={`Delete "${rule.name}"?`}
-                                    onDelete={deleteRateRule.bind(null, rule.id)}
-                                  />
+                                  <span className="inline-flex items-center">
+                                    <RuleDialogButton ratePlanId={plan.id} rule={rule} />
+                                    <DeleteButton
+                                      confirmText={`Delete "${rule.name}"?`}
+                                      onDelete={deleteRateRule.bind(null, rule.id)}
+                                    />
+                                  </span>
                                 )}
                               </li>
                             ))}
@@ -151,6 +154,7 @@ async function Pricing() {
                             <td className="py-1.5 text-right">
                               {editable && (
                                 <span className="inline-flex items-center gap-1">
+                                  <PackageDialogButton stationType={type} tiers={tiers} pkg={pkg} />
                                   <PackageActiveToggle id={pkg.id} isActive={pkg.is_active} />
                                   <DeleteButton
                                     confirmText={`Delete "${pkg.name}"?`}

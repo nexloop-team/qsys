@@ -70,8 +70,10 @@ async function Floor() {
       gstEnabled: s?.gst_enabled ?? false,
       gstRate: Number(s?.gst_rate ?? 18),
       pricesIncludeTax: s?.prices_include_tax ?? false,
+      upi: s?.upi_vpa ? { vpa: s.upi_vpa, name: s.upi_payee_name || org.name } : null,
     },
   };
 
-  return <FloorBoard initial={data} />;
+  // Keyed by branch so switching branch starts from that branch's data, never the previous one's.
+  return <FloorBoard key={branch.id} initial={data} />;
 }

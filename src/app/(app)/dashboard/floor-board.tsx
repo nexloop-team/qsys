@@ -6,7 +6,7 @@ import { AlertTriangle, Bell, BellOff, LayoutGrid, Map as MapIcon, Pause, Pencil
 import { estimateCharge, prepaidRemainingSeconds, type Charge } from "@/lib/pricing";
 import { STATION_TYPE_LABEL, STATION_TYPES, type StationType } from "@/lib/constants";
 import { formatClock, formatINR } from "@/lib/format";
-import { Empty, Panel } from "@/components/card";
+import { Empty, PageHeader, Panel } from "@/components/card";
 import { Button, Segmented, buttonClass, cx } from "@/components/ui";
 import { beep, useFloorSessions, useLocalPref, useMuted, useServerClock } from "./use-floor";
 import { FloorMap, LayoutEditor, initialPlacements } from "./floor-map";
@@ -75,12 +75,23 @@ export function deriveTile(
 }
 
 const TILE_STYLE: Record<TileState, string> = {
-  free: "border-line hover:border-free/60",
-  busy: "border-busy/45 bg-busy/[0.04]",
-  ending: "border-ending/60 bg-ending/[0.06]",
-  over: "border-over/70 bg-over/[0.07]",
+  free: "border-line hover:border-free/50",
+  busy: "border-busy/35 bg-[linear-gradient(180deg,color-mix(in_oklab,var(--busy)_7%,var(--panel)),var(--panel)_70%)]",
+  ending:
+    "border-ending/50 bg-[linear-gradient(180deg,color-mix(in_oklab,var(--ending)_10%,var(--panel)),var(--panel)_70%)]",
+  over: "border-over/60 bg-[linear-gradient(180deg,color-mix(in_oklab,var(--over)_11%,var(--panel)),var(--panel)_70%)] ring-1 ring-over/20",
   paused: "border-dashed border-line-strong",
   off: "border-dashed border-line opacity-55",
+};
+
+// Top edge colour per state, so a glance across the floor reads at once.
+const EDGE: Record<TileState, string> = {
+  free: "bg-free/60",
+  busy: "bg-busy",
+  ending: "bg-ending",
+  over: "bg-over",
+  paused: "bg-paused/50",
+  off: "bg-transparent",
 };
 
 const DOT: Record<TileState, string> = {
@@ -191,83 +202,109 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader
+        title="Floor"
+        description={`${branch.name} · ${stations.length} station${stations.length === 1 ? "" : "s"}`}
+        actions={
+          <>
+            <span
+              className={cx(
+                "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium",
+                connected ? "border-free/30 bg-free/8 text-free" : "border-ending/40 bg-ending/10 text-ending",
+              )}
+            >
+              <span className={cx("size-1.5 rounded-full", connected ? "bg-free blink" : "bg-ending")} />
+              {connected ? "Live" : "Reconnecting"}
+            </span>
+            {view === "map" && canEditLayout && !editingLayout && (
+              <Button size="sm" variant="secondary" onClick={() => setEditingLayout(true)}>
+                <PencilRuler /> Edit layout
+              </Button>
+            )}
+            <Segmented
+              value={view}
+              onChange={(v) => {
+                setEditingLayout(false);
+                setView(v);
+              }}
+              options={[
+                { value: "grid", label: <><LayoutGrid /> Grid</> },
+                { value: "map", label: <><MapIcon /> Map</> },
+              ]}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              aria-label={muted ? "Unmute alerts" : "Mute alerts"}
+              title={muted ? "Alerts muted" : "Alert sound on"}
+              onClick={() => setMuted(!muted)}
+            >
+              {muted ? <BellOff /> : <Bell />}
+            </Button>
+          </>
+        }
+      />
+
       {!connected && (
-        <div className="flex items-center gap-2 rounded-md border border-ending/50 bg-ending/10 px-3 py-2 text-sm text-ending">
-          <WifiOff className="size-4" />
+        <div className="flex items-center gap-2 rounded-xl border border-ending/40 bg-ending/10 px-3.5 py-2.5 text-sm text-ending">
+          <WifiOff className="size-4 shrink-0" />
           Internet down. Reconnecting… Timers keep running; changes sync when you&apos;re back.
         </div>
       )}
       {typesWithoutPrice.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-line-strong px-3 py-2 text-sm">
-          <AlertTriangle className="size-4 text-ending" />
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ending/30 bg-ending/8 px-3.5 py-2.5 text-sm">
+          <AlertTriangle className="size-4 shrink-0 text-ending" />
           No price set for {typesWithoutPrice.map((t) => STATION_TYPE_LABEL[t]).join(", ")}. Sessions can&apos;t start
           there yet.
-          <Link href="/pricing" className="ml-auto font-medium underline underline-offset-4">
+          <Link href="/pricing" className={buttonClass("secondary", "sm", "ml-auto")}>
             Set prices
           </Link>
         </div>
       )}
 
-      {/* Status strip */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-          <Count dot="bg-free" label="Free" value={counts.free} />
-          <Count dot="bg-busy" label="In use" value={counts.busy} />
-          <Count dot="bg-ending" label="Ending" value={counts.ending} />
-          <Count dot="bg-over" label="Overtime" value={counts.over} />
-          <span className="text-muted">
-            Running <span className="num font-medium text-fg">{formatINR(runningTotal)}</span>
-          </span>
+      {/* At a glance */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <Count dot="bg-free" label="Free" value={counts.free} total={tiles.length} />
+        <Count dot="bg-busy" label="In use" value={counts.busy} total={tiles.length} />
+        <Count dot="bg-ending" label="Ending soon" value={counts.ending} highlight={counts.ending > 0} tone="ending" />
+        <Count dot="bg-over" label="Overtime" value={counts.over} highlight={counts.over > 0} tone="over" />
+        <div className="col-span-2 flex flex-col justify-center rounded-xl border border-line bg-panel px-3.5 py-2.5 shadow-xs sm:col-span-1">
+          <span className="text-xs font-medium text-muted">Running now</span>
+          <span className="num text-lg font-semibold tracking-tight">{formatINR(runningTotal)}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {view === "map" && canEditLayout && !editingLayout && (
-            <Button size="sm" variant="secondary" onClick={() => setEditingLayout(true)}>
-              <PencilRuler /> Edit layout
-            </Button>
-          )}
-          <Segmented
-            value={view}
-            onChange={(v) => {
-              setEditingLayout(false);
-              setView(v);
-            }}
-            options={[
-              { value: "grid", label: <><LayoutGrid /> Grid</> },
-              { value: "map", label: <><MapIcon /> Map</> },
-            ]}
-          />
-          <div className={cx("flex max-w-[calc(100vw-80px)] gap-1 overflow-x-auto", view === "map" && "hidden")}>
-            {(["all", ...typesPresent] as const).map((t) => (
+      </div>
+
+      {view === "grid" && typesPresent.length > 1 && (
+        <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0">
+          {(["all", ...typesPresent] as const).map((t) => {
+            const n = t === "all" ? tiles.length : tiles.filter((x) => x.station.type === t).length;
+            return (
               <button
                 key={t}
                 type="button"
                 onClick={() => setFilter(t)}
+                aria-pressed={filter === t}
                 className={cx(
-                  "h-7 shrink-0 rounded-md px-2.5 text-xs font-medium",
-                  filter === t ? "bg-invert text-invert-fg" : "text-muted hover:bg-hover hover:text-fg",
+                  "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+                  filter === t
+                    ? "border-accent bg-accent-soft text-fg"
+                    : "border-line bg-panel text-muted hover:border-line-strong hover:text-fg",
                 )}
               >
                 {t === "all" ? "All" : STATION_TYPE_LABEL[t]}
+                <span className={cx("num text-[11px]", filter === t ? "text-accent-ink" : "text-faint")}>{n}</span>
               </button>
-            ))}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label={muted ? "Unmute alerts" : "Mute alerts"}
-            title={muted ? "Alerts muted" : "Alert sound on"}
-            onClick={() => setMuted(!muted)}
-          >
-            {muted ? <BellOff /> : <Bell />}
-          </Button>
+            );
+          })}
         </div>
-      </div>
+      )}
 
       {unpaid.length > 0 && (
         <Panel
           title={
             <span className="flex items-center gap-2">
-              <span className="size-1.5 rounded-full bg-over" /> Ended, not paid
+              <span className="size-2 rounded-full bg-over blink" /> Ended, not paid
+              <span className="num rounded-full bg-over/10 px-1.5 text-xs text-over">{unpaid.length}</span>
             </span>
           }
           flush
@@ -329,8 +366,9 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
       {view === "grid" && visibleTypes.map((type) => (
         <section key={type}>
           {filter === "all" && (
-            <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">
+            <h2 className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
               {STATION_TYPE_LABEL[type]}
+              <span className="h-px flex-1 bg-line" />
             </h2>
           )}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
@@ -342,37 +380,53 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
                   type="button"
                   onClick={() => setSelectedId(station.id)}
                   className={cx(
-                    "group flex min-h-[104px] flex-col rounded-lg border bg-panel p-3 text-left transition-colors",
+                    "group relative flex min-h-[116px] flex-col overflow-hidden rounded-xl border bg-panel p-3 pt-3.5 text-left shadow-xs transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-card active:translate-y-0",
                     TILE_STYLE[info.state],
                   )}
                 >
+                  <span aria-hidden className={cx("absolute inset-x-0 top-0 h-[3px]", EDGE[info.state])} />
                   <div className="flex items-center gap-2">
                     <span className={cx("size-2 shrink-0 rounded-full", DOT[info.state])} />
-                    <span className="truncate text-sm font-semibold">{station.name}</span>
+                    <span className="truncate text-sm font-semibold tracking-tight">{station.name}</span>
                     {station.tier !== "standard" && (
-                      <span className="ml-auto shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted">
+                      <span className="ml-auto shrink-0 rounded-md bg-subtle px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted">
                         {station.tier}
                       </span>
                     )}
                   </div>
 
                   {info.state === "free" || info.state === "off" ? (
-                    <span className={cx("mt-auto text-[13px] capitalize", STATE_TEXT[info.state])}>
+                    <span className={cx("mt-auto flex items-center justify-between text-[13px] font-medium capitalize", STATE_TEXT[info.state])}>
                       {info.clockLabel}
+                      {info.state === "free" && (
+                        <span className="text-xs font-medium normal-case text-faint opacity-0 transition-opacity group-hover:opacity-100">
+                          Start →
+                        </span>
+                      )}
                     </span>
                   ) : (
                     <div className="mt-auto">
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className={cx("num text-[22px] font-semibold leading-none", STATE_TEXT[info.state])}>
+                        <span className={cx("num text-[24px] font-semibold leading-none tracking-tight", STATE_TEXT[info.state])}>
                           {info.clock}
                         </span>
                         {info.state === "paused" && <Pause className="size-3.5 text-paused" />}
                       </div>
+                      {session?.mode === "prepaid" && session.prepaid_minutes > 0 && info.remaining !== null && (
+                        <div className="mt-2 h-1 overflow-hidden rounded-full bg-subtle">
+                          <div
+                            className={cx("h-full rounded-full", DOT[info.state].replace(" blink", ""))}
+                            style={{
+                              width: `${Math.min(100, Math.max(0, 100 - (info.remaining / (session.prepaid_minutes * 60)) * 100))}%`,
+                            }}
+                          />
+                        </div>
+                      )}
                       <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-muted">
                         <span className="truncate">
                           {session?.customer_name || (session?.mode === "prepaid" ? info.clockLabel : "Open time")}
                         </span>
-                        <span className="num shrink-0 text-fg">{formatINR(info.charge?.total ?? 0)}</span>
+                        <span className="num shrink-0 font-medium text-fg">{formatINR(info.charge?.total ?? 0)}</span>
                       </div>
                     </div>
                   )}
@@ -396,6 +450,7 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
             .map((t) => t.station)}
           supabase={supabase}
           onChanged={refetch}
+          onMoved={(toId) => setSelectedId(toId)}
           onCheckout={(ids) => {
             setSelectedId(null);
             setCheckoutIds(ids);
@@ -423,12 +478,38 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
   );
 }
 
-function Count({ dot, label, value }: { dot: string; label: string; value: number }) {
+function Count({
+  dot,
+  label,
+  value,
+  total,
+  highlight = false,
+  tone,
+}: {
+  dot: string;
+  label: string;
+  value: number;
+  total?: number;
+  highlight?: boolean;
+  tone?: "ending" | "over";
+}) {
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cx("size-1.5 rounded-full", dot)} />
-      <span className="text-muted">{label}</span>
-      <span className="num font-medium">{value}</span>
-    </span>
+    <div
+      className={cx(
+        "flex flex-col justify-center rounded-xl border bg-panel px-3.5 py-2.5 shadow-xs",
+        highlight && tone === "ending" && "border-ending/40 bg-ending/8",
+        highlight && tone === "over" && "border-over/40 bg-over/8",
+        !highlight && "border-line",
+      )}
+    >
+      <span className="flex items-center gap-1.5 text-xs font-medium text-muted">
+        <span className={cx("size-1.5 rounded-full", dot, highlight && tone === "over" && "blink")} />
+        {label}
+      </span>
+      <span className="num text-lg font-semibold tracking-tight">
+        {value}
+        {total !== undefined && <span className="text-sm font-normal text-faint"> / {total}</span>}
+      </span>
+    </div>
   );
 }

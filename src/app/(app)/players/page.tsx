@@ -67,7 +67,10 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
                 {players.map((p) => (
                   <tr key={p.id} className="border-b border-line last:border-0 hover:bg-subtle/60">
                     <td className="px-4 py-2.5 font-medium">
-                      <Link href={`/players/${p.id}`} className="underline-offset-4 hover:underline">
+                      <Link href={`/players/${p.id}`} className="inline-flex items-center gap-2.5 hover:text-accent-ink">
+                        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent-ink">
+                          {p.name.slice(0, 1).toUpperCase()}
+                        </span>
                         {p.name}
                       </Link>
                     </td>

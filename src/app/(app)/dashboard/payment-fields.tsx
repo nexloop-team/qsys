@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Banknote, QrCode, Split } from "lucide-react";
 import { formatINR } from "@/lib/format";
 import { Button, Field, Input, Segmented } from "@/components/ui";
+import { UpiQr, type UpiPayee } from "./upi-qr";
 
 // Venues take cash and UPI only.
 export type PaymentMethod = "cash" | "upi";
@@ -11,7 +12,19 @@ export type PaymentRow = { method: PaymentMethod; amount: number; reference?: st
 
 // Collects how a bill is paid. Emits rows that add up to `total`.
 // UPI is paid on the venue's own counter QR; staff confirm it arrived, then mark paid.
-export function PaymentFields({ total, onChange }: { total: number; onChange: (rows: PaymentRow[]) => void }) {
+export function PaymentFields({
+  total,
+  onChange,
+  upi = null,
+  note = "Game time",
+}: {
+  total: number;
+  onChange: (rows: PaymentRow[]) => void;
+  /** Counter UPI ID; when set, a QR for the UPI amount is shown. */
+  upi?: UpiPayee | null;
+  /** Shown in the player's UPI app as the payment note. */
+  note?: string;
+}) {
   const [split, setSplit] = useState(false);
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [reference, setReference] = useState("");
@@ -92,10 +105,17 @@ export function PaymentFields({ total, onChange }: { total: number; onChange: (r
         </div>
       )}
 
-      {usesUpi && (
-        <p className="rounded-lg border border-line bg-subtle px-3 py-2 text-[13px] text-muted">
-          Player pays on your counter UPI QR. Check the payment has arrived before marking it paid.
-        </p>
+      {usesUpi &&
+        (upi ? (
+          <UpiQr payee={upi} amount={split ? upiAmount : total} note={note} />
+        ) : (
+          <p className="rounded-lg border border-line bg-subtle px-3 py-2 text-[13px] text-muted">
+            Player pays on your counter UPI QR. Check the payment has arrived before marking it paid. Add your UPI ID
+            in Settings → Billing to show a QR with the exact amount here.
+          </p>
+        ))}
+      {usesUpi && upi && (
+        <p className="-mt-1 text-xs text-muted">Check the payment has arrived on your phone before marking it paid.</p>
       )}
 
       {usesUpi && (

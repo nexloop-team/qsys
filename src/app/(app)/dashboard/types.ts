@@ -59,6 +59,8 @@ export type FloorSettings = {
   gstEnabled: boolean;
   gstRate: number;
   pricesIncludeTax: boolean;
+  /** Counter UPI ID for the checkout QR; null until set in Settings → Billing. */
+  upi: { vpa: string; name: string } | null;
 };
 
 export type FloorData = {

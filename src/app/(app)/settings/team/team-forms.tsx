@@ -16,7 +16,7 @@ export function InviteForm() {
       </form>
       {state?.error && <ErrorText>{state.error}</ErrorText>}
       {state?.code && (
-        <div className="flex items-center gap-3 rounded-md border border-line-strong bg-subtle px-4 py-3">
+        <div className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent-soft px-4 py-3">
           <span className="num text-2xl font-semibold tracking-[0.2em]">{state.code}</span>
           <Button
             size="sm"

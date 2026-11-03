@@ -5,7 +5,7 @@ import { getAppContext, isOwner } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/lib/database.types";
 import { formatDateTime, formatINR } from "@/lib/format";
-import { PageSkeleton } from "@/components/card";
+import { PageSkeleton, Notice } from "@/components/card";
 import { SettingsSection } from "../section";
 
 export const metadata: Metadata = { title: "Activity" };
@@ -52,9 +52,7 @@ async function Activity() {
   const { org, role, branch } = await getAppContext();
   if (!isOwner(role)) {
     return (
-      <p className="flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm text-muted">
-        <Lock className="size-4" /> Activity is visible to the owner.
-      </p>
+      <Notice icon={<Lock />}>Activity is visible to the owner.</Notice>
     );
   }
 

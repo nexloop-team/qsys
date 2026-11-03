@@ -62,8 +62,11 @@ export async function deleteRatePlan(id: string): Promise<ActionState> {
   return { ok: "Deleted." };
 }
 
+const optionalId = z.uuid().optional().or(z.literal("").transform(() => undefined));
+
 const ruleSchema = z
   .object({
+    id: optionalId,
     rate_plan_id: z.uuid(),
     name: z.string().trim().min(1, "Name the rule, e.g. Happy hour.").max(60),
     days_of_week: z.array(z.coerce.number().int().min(0).max(6)).min(1, "Pick at least one day."),
@@ -73,7 +76,8 @@ const ruleSchema = z
   })
   .refine((r) => r.start_time !== r.end_time, { message: "Start and end can't be the same." });
 
-export async function addRateRule(_prev: ActionState, formData: FormData): Promise<ActionState> {
+// Adds a time-based rate, or updates it when the form carries an id.
+export async function saveRateRule(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { org } = await requireRole([...OWNER_ONLY]);
   const parsed = ruleSchema.safeParse({
     ...Object.fromEntries(formData),
@@ -81,12 +85,15 @@ export async function addRateRule(_prev: ActionState, formData: FormData): Promi
   });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
 
+  const { id, ...values } = parsed.data;
   const supabase = await createClient();
-  const { error } = await supabase.from("rate_rules").insert({ ...parsed.data, org_id: org.id });
+  const { error } = id
+    ? await supabase.from("rate_rules").update(values).eq("id", id)
+    : await supabase.from("rate_rules").insert({ ...values, org_id: org.id });
   if (error) return { error: friendlyDbError(error) };
 
   refresh();
-  return { ok: "Rule added." };
+  return { ok: id ? "Rate saved." : "Rate added." };
 }
 
 export async function deleteRateRule(id: string): Promise<ActionState> {
@@ -100,6 +107,7 @@ export async function deleteRateRule(id: string): Promise<ActionState> {
 
 const packageSchema = z
   .object({
+    id: optionalId,
     name: z.string().trim().min(1, "Name the package, e.g. 3 hours.").max(60),
     station_type: z.enum(STATION_TYPES),
     tier: optionalText,
@@ -109,23 +117,22 @@ const packageSchema = z
   })
   .refine((p) => p.hours * 60 + p.mins > 0, { message: "Package must be at least 1 minute." });
 
-export async function addPackage(_prev: ActionState, formData: FormData): Promise<ActionState> {
+// Adds a package, or updates it when the form carries an id.
+export async function savePackage(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { org, branch } = await requireRole([...OWNER_ONLY]);
   const parsed = packageSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
 
-  const { hours, mins, ...values } = parsed.data;
+  const { id, hours, mins, ...values } = parsed.data;
+  const row = { ...values, minutes: hours * 60 + mins };
   const supabase = await createClient();
-  const { error } = await supabase.from("packages").insert({
-    ...values,
-    minutes: hours * 60 + mins,
-    org_id: org.id,
-    branch_id: branch.id,
-  });
+  const { error } = id
+    ? await supabase.from("packages").update(row).eq("id", id)
+    : await supabase.from("packages").insert({ ...row, org_id: org.id, branch_id: branch.id });
   if (error) return { error: friendlyDbError(error) };
 
   refresh();
-  return { ok: "Package added." };
+  return { ok: id ? "Package saved." : "Package added." };
 }
 
 export async function setPackageActive(id: string, isActive: boolean): Promise<ActionState> {

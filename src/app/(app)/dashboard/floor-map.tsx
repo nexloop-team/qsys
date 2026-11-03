@@ -364,7 +364,7 @@ export function LayoutEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-line-strong bg-subtle px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line-strong bg-subtle px-3.5 py-2.5 text-sm">
         <span className="font-medium">Editing layout</span>
         <span className="text-muted">Drag stations to match your venue.</span>
         <span className="ml-auto flex flex-wrap gap-2">

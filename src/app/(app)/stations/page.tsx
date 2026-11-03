@@ -31,9 +31,15 @@ async function Stations() {
   // Kinds the venue offers (chosen at onboarding / Settings), in display order.
   const types = STATION_TYPES.filter((t) => (settings?.station_types ?? STATION_TYPES).includes(t));
 
-  // Next number per type, so a second batch continues the sequence.
+  // Next number per type, so a second batch continues after the highest existing number
+  // (not the count: after deleting PC-03 of PC-01…PC-10 the next one is PC-11, not a duplicate PC-10).
   const nextNumber = Object.fromEntries(
-    STATION_TYPES.map((t) => [t, list.filter((s) => s.type === t).length + 1]),
+    STATION_TYPES.map((t) => {
+      const highest = list
+        .filter((s) => s.type === t)
+        .reduce((max, s) => Math.max(max, Number(/(\d+)\s*$/.exec(s.name)?.[1] ?? 0)), 0);
+      return [t, highest + 1];
+    }),
   ) as Record<StationType, number>;
 
   return (

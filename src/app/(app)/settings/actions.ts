@@ -72,6 +72,22 @@ const billingSchema = z
       .regex(/^[A-Z0-9-]{1,10}$/, "Bill prefix: up to 10 letters, numbers or dashes."),
     overtime_grace_minutes: z.coerce.number().int().min(0).max(30),
     early_end_policy: z.enum(["full", "played"]),
+    upi_vpa: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .transform((v) => v || null)
+      .pipe(
+        z
+          .string()
+          .regex(/^[a-z0-9._-]{2,64}@[a-z0-9]{2,64}$/, "UPI ID looks like name@bank, e.g. arena@okaxis.")
+          .nullable(),
+      ),
+    upi_payee_name: z
+      .string()
+      .trim()
+      .max(60, "Keep the name under 60 characters.")
+      .transform((v) => v || null),
   })
   .refine((v) => !v.gst_enabled || v.gstin, {
     message: "Enter your GSTIN to turn GST on.",

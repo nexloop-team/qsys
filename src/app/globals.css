@@ -185,6 +185,14 @@ html.theme-transition * {
   outline-offset: 2px;
 }
 
+/* Native checkboxes, radios and range inputs pick up the accent. */
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"],
+progress {
+  accent-color: var(--accent);
+}
+
 ::selection {
   background: color-mix(in oklab, var(--accent) 28%, transparent);
 }
@@ -200,4 +208,23 @@ html.theme-transition * {
   .blink { animation: none; }
   html.theme-transition,
   html.theme-transition * { transition: none !important; }
+}
+
+/* Receipts and reports always print light, whatever the screen theme. */
+@media print {
+  :root,
+  :root[data-theme="dark"] {
+    color-scheme: light;
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --subtle: #f4f4f5;
+    --line: #d4d4d8;
+    --line-strong: #a1a1aa;
+    --fg: #000000;
+    --fg-muted: #3f3f46;
+    --fg-faint: #71717a;
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+  }
 }

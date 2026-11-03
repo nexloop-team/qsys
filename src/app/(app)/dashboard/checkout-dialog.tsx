@@ -103,7 +103,7 @@ export function CheckoutDialog({
         <p className="text-sm text-muted">Nothing left to collect for this session.</p>
       ) : (
         <div className="flex flex-col gap-4">
-          <ul className="divide-y divide-line rounded-md border border-line text-sm">
+          <ul className="divide-y divide-line rounded-xl border border-line text-sm">
             {lines.map((l) => (
               <li key={l.session.id} className="flex items-center justify-between gap-3 px-3 py-2">
                 <span>
@@ -158,7 +158,12 @@ export function CheckoutDialog({
             </dd>
           </dl>
 
-          <PaymentFields total={bill.total} onChange={setPayments} />
+          <PaymentFields
+            total={bill.total}
+            onChange={setPayments}
+            upi={settings.upi}
+            note={names ? `Game time · ${names}` : "Game time"}
+          />
 
           <ErrorText>{error}</ErrorText>
 
@@ -175,13 +180,13 @@ export function CheckoutDialog({
             (writeOff === null ? (
               <button
                 type="button"
-                className="self-center text-xs text-muted underline underline-offset-4 hover:text-fg"
+                className="self-center text-xs text-muted underline-offset-4 hover:text-danger hover:underline"
                 onClick={() => setWriteOff("")}
               >
                 Write off (player left without paying)
               </button>
             ) : (
-              <div className="flex flex-col gap-2 rounded-md border border-danger/30 p-3">
+              <div className="flex flex-col gap-2 rounded-xl border border-danger/30 bg-danger/5 p-3">
                 <Field label="Reason for write-off">
                   <Input value={writeOff} onChange={(e) => setWriteOff(e.target.value)} placeholder="e.g. walked out" />
                 </Field>

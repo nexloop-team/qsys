@@ -31,7 +31,7 @@ export function OnboardingChoice() {
           { value: "join", label: "Join with invite code" },
         ]}
       />
-      <div className="rounded-lg border border-line bg-panel p-5">
+      <div className="rounded-2xl border border-line bg-panel p-5 shadow-pop sm:p-6">
         {mode === "create" ? <CreateForm /> : <JoinForm />}
       </div>
     </div>

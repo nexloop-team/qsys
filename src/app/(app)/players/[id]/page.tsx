@@ -7,7 +7,7 @@ import { getAppContext } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { SESSION_MODE_LABEL, STATION_TYPE_LABEL, type StationType } from "@/lib/constants";
 import { formatDateTime, formatINR, formatMinutes } from "@/lib/format";
-import { Badge, PageHeader, PageSkeleton, Panel, Stat } from "@/components/card";
+import { Badge, Metric, PageHeader, PageSkeleton, Panel } from "@/components/card";
 import { buttonClass } from "@/components/styles";
 
 export const metadata: Metadata = { title: "Player" };
@@ -70,18 +70,16 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
       </Link>
       <PageHeader
         title={player.name}
-        description={`${player.phone.slice(0, 5)} ${player.phone.slice(5)} · player since ${formatDateTime(player.created_at, branch.timezone)}`}
+        description={`${player.phone.slice(0, 5)} ${player.phone.slice(5)} · player since ${new Date(player.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: branch.timezone })}`}
       />
 
-      <Panel flush className="mb-5">
-        <div className="grid grid-cols-2 sm:grid-cols-5 sm:divide-x sm:divide-line">
-          <Stat label="Visits" value={list.length} />
-          <Stat label="Played" value={formatMinutes(minutes)} />
-          <Stat label="Paid" value={formatINR(spent)} />
-          <Stat label="Owes" value={formatINR(owed)} />
-          <Stat label="Plays most" value={favourite ? STATION_TYPE_LABEL[favourite] : "—"} />
-        </div>
-      </Panel>
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
+        <Metric label="Visits" value={list.length} />
+        <Metric label="Played" value={formatMinutes(minutes)} />
+        <Metric label="Paid" value={formatINR(spent)} />
+        <Metric label="Owes" value={formatINR(owed)} tone={owed > 0 ? "over" : undefined} />
+        <Metric label="Plays most" value={favourite ? STATION_TYPE_LABEL[favourite] : "—"} />
+      </div>
 
       <Panel title="Visit history" flush>
         {list.length === 0 ? (

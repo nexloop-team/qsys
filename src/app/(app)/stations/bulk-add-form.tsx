@@ -94,7 +94,7 @@ function BulkAddForm({
       </div>
       <input type="hidden" name="start" value={start} />
 
-      <div className="rounded-md bg-subtle px-3 py-2 text-[13px]">
+      <div className="rounded-lg border border-line bg-subtle/60 px-3 py-2 text-[13px]">
         Creates <span className="num font-medium">{count > 1 ? `${label(start)} … ${label(start + count - 1)}` : label(start)}</span>
       </div>
       <FormMessage state={state} />

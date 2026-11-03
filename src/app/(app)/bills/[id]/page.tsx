@@ -27,11 +27,19 @@ async function Bill({ params }: { params: PageProps<"/bills/[id]">["params"] }) 
   const { branch, org } = await getAppContext();
   const supabase = await createClient();
 
-  const [{ data: inv }, { data: details }] = await Promise.all([
-    supabase.from("invoices").select("*, invoice_lines(*), payments(method, amount, reference)").eq("id", id).maybeSingle(),
-    supabase.from("branches").select("name, address, phone").eq("id", branch.id).single(),
-  ]);
+  const { data: inv } = await supabase
+    .from("invoices")
+    .select("*, invoice_lines(*), payments(method, amount, reference)")
+    .eq("id", id)
+    .maybeSingle();
   if (!inv) notFound();
+  // The receipt belongs to the branch that billed it, not the one selected right now.
+  const { data: details } = await supabase
+    .from("branches")
+    .select("name, address, phone, timezone")
+    .eq("id", inv.branch_id)
+    .maybeSingle();
+  const timeZone = details?.timezone ?? branch.timezone;
 
   return (
     <div className="mx-auto max-w-sm">
@@ -57,7 +65,7 @@ async function Bill({ params }: { params: PageProps<"/bills/[id]">["params"] }) 
 
         <div className="flex justify-between border-b border-dashed border-line-strong py-2">
           <span className="num">{inv.number}</span>
-          <span className="num">{formatDateTime(inv.created_at, branch.timezone)}</span>
+          <span className="num">{formatDateTime(inv.created_at, timeZone)}</span>
         </div>
         {inv.customer_name && (
           <p className="border-b border-dashed border-line-strong py-2">

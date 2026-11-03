@@ -68,7 +68,7 @@ export function PlayerField({
   if (chosen) {
     return (
       <Field label="Player">
-        <div className="flex items-center gap-2.5 rounded-md border border-free/40 bg-free/5 px-3 py-2">
+        <div className="flex items-center gap-2.5 rounded-lg border border-free/40 bg-free/8 px-3 py-2">
           <UserCheck className="size-4 shrink-0 text-free" />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium">{chosen.name}</span>
@@ -126,7 +126,7 @@ export function PlayerField({
       </Field>
 
       {matches.length > 0 && (
-        <ul id="player-suggestions" role="listbox" className="overflow-hidden rounded-md border border-line">
+        <ul id="player-suggestions" role="listbox" className="overflow-hidden rounded-lg border border-line bg-panel shadow-card">
           {matches.map((m, i) => (
             <li key={m.id} role="option" aria-selected={i === active}>
               <button

@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ReceiptText } from "lucide-react";
-import { getAppContext } from "@/lib/dal";
+import { Download, ReceiptText } from "lucide-react";
+import { getAppContext, isOwner } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { formatINR, formatTime, nextDay, todayIn, zonedStart } from "@/lib/format";
-import { Empty, PageHeader, PageSkeleton, Panel, Stat } from "@/components/card";
+import { Empty, Metric, PageHeader, PageSkeleton, Panel } from "@/components/card";
+import { buttonClass } from "@/components/styles";
 import { DatePicker } from "./date-picker";
 
 export const metadata: Metadata = { title: "Bills" };
@@ -22,9 +23,11 @@ export default function BillsPage(props: PageProps<"/bills">) {
 const METHOD_LABEL = { cash: "Cash", upi: "UPI", card: "Card" } as const;
 
 async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["searchParams"] }) {
-  const { branch } = await getAppContext();
+  const { branch, role } = await getAppContext();
   const sp = await searchParams;
-  const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayIn(branch.timezone);
+  const today = todayIn(branch.timezone);
+  const wanted = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : today;
+  const date = wanted > today ? today : wanted;
 
   const supabase = await createClient();
   const { data: invoices } = await supabase
@@ -43,16 +46,27 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
 
   return (
     <>
-      <PageHeader title="Bills" actions={<DatePicker value={date} />} />
+      <PageHeader
+        title="Bills"
+        description={`${branch.name} · ${date === today ? "today" : new Date(`${date}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })}`}
+        actions={
+          <>
+            {isOwner(role) && (
+              <a href={`/bills/export?from=${date}&to=${date}`} className={buttonClass("secondary", "md")}>
+                <Download /> Export
+              </a>
+            )}
+            <DatePicker value={date} max={today} />
+          </>
+        }
+      />
 
-      <Panel flush className="mb-5">
-        <div className="grid grid-cols-2 divide-line sm:grid-cols-4 sm:divide-x">
-          <Stat label="Collected" value={formatINR(total)} />
-          <Stat label="Bills" value={list.length} />
-          <Stat label="Cash" value={formatINR(byMethod.cash ?? 0)} />
-          <Stat label="UPI" value={formatINR(byMethod.upi ?? 0)} />
-        </div>
-      </Panel>
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <Metric label="Collected" value={formatINR(total)} />
+        <Metric label="Bills" value={list.length} sub={list.length ? `Average ${formatINR(Math.round(total / list.length))}` : undefined} />
+        <Metric label="Cash" value={formatINR(byMethod.cash ?? 0)} sub={total ? `${Math.round(((byMethod.cash ?? 0) / total) * 100)}% of takings` : undefined} />
+        <Metric label="UPI" value={formatINR(byMethod.upi ?? 0)} sub={total ? `${Math.round(((byMethod.upi ?? 0) / total) * 100)}% of takings` : undefined} />
+      </div>
 
       <Panel flush>
         {list.length === 0 ? (
@@ -73,7 +87,7 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
                 {list.map((inv) => (
                   <tr key={inv.id} className="border-b border-line last:border-0 hover:bg-subtle/60">
                     <td className="px-4 py-2.5">
-                      <Link href={`/bills/${inv.id}`} className="num font-medium underline-offset-4 hover:underline">
+                      <Link href={`/bills/${inv.id}`} className="num font-medium text-accent-ink underline-offset-4 hover:underline">
                         {inv.number}
                       </Link>
                     </td>

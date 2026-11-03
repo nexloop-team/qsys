@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ArrowRightLeft, Pause, Play, Plus, Square, Users } from "lucide-react";
 import type { Database } from "@/lib/database.types";
@@ -32,6 +32,7 @@ export function StationSheet({
   supabase,
   onChanged,
   onCheckout,
+  onMoved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,6 +45,8 @@ export function StationSheet({
   supabase: Supa;
   onChanged: () => Promise<void>;
   onCheckout: (sessionIds: string[]) => void;
+  /** The session moved to another station: follow it there. */
+  onMoved: (stationId: string) => void;
 }) {
   const plan = useMemo(() => resolvePlan(data.plans, station, session), [data.plans, station, session]);
   const packages = data.packages.filter(
@@ -84,6 +87,8 @@ export function StationSheet({
           supabase={supabase}
           onChanged={onChanged}
           onCheckout={onCheckout}
+          onMoved={onMoved}
+          onClose={() => onOpenChange(false)}
         />
       ) : (
         <StartForm
@@ -203,7 +208,7 @@ function StartForm({
                 key={p.id}
                 type="button"
                 onClick={() => setChoice(p.id)}
-                className={`rounded-md border px-3 py-2 text-left ${choice === p.id ? "border-fg bg-subtle" : "border-line-strong hover:bg-hover"}`}
+                className={`rounded-lg border px-3 py-2 text-left transition-colors ${choice === p.id ? "border-accent bg-accent-soft" : "border-line-strong hover:bg-hover"}`}
               >
                 <span className="block text-sm font-medium">{p.name}</span>
                 <span className="num text-[13px] text-muted">
@@ -214,7 +219,7 @@ function StartForm({
             <button
               type="button"
               onClick={() => setChoice("custom")}
-              className={`rounded-md border px-3 py-2 text-left ${choice === "custom" ? "border-fg bg-subtle" : "border-line-strong hover:bg-hover"}`}
+              className={`rounded-lg border px-3 py-2 text-left transition-colors ${choice === "custom" ? "border-accent bg-accent-soft" : "border-line-strong hover:bg-hover"}`}
             >
               <span className="block text-sm font-medium">Custom</span>
               <span className="text-[13px] text-muted">At {formatINR(plan.per_hour)}/hr</span>
@@ -268,13 +273,13 @@ function StartForm({
               type="checkbox"
               checked={collectNow}
               onChange={(e) => setCollectNow(e.target.checked)}
-              className="size-4 accent-current"
+              className="size-4"
             />
             Collect payment now
             <span className="text-muted">(otherwise at the end)</span>
           </label>
           {collectNow && (
-            <PaymentFields total={bill.total} onChange={setPayments} />
+            <PaymentFields total={bill.total} onChange={setPayments} upi={data.settings.upi} note={`Game time · ${station.name}`} />
           )}
         </div>
       )}
@@ -318,6 +323,8 @@ function LiveView({
   supabase,
   onChanged,
   onCheckout,
+  onMoved,
+  onClose,
 }: {
   station: FloorStation;
   session: LiveSession;
@@ -330,6 +337,8 @@ function LiveView({
   supabase: Supa;
   onChanged: () => Promise<void>;
   onCheckout: (ids: string[]) => void;
+  onMoved: (stationId: string) => void;
+  onClose: () => void;
 }) {
   const [panel, setPanel] = useState<"none" | "extend" | "transfer">("none");
   const [error, setError] = useState<string>();
@@ -344,29 +353,44 @@ function LiveView({
       await onChanged();
     });
 
-  const end = () =>
+  // Ending is final, so it takes two taps: the first arms the button for a few seconds.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const id = window.setTimeout(() => setArmed(false), 4000);
+    return () => window.clearTimeout(id);
+  }, [armed]);
+
+  const end = () => {
+    if (!armed) return setArmed(true);
+    setArmed(false);
     startTransition(async () => {
       setError(undefined);
       const { data: charge, error } = await supabase.rpc("end_session", { p_session_id: session.id });
       if (error) return setError(error.message);
       await onChanged();
       const outstanding = Number((charge as { outstanding?: number } | null)?.outstanding ?? 0);
+      // Something left to pay: go to checkout. Fully paid up front: nothing more to do here.
       if (outstanding > 0) onCheckout([session.id]);
+      else onClose();
     });
+  };
 
   const elapsed = formatClock(info.charge?.activeSeconds ?? 0);
   void nowMs; // re-render each tick via parent
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 overflow-hidden rounded-md border border-line">
+      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-line bg-subtle/40">
         <Cell label={info.clockLabel} value={info.clock ?? "—"} strong />
         <Cell label="Charge so far" value={formatINR(info.charge?.total ?? 0)} strong />
         <Cell label="Started" value={formatTime(session.started_at, tz)} />
-        <Cell
-          label={session.mode === "prepaid" ? "Ends" : "Played"}
-          value={session.mode === "prepaid" && session.planned_end_at ? formatTime(session.planned_end_at, tz) : elapsed}
-        />
+        {session.mode === "prepaid" ? (
+          <Cell label="Ends" value={session.planned_end_at ? formatTime(session.planned_end_at, tz) : elapsed} />
+        ) : (
+          // Elapsed is already shown above; this is what the rounding rules bill for.
+          <Cell label="Billed as" value={formatMinutes(info.charge?.billableMinutes ?? 0)} />
+        )}
       </div>
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
@@ -454,16 +478,21 @@ function LiveView({
           session={session}
           freeStations={freeStations}
           supabase={supabase}
-          onDone={async () => {
+          onDone={async (toId) => {
             setPanel("none");
             await onChanged();
+            onMoved(toId);
           }}
         />
       )}
 
-      <Button size="lg" className="w-full" disabled={pending} onClick={end}>
+      <Button size="lg" variant={armed ? "danger" : "primary"} className="w-full" disabled={pending} onClick={end}>
         <Square />
-        {pending ? "Working…" : `End & bill ${formatINR(info.charge?.total ?? 0)}`}
+        {pending
+          ? "Working…"
+          : armed
+            ? `Tap again to end & bill ${formatINR(info.charge?.total ?? 0)}`
+            : `End & bill ${formatINR(info.charge?.total ?? 0)}`}
       </Button>
       {session.mode === "prepaid" && Number(session.billed_amount) > 0 && (
         <p className="-mt-3 text-center text-xs text-muted">
@@ -514,7 +543,7 @@ function ExtendForm({
   });
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-line p-3">
+    <div className="flex flex-col gap-3 rounded-xl border border-line bg-subtle/40 p-3">
       <Field label="Add time">
         <Select value={choice} onChange={(e) => setChoice(e.target.value)}>
           {packages.map((p) => (
@@ -539,12 +568,12 @@ function ExtendForm({
           type="checkbox"
           checked={collectNow}
           onChange={(e) => setCollectNow(e.target.checked)}
-          className="size-4 accent-current"
+          className="size-4"
         />
         Collect payment now
       </label>
       {collectNow && (
-        <PaymentFields total={bill.total} onChange={setPayments} />
+        <PaymentFields total={bill.total} onChange={setPayments} upi={data.settings.upi} note="Extra game time" />
       )}
       <ErrorText>{error}</ErrorText>
       <Button
@@ -582,14 +611,14 @@ function TransferForm({
   session: LiveSession;
   freeStations: FloorStation[];
   supabase: Supa;
-  onDone: () => Promise<void>;
+  onDone: (toStationId: string) => Promise<void>;
 }) {
   const [to, setTo] = useState(freeStations[0]?.id ?? "");
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-line p-3">
+    <div className="flex flex-col gap-3 rounded-xl border border-line bg-subtle/40 p-3">
       <Field label="Move this session to" hint="The timer and charges carry over.">
         <Select value={to} onChange={(e) => setTo(e.target.value)}>
           {freeStations.map((s) => (
@@ -608,7 +637,7 @@ function TransferForm({
             setError(undefined);
             const { error } = await supabase.rpc("transfer_session", { p_session_id: session.id, p_to_station_id: to });
             if (error) return setError(error.message);
-            await onDone();
+            await onDone(to);
           })
         }
       >
