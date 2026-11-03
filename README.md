@@ -64,6 +64,9 @@ Each file in `supabase/migrations` runs once, in order. After pulling new code, 
 - `20261110000001_early_end_policy.sql`: owner setting for fixed time stopped early (full booking or time played).
 - `20261111000001_memberships_no_direct_insert.sql`: people join a venue only by signing up as owner or with an
   invite code; owners can no longer add an account to their team directly through the API.
+- `20261112000001_no_card_payments.sql`: payments are cash or UPI only (old card payments stay on past bills).
+- `20261113000001_expenses.sql`: owner-only expenses (rent, bills, salaries linked to a team member), used for
+  net profit in Reports.
 
 ### Password reset emails
 "Forgot password" works with Supabase's default email template, as long as the person opens the link in the
@@ -87,7 +90,7 @@ npx supabase test db --linked
 ```
 src/app/(auth)        login, signup
 src/app/onboarding    create cafe + first branch
-src/app/(app)         dashboard (floor), stations, pricing, settings
+src/app/(app)         dashboard (floor), bills, players, reports, expenses, stations, pricing, settings
 src/lib/dal.ts        current user / org / role / branch (data access layer)
 src/lib/supabase      server + browser clients
 src/proxy.ts          session refresh + auth redirects (Next 16 "proxy", formerly middleware)

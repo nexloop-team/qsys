@@ -7,6 +7,7 @@ const PROTECTED_PREFIXES = [
   "/bills",
   "/players",
   "/reports",
+  "/expenses",
   "/stations",
   "/pricing",
   "/settings",

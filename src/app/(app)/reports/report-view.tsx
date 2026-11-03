@@ -7,7 +7,7 @@ import { Empty, Panel } from "@/components/card";
 import { cx } from "@/components/styles";
 import { ColumnChart, Heatmap, Legend, Meter, SegmentBar, Sparkline } from "./charts";
 
-type Method = "cash" | "upi" | "card";
+type Method = "cash" | "upi";
 
 export type Report = {
   revenue: number;
@@ -36,7 +36,6 @@ export type Insights = {
 const METHODS: { key: Method; label: string; color: string }[] = [
   { key: "upi", label: "UPI", color: "var(--series-1)" },
   { key: "cash", label: "Cash", color: "var(--series-2)" },
-  { key: "card", label: "Card", color: "var(--series-3)" },
 ];
 
 export type ReportRange = { key: string; label: string; days: number };
@@ -48,12 +47,15 @@ export function ReportView({
   from,
   r,
   x,
+  costs,
 }: {
   header: ReactNode;
   range: ReportRange;
   from: string;
   r: Report;
   x: Insights;
+  /** Expenses logged for this period and the one before it. */
+  costs: { total: number; previous: number };
 }) {
   const single = range.days === 1;
   const vsLabel = single ? "yesterday" : `previous ${range.days} days`;
@@ -90,6 +92,11 @@ export function ReportView({
   types.sort((a, b) => b.revenue - a.revenue || b.pct - a.pct);
   const typeRevenue = types.reduce((s, t) => s + t.revenue, 0);
 
+  // Net profit: revenue from bills minus expenses logged for the same days.
+  const net = Number(r.revenue) - costs.total;
+  const prevNet = Number(x.previous.revenue) - costs.previous;
+  const margin = Number(r.revenue) > 0 ? Math.round((net / Number(r.revenue)) * 100) : null;
+
   const collected = METHODS.reduce((s, m) => s + Number(r.by_method[m.key] ?? 0), 0);
   const quiet = Number(r.revenue) === 0 && r.sessions === 0;
 
@@ -119,11 +126,24 @@ export function ReportView({
             sub={x.avg_session_minutes ? `Average ${formatMinutes(Number(x.avg_session_minutes))} each` : undefined}
           />
           <Kpi
-            label="Average bill"
-            value={formatINR(x.avg_bill ?? 0)}
+            label="Net profit"
+            value={<span className={cx(net < 0 && "text-over")}>{formatINR(Math.round(net))}</span>}
             delta={
+              costs.total || costs.previous ? (
+                <Delta now={net} before={prevNet} vs={vsLabel} />
+              ) : (
+                <span>
+                  No expenses logged.{" "}
+                  <Link href="/expenses" className="font-medium text-accent-ink hover:underline">
+                    Add them
+                  </Link>
+                </span>
+              )
+            }
+            sub={
               <span>
-                {r.bills.toLocaleString("en-IN")} bill{r.bills === 1 ? "" : "s"} · {x.players.total.toLocaleString("en-IN")} player{x.players.total === 1 ? "" : "s"}
+                <span className="num">{formatINR(costs.total)}</span> expenses
+                {margin !== null && costs.total > 0 ? ` · ${margin}% margin` : ""}
               </span>
             }
           />
@@ -350,7 +370,8 @@ function Kpi({
 // Signed change vs the previous period. Up is good for revenue and sessions.
 function Delta({ now, before, vs }: { now: number; before: number; vs: string }) {
   if (!before) return <span>No data for {vs}</span>;
-  const pct = Math.round(((now - before) / before) * 100);
+  // abs() keeps the direction right when the previous figure was negative (a loss).
+  const pct = Math.round(((now - before) / Math.abs(before)) * 100);
   const Icon = pct > 0 ? ArrowUpRight : pct < 0 ? ArrowDownRight : Minus;
   return (
     <span className="inline-flex flex-wrap items-center gap-1">

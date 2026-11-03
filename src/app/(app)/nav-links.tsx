@@ -12,6 +12,7 @@ import {
   ReceiptText,
   Settings,
   Tags,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { Sheet } from "@/components/overlay";
@@ -30,7 +31,10 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   },
   {
     label: "Insights",
-    items: [{ href: "/reports", label: "Reports", icon: BarChart3 }],
+    items: [
+      { href: "/reports", label: "Reports", icon: BarChart3 },
+      { href: "/expenses", label: "Expenses", icon: Wallet },
+    ],
   },
   {
     label: "Setup",

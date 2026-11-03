@@ -47,9 +47,14 @@ async function Reports({ searchParams }: { searchParams: PageProps<"/reports">["
 
   const supabase = await createClient();
   const args = { p_branch_id: branch.id, p_from: from, p_to: to };
-  const [summary, insights] = await Promise.all([
+  const prevFrom = nextDay(from, -range.days);
+  const expensesBetween = (a: string, b: string) =>
+    supabase.from("expenses").select("amount").eq("branch_id", branch.id).gte("spent_on", a).lte("spent_on", b);
+  const [summary, insights, spent, spentBefore] = await Promise.all([
     supabase.rpc("report_summary", args),
     supabase.rpc("report_insights", args),
+    expensesBetween(from, to),
+    expensesBetween(prevFrom, nextDay(from, -1)),
   ]);
   const r = summary.data as Report | null;
   const x = insights.data as Insights | null;
@@ -97,5 +102,8 @@ async function Reports({ searchParams }: { searchParams: PageProps<"/reports">["
     );
   }
 
-  return <ReportView header={header} range={range} from={from} r={r} x={x} />;
+  const sum = (rows: { amount: number }[] | null) => (rows ?? []).reduce((t, e) => t + Number(e.amount), 0);
+  const costs = { total: sum(spent.data), previous: sum(spentBefore.data) };
+
+  return <ReportView header={header} range={range} from={from} r={r} x={x} costs={costs} />;
 }

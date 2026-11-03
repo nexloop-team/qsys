@@ -141,6 +141,23 @@ export type Database = {
         details: Json;
         created_at: Ts;
       }>;
+      expenses: Table<
+        {
+          id: string;
+          org_id: string;
+          branch_id: string;
+          category: E["expense_category"];
+          name: string;
+          amount: number;
+          spent_on: string;
+          staff_id: string | null;
+          note: string | null;
+          created_by: string | null;
+          created_at: Ts;
+          updated_at: Ts;
+        },
+        [Rel<"expenses_branch_id_org_id_fkey", ["branch_id", "org_id"], "branches", ["id", "org_id"]>]
+      >;
       customers: Table<{
         id: string;
         org_id: string;
@@ -338,6 +355,15 @@ export type Database = {
       session_mode: "open" | "prepaid";
       session_status: "running" | "paused" | "ended";
       payment_method: "cash" | "upi" | "card";
+      expense_category:
+        | "salary"
+        | "rent"
+        | "electricity"
+        | "internet"
+        | "maintenance"
+        | "supplies"
+        | "marketing"
+        | "other";
       leftover_policy: "keep_days" | "same_day" | "forfeit";
     };
     CompositeTypes: { [_ in never]: never };

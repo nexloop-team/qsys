@@ -25,6 +25,7 @@ const ENTITY: Record<string, string> = {
   packages: "time package",
   branch_settings: "settings",
   memberships: "team member",
+  expenses: "expense",
 };
 const VERB: Record<string, string> = { insert: "added", update: "changed", delete: "removed" };
 const HIDDEN_FIELDS = new Set(["updated_at", "created_at", "org_id", "branch_id", "id", "sort_order", "_label"]);

@@ -4,6 +4,7 @@ export type StationType = Enums<"station_type">;
 export type SessionMode = Enums<"session_mode">;
 export type MemberRole = Enums<"member_role">;
 export type StationStatus = Enums<"station_status">;
+export type ExpenseCategory = Enums<"expense_category">;
 
 export const STATION_TYPES: StationType[] = ["pc", "ps5", "xbox", "pool", "snooker", "other"];
 
@@ -53,3 +54,25 @@ export const ROLE_LABEL: Record<MemberRole, string> = {
 };
 
 export const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
+  "salary",
+  "rent",
+  "electricity",
+  "internet",
+  "maintenance",
+  "supplies",
+  "marketing",
+  "other",
+];
+
+export const EXPENSE_CATEGORY_LABEL: Record<ExpenseCategory, string> = {
+  salary: "Salary",
+  rent: "Rent",
+  electricity: "Electricity",
+  internet: "Internet",
+  maintenance: "Repairs & upkeep",
+  supplies: "Supplies & snacks",
+  marketing: "Marketing",
+  other: "Other",
+};

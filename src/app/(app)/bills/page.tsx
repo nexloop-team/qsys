@@ -18,6 +18,7 @@ export default function BillsPage(props: PageProps<"/bills">) {
   );
 }
 
+// "card" only appears on old bills; checkout offers cash and UPI.
 const METHOD_LABEL = { cash: "Cash", upi: "UPI", card: "Card" } as const;
 
 async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["searchParams"] }) {
@@ -49,7 +50,7 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
           <Stat label="Collected" value={formatINR(total)} />
           <Stat label="Bills" value={list.length} />
           <Stat label="Cash" value={formatINR(byMethod.cash ?? 0)} />
-          <Stat label="UPI + card" value={formatINR((byMethod.upi ?? 0) + (byMethod.card ?? 0))} />
+          <Stat label="UPI" value={formatINR(byMethod.upi ?? 0)} />
         </div>
       </Panel>
 
