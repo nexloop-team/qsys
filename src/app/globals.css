@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+/*
+  Neutral zinc canvas, no brand hue. Color carries meaning only:
+  free / in use / ending soon / overtime / paused. Edges, not shadows.
+*/
+:root {
+  --bg: #fafafa;
+  --panel: #ffffff;
+  --subtle: #f4f4f5;
+  --hover: #ececee;
+  --line: #e4e4e7;
+  --line-strong: #d4d4d8;
+  --fg: #18181b;
+  --fg-muted: #71717a;
+  --fg-faint: #a1a1aa;
+  --invert-bg: #18181b;
+  --invert-fg: #fafafa;
+
+  --free: #16a34a;
+  --busy: #0284c7;
+  --ending: #d97706;
+  --over: #dc2626;
+  --paused: #71717a;
+  --danger: #dc2626;
+  --ok: #16a34a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #09090b;
+    --panel: #111113;
+    --subtle: #18181b;
+    --hover: #1f1f23;
+    --line: #232327;
+    --line-strong: #2e2e33;
+    --fg: #f4f4f5;
+    --fg-muted: #a1a1aa;
+    --fg-faint: #63636b;
+    --invert-bg: #f4f4f5;
+    --invert-fg: #09090b;
+
+    --free: #22c55e;
+    --busy: #38bdf8;
+    --ending: #f59e0b;
+    --over: #f87171;
+    --paused: #a1a1aa;
+    --danger: #f87171;
+    --ok: #22c55e;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-subtle: var(--subtle);
+  --color-hover: var(--hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-faint: var(--fg-faint);
+  --color-invert: var(--invert-bg);
+  --color-invert-fg: var(--invert-fg);
+  --color-free: var(--free);
+  --color-busy: var(--busy);
+  --color-ending: var(--ending);
+  --color-over: var(--over);
+  --color-paused: var(--paused);
+  --color-danger: var(--danger);
+  --color-ok: var(--ok);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-feature-settings: "cv11", "ss01";
+}
+
+/* Numbers that tick (timers, money) must not jitter. */
+.num {
+  font-family: var(--font-geist-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.blink {
+  animation: pulse-ring 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .blink { animation: none; }
+}
