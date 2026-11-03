@@ -15,7 +15,7 @@ export default function LoginPage() {
       </Suspense>
       <p className="mt-6 text-sm text-muted">
         New here?{" "}
-        <Link href="/signup" className="font-medium text-fg underline underline-offset-4">
+        <Link href="/signup" className="font-medium text-accent-ink underline-offset-4 hover:underline">
           Create an account
         </Link>
       </p>

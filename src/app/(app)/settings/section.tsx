@@ -19,12 +19,12 @@ export function SettingsSection({
     <section className="mb-6">
       <div className="mb-2.5 flex items-end justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold">{title}</h2>
+          <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
           {description && <p className="mt-0.5 text-[13px] leading-relaxed text-muted">{description}</p>}
         </div>
         {action}
       </div>
-      <div className={flush ? "overflow-hidden rounded-lg border border-line bg-panel" : "rounded-lg border border-line bg-panel p-4"}>
+      <div className={flush ? "overflow-hidden rounded-xl border border-line bg-panel shadow-card" : "rounded-xl border border-line bg-panel p-4 shadow-card sm:p-5"}>
         {children}
       </div>
     </section>

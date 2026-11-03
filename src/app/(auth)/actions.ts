@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { firstIssue, type ActionState } from "@/lib/action-state";
+import { safeRedirectPath } from "@/lib/safe-path";
 
 const loginSchema = z.object({
   email: z.email("Enter a valid email."),
@@ -17,10 +18,6 @@ const signupSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters."),
 });
 
-// Only allow same-site relative redirects after login.
-function safeNext(next: string | undefined) {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-}
 
 export async function login(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
@@ -33,7 +30,7 @@ export async function login(_prev: ActionState, formData: FormData): Promise<Act
   });
   if (error) return { error: "Wrong email or password." };
 
-  redirect(safeNext(parsed.data.next));
+  redirect(safeRedirectPath(parsed.data.next, "/dashboard"));
 }
 
 export async function signup(_prev: ActionState, formData: FormData): Promise<ActionState> {

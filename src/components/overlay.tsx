@@ -24,11 +24,11 @@ export function Sheet({
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
-        <D.Overlay className="fixed inset-0 z-40 bg-black/40" />
+        <D.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
         <D.Content
           className={cx(
-            "fixed z-50 flex flex-col border-line bg-panel outline-none",
-            "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-xl border-t",
+            "fixed z-50 flex flex-col border-line bg-panel shadow-pop outline-none",
+            "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t",
             "md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:w-[440px] md:rounded-none md:border-t-0 md:border-l",
           )}
         >
@@ -41,7 +41,7 @@ export function Sheet({
                 <D.Description className="sr-only">Details</D.Description>
               )}
             </div>
-            <D.Close className="-mr-1.5 rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg" aria-label="Close">
+            <D.Close className="-mr-1.5 rounded-lg p-1.5 text-muted transition-colors hover:bg-hover hover:text-fg" aria-label="Close">
               <X className="size-4" />
             </D.Close>
           </header>
@@ -71,10 +71,10 @@ export function Modal({
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
-        <D.Overlay className="fixed inset-0 z-40 bg-black/50" />
+        <D.Overlay className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px]" />
         <D.Content
           className={cx(
-            "fixed left-1/2 top-1/2 z-50 max-h-[92dvh] w-[calc(100vw-24px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-line bg-panel outline-none",
+            "fixed left-1/2 top-1/2 z-50 max-h-[92dvh] w-[calc(100vw-24px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-line bg-panel shadow-pop outline-none",
             wide ? "max-w-2xl" : "max-w-md",
           )}
         >
@@ -87,7 +87,7 @@ export function Modal({
                 <D.Description className="sr-only">Dialog</D.Description>
               )}
             </div>
-            <D.Close className="-mr-1.5 rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg" aria-label="Close">
+            <D.Close className="-mr-1.5 rounded-lg p-1.5 text-muted transition-colors hover:bg-hover hover:text-fg" aria-label="Close">
               <X className="size-4" />
             </D.Close>
           </header>

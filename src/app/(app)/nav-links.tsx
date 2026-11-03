@@ -62,22 +62,31 @@ function SidebarList({ pathname }: { pathname: string }) {
     <nav className="flex flex-col gap-5 px-2.5">
       {GROUPS.map((group) => (
         <div key={group.label}>
-          <p className="mb-1 px-2.5 text-[11px] font-medium uppercase tracking-wider text-faint">{group.label}</p>
+          <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">{group.label}</p>
           <ul className="flex flex-col gap-px">
-            {group.items.map(({ href, label, icon: Icon }) => (
-              <li key={href}>
-                <Link
-                  href={href}
-                  className={cx(
-                    "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium transition-colors",
-                    isActive(pathname, href) ? "bg-hover text-fg" : "text-muted hover:bg-hover hover:text-fg",
-                  )}
-                >
-                  <Icon className="size-4" strokeWidth={1.75} />
-                  {label}
-                </Link>
-              </li>
-            ))}
+            {group.items.map(({ href, label, icon: Icon }) => {
+              const active = isActive(pathname, href);
+              return (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    aria-current={active ? "page" : undefined}
+                    className={cx(
+                      "group flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors",
+                      active
+                        ? "bg-accent-soft text-fg"
+                        : "text-muted hover:bg-hover hover:text-fg",
+                    )}
+                  >
+                    <Icon
+                      className={cx("size-4", active ? "text-accent-ink" : "text-faint group-hover:text-muted")}
+                      strokeWidth={1.9}
+                    />
+                    {label}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ))}
@@ -104,12 +113,13 @@ function MobileList({ pathname }: { pathname: string }) {
           <li key={href}>
             <Link
               href={href}
+              aria-current={isActive(pathname, href) ? "page" : undefined}
               className={cx(
                 "flex flex-col items-center gap-1 py-2 text-[11px] font-medium",
-                isActive(pathname, href) ? "text-fg" : "text-muted",
+                isActive(pathname, href) ? "text-accent-ink" : "text-muted",
               )}
             >
-              <Icon className="size-5" strokeWidth={1.75} />
+              <Icon className="size-5" strokeWidth={1.9} />
               {label}
             </Link>
           </li>
@@ -120,10 +130,10 @@ function MobileList({ pathname }: { pathname: string }) {
             onClick={() => setOpen(true)}
             className={cx(
               "flex w-full flex-col items-center gap-1 py-2 text-[11px] font-medium",
-              inMore ? "text-fg" : "text-muted",
+              inMore ? "text-accent-ink" : "text-muted",
             )}
           >
-            <Menu className="size-5" strokeWidth={1.75} />
+            <Menu className="size-5" strokeWidth={1.9} />
             More
           </button>
         </li>

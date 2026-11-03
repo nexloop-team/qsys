@@ -12,7 +12,7 @@ export default function ForgotPasswordPage() {
       <ForgotForm />
       <p className="mt-6 text-sm text-muted">
         Remembered it?{" "}
-        <Link href="/login" className="font-medium text-fg underline underline-offset-4">
+        <Link href="/login" className="font-medium text-accent-ink underline-offset-4 hover:underline">
           Log in
         </Link>
       </p>

@@ -1,21 +1,29 @@
 @import "tailwindcss";
 
 /*
-  Neutral zinc canvas, no brand hue. Color carries meaning only:
-  free / in use / ending soon / overtime / paused. Edges, not shadows.
+  Two themes, one token set. The inline script in app/layout.tsx stamps
+  <html data-theme="light|dark"> before first paint; without JS the OS setting
+  applies via the media query. Status colors (free / in use / ending / overtime /
+  paused) carry meaning; the indigo accent marks actions, focus and charts.
 */
 :root {
-  --bg: #fafafa;
+  color-scheme: light;
+  --bg: #f6f7f9;
   --panel: #ffffff;
-  --subtle: #f4f4f5;
-  --hover: #ececee;
-  --line: #e4e4e7;
-  --line-strong: #d4d4d8;
-  --fg: #18181b;
-  --fg-muted: #71717a;
-  --fg-faint: #a1a1aa;
-  --invert-bg: #18181b;
-  --invert-fg: #fafafa;
+  --subtle: #f1f2f5;
+  --hover: #eceef2;
+  --line: #e5e7eb;
+  --line-strong: #d5d8de;
+  --fg: #0f1115;
+  --fg-muted: #5f6470;
+  --fg-faint: #9aa0ab;
+  --invert-bg: #0f1115;
+  --invert-fg: #f6f7f9;
+
+  --accent: #4f46e5;
+  --accent-fg: #ffffff;
+  --accent-ink: #4338ca;
+  --accent-soft: color-mix(in oklab, #4f46e5 9%, transparent);
 
   --free: #16a34a;
   --busy: #0284c7;
@@ -24,21 +32,75 @@
   --paused: #71717a;
   --danger: #dc2626;
   --ok: #16a34a;
+
+  /* Chart series: validated categorical slots 1-3 (blue, orange, aqua). */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --chart-ink: #4f46e5;
+
+  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-md: 0 1px 2px rgb(16 24 40 / 0.04), 0 4px 12px -2px rgb(16 24 40 / 0.06);
+  --shadow-lg: 0 12px 32px -8px rgb(16 24 40 / 0.18), 0 2px 6px rgb(16 24 40 / 0.06);
+}
+
+/* Dark: written twice so the toggle (data-theme) and the OS setting (no JS) agree. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0b0e;
+  --panel: #111217;
+  --subtle: #17191f;
+  --hover: #1d1f26;
+  --line: #23252d;
+  --line-strong: #30333c;
+  --fg: #ededf0;
+  --fg-muted: #9ba1ad;
+  --fg-faint: #636975;
+  --invert-bg: #ededf0;
+  --invert-fg: #0a0b0e;
+
+  --accent: #5b5fe9;
+  --accent-fg: #ffffff;
+  --accent-ink: #a5a8ff;
+  --accent-soft: color-mix(in oklab, #7378f0 16%, transparent);
+
+  --free: #22c55e;
+  --busy: #38bdf8;
+  --ending: #f59e0b;
+  --over: #f87171;
+  --paused: #a1a1aa;
+  --danger: #f87171;
+  --ok: #22c55e;
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --chart-ink: #7378f0;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 16px 40px -8px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.04);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #09090b;
-    --panel: #111113;
-    --subtle: #18181b;
-    --hover: #1f1f23;
-    --line: #232327;
-    --line-strong: #2e2e33;
-    --fg: #f4f4f5;
-    --fg-muted: #a1a1aa;
-    --fg-faint: #63636b;
-    --invert-bg: #f4f4f5;
-    --invert-fg: #09090b;
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --bg: #0a0b0e;
+    --panel: #111217;
+    --subtle: #17191f;
+    --hover: #1d1f26;
+    --line: #23252d;
+    --line-strong: #30333c;
+    --fg: #ededf0;
+    --fg-muted: #9ba1ad;
+    --fg-faint: #636975;
+    --invert-bg: #ededf0;
+    --invert-fg: #0a0b0e;
+
+    --accent: #5b5fe9;
+    --accent-fg: #ffffff;
+    --accent-ink: #a5a8ff;
+    --accent-soft: color-mix(in oklab, #7378f0 16%, transparent);
 
     --free: #22c55e;
     --busy: #38bdf8;
@@ -47,8 +109,20 @@
     --paused: #a1a1aa;
     --danger: #f87171;
     --ok: #22c55e;
+
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --chart-ink: #7378f0;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 16px 40px -8px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.04);
   }
 }
+
+/* `dark:` utilities follow the toggle, not only the OS. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme inline {
   --color-bg: var(--bg);
@@ -62,6 +136,10 @@
   --color-faint: var(--fg-faint);
   --color-invert: var(--invert-bg);
   --color-invert-fg: var(--invert-fg);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
   --color-free: var(--free);
   --color-busy: var(--busy);
   --color-ending: var(--ending);
@@ -69,18 +147,30 @@
   --color-paused: var(--paused);
   --color-danger: var(--danger);
   --color-ok: var(--ok);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-chart: var(--chart-ink);
+  --shadow-card: var(--shadow-md);
+  --shadow-xs: var(--shadow-sm);
+  --shadow-pop: var(--shadow-lg);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-html {
-  color-scheme: light dark;
 }
 
 body {
   background: var(--bg);
   color: var(--fg);
   font-feature-settings: "cv11", "ss01";
+}
+
+/* Smooth the switch, but never animate the first paint or layout. */
+html.theme-transition,
+html.theme-transition * {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease !important;
 }
 
 /* Numbers that tick (timers, money) must not jitter. */
@@ -91,8 +181,12 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 28%, transparent);
 }
 
 @keyframes pulse-ring {
@@ -104,4 +198,6 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .blink { animation: none; }
+  html.theme-transition,
+  html.theme-transition * { transition: none !important; }
 }

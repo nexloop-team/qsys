@@ -6,9 +6,12 @@ import { nextDay, todayIn, zonedStart } from "@/lib/format";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const METHOD = { cash: "Cash", upi: "UPI", card: "Card" } as const;
 
+// Text typed at the counter (player names) must not run as a spreadsheet formula,
+// so text starting with = + - @ or a tab/CR is prefixed with a quote. Numbers pass through.
 function csvCell(v: string | number | null | undefined) {
-  const s = v == null ? "" : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  let s = v == null ? "" : String(v);
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 // Bills for a date range as CSV (for the accountant / GST filing). Owner only.

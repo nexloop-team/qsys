@@ -62,6 +62,8 @@ Each file in `supabase/migrations` runs once, in order. After pulling new code, 
 - `20261108000001_two_roles.sql`: only Owner and Staff (managers become staff); a venue always keeps one owner.
 - `20261109000001_fix_upi_check_gst_default.sql`: fixes saving a UPI ID; "prices include GST" defaults to off.
 - `20261110000001_early_end_policy.sql`: owner setting for fixed time stopped early (full booking or time played).
+- `20261111000001_memberships_no_direct_insert.sql`: people join a venue only by signing up as owner or with an
+  invite code; owners can no longer add an account to their team directly through the API.
 
 ### Password reset emails
 "Forgot password" works with Supabase's default email template, as long as the person opens the link in the

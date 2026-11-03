@@ -12,10 +12,14 @@ export async function AccountMenu() {
   const initials = (user.fullName || user.email).slice(0, 1).toUpperCase();
 
   return (
-    <div className="flex items-center gap-2.5 rounded-md px-1.5 py-1">
-      <span className="grid size-7 shrink-0 place-items-center rounded-full bg-subtle text-xs font-semibold">
+    <div className="flex items-center gap-2.5 rounded-lg px-1.5 py-1">
+      <Link
+        href="/settings/account"
+        title="Your account"
+        className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-semibold text-accent-ink ring-1 ring-accent/20"
+      >
         {initials}
-      </span>
+      </Link>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-medium">{user.fullName || user.email}</p>
         <p className="truncate text-[11px] text-muted">
@@ -27,7 +31,7 @@ export async function AccountMenu() {
           type="submit"
           title="Log out"
           aria-label="Log out"
-          className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg"
+          className="rounded-lg p-1.5 text-muted transition-colors hover:bg-hover hover:text-fg"
         >
           <LogOut className="size-4" strokeWidth={1.75} />
         </button>
@@ -53,10 +57,12 @@ export async function TopbarStatus() {
     <div className="ml-auto flex items-center gap-2">
       <Link
         href="/bills"
-        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-strong px-2 text-xs font-medium hover:bg-hover"
+        title="Collected today"
+        className="inline-flex h-8 items-center gap-2 rounded-lg border border-line bg-panel px-2.5 text-xs font-medium shadow-xs transition-colors hover:bg-hover"
       >
+        <span className="size-1.5 rounded-full bg-free" aria-hidden />
         <span className="text-muted">Today</span>
-        <span className="num">{formatINR(collected)}</span>
+        <span className="num text-[13px]">{formatINR(collected)}</span>
       </Link>
       <BranchSwitcher branches={branches} activeId={branch.id} />
     </div>

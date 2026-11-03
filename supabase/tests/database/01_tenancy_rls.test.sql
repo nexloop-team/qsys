@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(18);
 
 -- Users: A owns org A, B owns org B, S is staff in org A.
 insert into auth.users (id, email, raw_user_meta_data) values
@@ -35,9 +35,15 @@ select throws_ok(
      select org_id, id, 'PC dup', 'pc', 70 from public.branches $$,
   '23505', null, 'only one active plan per type and tier');
 
--- Add S as staff in org A (owner can manage memberships).
-insert into public.memberships (org_id, user_id, role)
-  select id, '00000000-0000-0000-0000-00000000000c', 'staff' from public.orgs;
+-- Owners can't add people directly; S joins org A with an invite code.
+select throws_ok(
+  $$ insert into public.memberships (org_id, user_id, role)
+     select id, '00000000-0000-0000-0000-00000000000c', 'staff' from public.orgs $$,
+  '42501', null, 'owner cannot insert memberships directly');
+select set_config('test.invite', public.create_invite((select id from public.orgs), 'staff'), true);
+reset role;
+select pg_temp.login('00000000-0000-0000-0000-00000000000c');
+select lives_ok($$ select public.accept_invite(current_setting('test.invite')) $$, 'staff S joins with the invite');
 
 -- Owner B onboards and must not see org A.
 reset role;

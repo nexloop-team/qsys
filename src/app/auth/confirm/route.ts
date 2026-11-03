@@ -1,6 +1,7 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { safeRedirectPath } from "@/lib/safe-path";
 
 // Target of email links (sign-up confirmation, password reset). Handles both link styles:
 //  - token_hash links:  {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email|recovery&next=/...
@@ -10,8 +11,7 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
   const code = searchParams.get("code");
-  const nextParam = searchParams.get("next") ?? "/onboarding";
-  const next = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/onboarding";
+  const next = safeRedirectPath(searchParams.get("next"), "/onboarding");
 
   const supabase = await createClient();
   if (tokenHash && type) {

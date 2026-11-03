@@ -31,10 +31,11 @@ function TabList({ pathname }: { pathname: string }) {
             <li key={t.href}>
               <Link
                 href={t.href}
+                aria-current={active ? "page" : undefined}
                 className={cx(
-                  "block whitespace-nowrap px-3 py-2 text-[13px] font-medium md:rounded-md",
+                  "block whitespace-nowrap px-3 py-2 text-[13px] font-medium transition-colors md:rounded-lg",
                   active
-                    ? "border-b-2 border-fg text-fg md:border-b-0 md:bg-hover"
+                    ? "border-b-2 border-accent text-fg md:border-b-0 md:bg-accent-soft"
                     : "border-b-2 border-transparent text-muted hover:text-fg md:border-b-0 md:hover:bg-hover",
                 )}
               >

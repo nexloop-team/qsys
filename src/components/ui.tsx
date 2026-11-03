@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
-import { Loader2 } from "lucide-react";
+import { CircleAlert, CircleCheck, Loader2 } from "lucide-react";
 import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
@@ -39,7 +39,7 @@ export function SubmitButton({
 }
 
 const FIELD =
-  "h-9 w-full rounded-md border border-line-strong bg-panel px-3 text-sm outline-none transition-colors placeholder:text-faint focus:border-fg disabled:opacity-60";
+  "h-9 w-full rounded-lg border border-line-strong bg-panel px-3 text-sm shadow-xs outline-none transition-[border-color,box-shadow] placeholder:text-faint hover:border-faint/70 focus:border-accent focus:ring-3 focus:ring-accent/15 disabled:opacity-60 aria-invalid:border-danger";
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cx(FIELD, className)} {...props} />;
@@ -74,14 +74,24 @@ export function Field({
 }
 
 export function FormMessage({ state }: { state: { error?: string; ok?: string } | null }) {
-  if (state?.error) return <p className="text-sm text-danger">{state.error}</p>;
-  if (state?.ok) return <p className="text-sm text-ok">{state.ok}</p>;
+  if (state?.error)
+    return (
+      <p role="alert" className="flex items-center gap-1.5 text-sm text-danger">
+        <CircleAlert className="size-4 shrink-0" /> {state.error}
+      </p>
+    );
+  if (state?.ok)
+    return (
+      <p role="status" className="flex items-center gap-1.5 text-sm text-ok">
+        <CircleCheck className="size-4 shrink-0" /> {state.ok}
+      </p>
+    );
   return null;
 }
 
 export function ErrorText({ children }: { children?: ReactNode }) {
   if (!children) return null;
-  return <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{children}</p>;
+  return <p className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{children}</p>;
 }
 
 // Two-to-four option toggle (payment mode, method, date range).
@@ -99,7 +109,7 @@ export function Segmented<T extends string>({
   name?: string;
 }) {
   return (
-    <div role="radiogroup" className={cx("inline-flex rounded-md border border-line-strong bg-subtle p-0.5", className)}>
+    <div role="radiogroup" className={cx("inline-flex rounded-lg border border-line bg-subtle p-0.5", className)}>
       {name && <input type="hidden" name={name} value={value} />}
       {options.map((o) => (
         <button
@@ -110,8 +120,10 @@ export function Segmented<T extends string>({
           disabled={o.disabled}
           onClick={() => onChange(o.value)}
           className={cx(
-            "flex-1 rounded-[5px] px-3 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-40 [&_svg]:size-4",
-            value === o.value ? "bg-panel text-fg shadow-[0_0_0_1px_var(--line-strong)]" : "text-muted hover:text-fg",
+            "flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-40 [&_svg]:size-4",
+            value === o.value
+              ? "bg-panel text-fg shadow-[0_0_0_1px_var(--line),0_1px_2px_rgb(16_24_40/0.06)]"
+              : "text-muted hover:text-fg",
           )}
         >
           <span className="inline-flex items-center justify-center gap-1.5">{o.label}</span>
