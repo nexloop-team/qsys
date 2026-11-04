@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Contact } from "lucide-react";
+import { ChevronLeft, ChevronRight, Contact } from "lucide-react";
 import { getAppContext, isOwner } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateTime, formatINR } from "@/lib/format";
 import { Empty, PageHeader, PageSkeleton, Panel } from "@/components/card";
+import { buttonClass } from "@/components/styles";
 import { AddPlayerButton, EditPlayerButton, PlayerSearch } from "./player-forms";
 
 export const metadata: Metadata = { title: "Players" };
@@ -22,13 +23,25 @@ function formatPhone(p: string) {
   return `${p.slice(0, 5)} ${p.slice(5)}`;
 }
 
+const PAGE_SIZE = 50;
+
 async function Players({ searchParams }: { searchParams: PageProps<"/players">["searchParams"] }) {
   const { org, role, branch } = await getAppContext();
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.slice(0, 40) : "";
+  const page = Math.max(1, Math.floor(Number(sp.page) || 1));
 
   const supabase = await createClient();
-  const { data: players, error } = await supabase.rpc("list_customers", { p_org_id: org.id, p_search: q || undefined });
+  const { data: players, error } = await supabase.rpc("list_customers", {
+    p_org_id: org.id,
+    p_search: q || undefined,
+    p_limit: PAGE_SIZE,
+    p_offset: (page - 1) * PAGE_SIZE,
+  });
+  const total = Number(players?.[0]?.total_count ?? 0);
+  const first = (page - 1) * PAGE_SIZE + 1;
+  const last = first + (players?.length ?? 0) - 1;
+  const pageHref = (n: number) => `/players?${new URLSearchParams({ ...(q ? { q } : {}), page: String(n) })}`;
   const editable = isOwner(role);
 
   return (
@@ -87,6 +100,27 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {total > 0 && (
+          <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5 text-xs text-muted">
+            <span className="num">
+              {first}–{last} of {total.toLocaleString("en-IN")} player{total === 1 ? "" : "s"}
+            </span>
+            {total > PAGE_SIZE && (
+              <span className="flex items-center gap-1.5">
+                {page > 1 ? (
+                  <Link href={pageHref(page - 1)} className={buttonClass("secondary", "sm")}>
+                    <ChevronLeft /> Previous
+                  </Link>
+                ) : null}
+                {last < total ? (
+                  <Link href={pageHref(page + 1)} className={buttonClass("secondary", "sm")}>
+                    Next <ChevronRight />
+                  </Link>
+                ) : null}
+              </span>
+            )}
           </div>
         )}
       </Panel>

@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ReceiptIndianRupee } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, ReceiptIndianRupee, Repeat } from "lucide-react";
 import { EXPENSE_CATEGORY_LABEL, type ExpenseCategory } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
 import { Empty, Metric, PageHeader, Panel } from "@/components/card";
-import { AddExpenseButton, DeleteExpenseButton, type TeamMember } from "./expense-forms";
+import { AddExpenseButton, DeleteExpenseButton, EditExpenseButton, type TeamMember } from "./expense-forms";
 import { CATEGORY_ICON } from "./category-icons";
 
 export type ExpenseRow = {
@@ -14,6 +14,17 @@ export type ExpenseRow = {
   spent_on: string;
   staff_id: string | null;
   note: string | null;
+  repeats_monthly: boolean;
+};
+
+/** A monthly cost logged in an earlier month but not yet in this one. */
+export type DueExpense = {
+  key: string;
+  category: ExpenseCategory;
+  name: string;
+  amount: number;
+  staff_id: string | null;
+  lastPaid: string;
 };
 
 // Pure view for /expenses: a month of spending against that month's revenue.
@@ -26,6 +37,7 @@ export function ExpensesView({
   revenue,
   expenses,
   team,
+  due = [],
 }: {
   branchName: string;
   month: string; // YYYY-MM
@@ -35,6 +47,7 @@ export function ExpensesView({
   revenue: number;
   expenses: ExpenseRow[];
   team: TeamMember[];
+  due?: DueExpense[];
 }) {
   const total = expenses.reduce((s, e) => s + Number(e.amount), 0);
   const salaries = expenses.filter((e) => e.category === "salary").reduce((s, e) => s + Number(e.amount), 0);
@@ -102,6 +115,52 @@ export function ExpensesView({
             sub={margin === null ? "No revenue yet" : `${margin}% margin`}
           />
         </div>
+
+        {due.length > 0 && (
+          <Panel
+            title={
+              <span className="flex items-center gap-2">
+                <CalendarClock className="size-4 text-ending" /> Due this month
+                <span className="num rounded-full bg-ending/12 px-1.5 text-xs text-ending">{due.length}</span>
+              </span>
+            }
+            description={`Monthly costs not logged yet · ${formatINR(due.reduce((t, d) => t + d.amount, 0))} in total`}
+            flush
+          >
+            <ul className="divide-y divide-line">
+              {due.map((d) => {
+                const Icon = CATEGORY_ICON[d.category];
+                return (
+                  <li key={d.key} className="flex items-center gap-3 px-4 py-3">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-ending/30 bg-ending/8 text-ending">
+                      <Icon className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{d.name}</span>
+                      <span className="block truncate text-xs text-muted">
+                        {EXPENSE_CATEGORY_LABEL[d.category]} · last {formatINR(d.amount)} on {dayLabel(d.lastPaid)}
+                      </span>
+                    </span>
+                    <AddExpenseButton
+                      team={team}
+                      today={today}
+                      preset={{
+                        category: d.category,
+                        staffId: d.staff_id ?? undefined,
+                        amount: d.amount,
+                        description: d.name,
+                        repeats: true,
+                      }}
+                      label="Log"
+                      variant="secondary"
+                      size="sm"
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </Panel>
+        )}
 
         <div className="grid gap-5 lg:grid-cols-[1fr_1.6fr]">
           <div className="flex flex-col gap-5">
@@ -195,14 +254,22 @@ export function ExpensesView({
                         <Icon className="size-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{e.name}</span>
+                        <span className="flex items-center gap-1.5 truncate text-sm font-medium">
+                          {e.name}
+                          {e.repeats_monthly && (
+                            <Repeat className="size-3 shrink-0 text-faint" aria-label="Repeats monthly" />
+                          )}
+                        </span>
                         <span className="block truncate text-xs text-muted">
                           {EXPENSE_CATEGORY_LABEL[e.category]} · {dayLabel(e.spent_on)}
                           {e.note ? ` · ${e.note}` : ""}
                         </span>
                       </span>
                       <span className="num text-sm font-semibold">{formatINR(e.amount)}</span>
-                      <DeleteExpenseButton id={e.id} name={e.name} />
+                      <span className="flex items-center">
+                        <EditExpenseButton expense={e} team={team} today={today} />
+                        <DeleteExpenseButton id={e.id} name={e.name} />
+                      </span>
                     </li>
                   );
                 })}

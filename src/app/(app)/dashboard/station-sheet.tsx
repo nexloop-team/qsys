@@ -409,11 +409,47 @@ function LiveView({
             </dd>
           </>
         )}
-        {session.players > 1 && (
+        {MULTIPLAYER.has(station.type) ? (
           <>
-            <dt className="text-muted">Players</dt>
-            <dd>{session.players}</dd>
+            <dt className="self-center text-muted">{CONSOLES.has(station.type) ? "Controllers" : "Players"}</dt>
+            <dd className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={pending || session.players <= 1}
+                aria-label="Fewer players"
+                onClick={() => run(() => supabase.rpc("set_session_players", { p_session_id: session.id, p_players: session.players - 1 }))}
+              >
+                −
+              </Button>
+              <span className="num inline-flex w-8 items-center justify-center gap-1">
+                <Users className="size-3.5 text-muted" />
+                {session.players}
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={pending || session.players >= 16}
+                aria-label="More players"
+                onClick={() => run(() => supabase.rpc("set_session_players", { p_session_id: session.id, p_players: session.players + 1 }))}
+              >
+                +
+              </Button>
+              {Number(plan.extra_player_per_hour) > 0 && (
+                <span className="basis-full text-xs text-muted">
+                  {plan.included_players} included, +{formatINR(plan.extra_player_per_hour)}/hr each extra, charged for the
+                  whole session.
+                </span>
+              )}
+            </dd>
           </>
+        ) : (
+          session.players > 1 && (
+            <>
+              <dt className="text-muted">Players</dt>
+              <dd>{session.players}</dd>
+            </>
+          )
         )}
         {session.status === "paused" && (
           <>

@@ -67,6 +67,8 @@ Each file in `supabase/migrations` runs once, in order. After pulling new code, 
 - `20261112000001_no_card_payments.sql`: payments are cash or UPI only (old card payments stay on past bills).
 - `20261113000001_expenses.sql`: owner-only expenses (rent, bills, salaries linked to a team member), used for
   net profit in Reports.
+- `20261114000001_gap_fixes.sql`: players list paging, exact player totals, monthly repeating expenses,
+  changing the player count on a live session.
 
 ### Password reset emails
 "Forgot password" works with Supabase's default email template, as long as the person opens the link in the
@@ -78,7 +80,8 @@ After that, set your **UPI ID** under Settings → Billing → UPI payments so c
 
 ## Database tests
 
-pgTAP tests live in `supabase/tests/database`. They run inside a transaction and roll back,
+pgTAP tests live in `supabase/tests/database`. CI (`.github/workflows/ci.yml`) runs them on a throwaway
+local Supabase for every push to `main` and every pull request, along with lint, type-check and build. They run inside a transaction and roll back,
 but they do insert test users, so run them against a **development** project, not production:
 
 ```

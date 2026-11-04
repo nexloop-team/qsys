@@ -9,6 +9,7 @@ import { firstIssue, friendlyDbError, type ActionState } from "@/lib/action-stat
 
 const expenseSchema = z
   .object({
+    id: z.uuid().optional().or(z.literal("").transform(() => undefined)),
     category: z.enum(EXPENSE_CATEGORIES, "Pick a category."),
     amount: z.coerce
       .number("Enter the amount.")
@@ -26,15 +27,19 @@ const expenseSchema = z
       .trim()
       .max(200, "Keep the note under 200 characters.")
       .transform((v) => v || null),
+    repeats_monthly: z.boolean(),
   })
   .refine((v) => v.category !== "salary" || v.staff_id, {
     message: "Pick who the salary was paid to.",
     path: ["staff_id"],
   });
 
-export async function addExpense(_prev: ActionState, formData: FormData): Promise<ActionState> {
+// Adds an expense, or updates it when the form carries an id.
+export async function saveExpense(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { org, branch } = await requireRole(["owner"]);
   const parsed = expenseSchema.safeParse({
+    id: formData.get("id") ?? "",
+    repeats_monthly: formData.get("repeats_monthly") === "on",
     category: formData.get("category") ?? "",
     amount: formData.get("amount") ?? "",
     spent_on: formData.get("spent_on") ?? "",
@@ -43,7 +48,7 @@ export async function addExpense(_prev: ActionState, formData: FormData): Promis
     note: formData.get("note") ?? "",
   });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
-  const { category, amount, spent_on, description, note } = parsed.data;
+  const { id, category, amount, spent_on, description, note, repeats_monthly } = parsed.data;
   const staffId = category === "salary" ? parsed.data.staff_id : null;
 
   const supabase = await createClient();
@@ -62,20 +67,14 @@ export async function addExpense(_prev: ActionState, formData: FormData): Promis
     name = description || `Salary · ${profile?.full_name || "Team member"}`;
   }
 
-  const { error } = await supabase.from("expenses").insert({
-    org_id: org.id,
-    branch_id: branch.id,
-    category,
-    name: name.slice(0, 80),
-    amount,
-    spent_on,
-    staff_id: staffId,
-    note,
-  });
+  const row = { category, name: name.slice(0, 80), amount, spent_on, staff_id: staffId, note, repeats_monthly };
+  const { error } = id
+    ? await supabase.from("expenses").update(row).eq("id", id)
+    : await supabase.from("expenses").insert({ ...row, org_id: org.id, branch_id: branch.id });
   if (error) return { error: friendlyDbError(error) };
 
   refresh();
-  return { ok: "Expense saved." };
+  return { ok: id ? "Expense updated." : "Expense saved." };
 }
 
 export async function deleteExpense(id: string): Promise<ActionState> {

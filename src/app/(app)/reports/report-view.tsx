@@ -58,7 +58,8 @@ export function ReportView({
   costs: { total: number; previous: number };
 }) {
   const single = range.days === 1;
-  const vsLabel = single ? "yesterday" : `previous ${range.days} days`;
+  const isToday = range.key === "today";
+  const vsLabel = single ? (isToday ? "yesterday" : "the day before") : `previous ${range.days} days`;
 
   // Revenue per day, with a slot for every day of the range.
   const days = Array.from({ length: range.days }, (_, i) => nextDay(from, i));
@@ -151,7 +152,7 @@ export function ReportView({
 
         {quiet ? (
           <Panel>
-            <Empty icon={<BarChart3 />} title={single ? "No activity yet today" : "No activity in this period"}>
+            <Empty icon={<BarChart3 />} title={isToday ? "No activity yet today" : single ? "No activity on this day" : "No activity in this period"}>
               Numbers appear here as soon as a session is billed. Try a longer period above.
             </Empty>
           </Panel>
@@ -160,7 +161,7 @@ export function ReportView({
             {single ? (
               <Panel
                 title="Sessions by hour"
-                description="When today's sessions started. Plan staff and happy hours around the peaks."
+                description={`When ${isToday ? "today's" : "the day's"} sessions started. Plan staff and happy hours around the peaks.`}
               >
                 <ColumnChart
                   bars={hourly.map((n, h) => ({
@@ -170,7 +171,7 @@ export function ReportView({
                     display: `${n} session${n === 1 ? "" : "s"}`,
                   }))}
                   labelEvery={3}
-                  empty="No sessions started yet today."
+                  empty={isToday ? "No sessions started yet today." : "No sessions started this day."}
                 />
               </Panel>
             ) : (
@@ -186,7 +187,7 @@ export function ReportView({
                     label: dayLabel(d.day),
                     display: formatINR(d.total),
                   }))}
-                  labelEvery={range.days > 10 ? 5 : 1}
+                  labelEvery={Math.max(1, Math.ceil(range.days / 10))}
                   axisPrefix="₹"
                 />
               </Panel>
@@ -455,8 +456,8 @@ function dayLabel(day: string, weekday = false) {
   });
 }
 
-export function rangeText(from: string, to: string, days: number) {
-  if (days === 1) return `Today, ${dayLabel(to, true)}`;
+export function rangeText(from: string, to: string, days: number, today?: string) {
+  if (days === 1) return to === today ? `Today, ${dayLabel(to, true)}` : dayLabel(to, true);
   return `${dayLabel(from)} – ${dayLabel(to)}`;
 }
 

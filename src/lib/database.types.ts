@@ -152,6 +152,7 @@ export type Database = {
           spent_on: string;
           staff_id: string | null;
           note: string | null;
+          repeats_monthly: boolean;
           created_by: string | null;
           created_at: Ts;
           updated_at: Ts;
@@ -316,7 +317,6 @@ export type Database = {
         Returns: undefined;
       };
       transfer_session: { Args: { p_session_id: string; p_to_station_id: string }; Returns: undefined };
-      preview_charge: { Args: { p_session_id: string }; Returns: Json };
       end_session: { Args: { p_session_id: string }; Returns: Json };
       checkout: {
         Args: {
@@ -331,7 +331,7 @@ export type Database = {
       write_off_session: { Args: { p_session_id: string; p_reason: string }; Returns: undefined };
       create_customer: { Args: { p_org_id: string; p_phone: string; p_name: string }; Returns: string };
       list_customers: {
-        Args: { p_org_id: string; p_search?: string; p_limit?: number };
+        Args: { p_org_id: string; p_search?: string; p_limit?: number; p_offset?: number };
         Returns: {
           id: string;
           name: string;
@@ -340,6 +340,7 @@ export type Database = {
           visits: number;
           total_spent: number;
           last_visit: string | null;
+          total_count: number;
         }[];
       };
       create_invite: { Args: { p_org_id: string; p_role: E["member_role"] }; Returns: string };
@@ -347,6 +348,8 @@ export type Database = {
       report_summary: { Args: { p_branch_id: string; p_from: string; p_to: string }; Returns: Json };
       report_insights: { Args: { p_branch_id: string; p_from: string; p_to: string }; Returns: Json };
       save_station_layout: { Args: { p_branch_id: string; p_layout: Json }; Returns: undefined };
+      player_summary: { Args: { p_customer_id: string }; Returns: Json };
+      set_session_players: { Args: { p_session_id: string; p_players: number }; Returns: undefined };
     };
     Enums: {
       member_role: "owner" | "manager" | "staff";

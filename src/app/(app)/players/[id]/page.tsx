@@ -12,6 +12,8 @@ import { buttonClass } from "@/components/styles";
 
 export const metadata: Metadata = { title: "Player" };
 
+const HISTORY = 100;
+
 export default function PlayerPage(props: PageProps<"/players/[id]">) {
   return (
     <Suspense fallback={<PageSkeleton />}>
@@ -38,7 +40,7 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
   const { branch } = await getAppContext();
   const supabase = await createClient();
 
-  const [{ data: player }, { data: sessions }] = await Promise.all([
+  const [{ data: player }, { data: sessions }, { data: summary }] = await Promise.all([
     supabase.from("customers").select("id, name, phone, created_at").eq("id", id).maybeSingle(),
     supabase
       .from("sessions")
@@ -47,21 +49,25 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
       )
       .eq("customer_id", id)
       .order("started_at", { ascending: false })
-      .limit(100),
+      .limit(HISTORY),
+    // Lifetime totals are summed in the database, not limited to the history shown.
+    supabase.rpc("player_summary", { p_customer_id: id }),
   ]);
   if (!player) notFound();
 
   const list = sessions ?? [];
-  const minutes = list.reduce((sum, s) => sum + playedMinutes(s), 0);
-  const spent = list.reduce((sum, s) => sum + Number(s.billed_amount), 0);
-  const owed = list.reduce((sum, s) => sum + (s.written_off ? 0 : Number(s.outstanding)), 0);
-  const favourite = Object.entries(
-    list.reduce<Record<string, number>>((acc, s) => {
-      const t = s.stations?.type;
-      if (t) acc[t] = (acc[t] ?? 0) + 1;
-      return acc;
-    }, {}),
-  ).sort((a, b) => b[1] - a[1])[0]?.[0] as StationType | undefined;
+  const totals = (summary ?? {}) as {
+    visits?: number;
+    played_minutes?: number;
+    paid?: number;
+    owed?: number;
+    favourite_type?: StationType | null;
+  };
+  const visits = Number(totals.visits ?? list.length);
+  const minutes = Number(totals.played_minutes ?? list.reduce((sum, s) => sum + playedMinutes(s), 0));
+  const spent = Number(totals.paid ?? 0);
+  const owed = Number(totals.owed ?? 0);
+  const favourite = totals.favourite_type ?? undefined;
 
   return (
     <>
@@ -74,14 +80,18 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
-        <Metric label="Visits" value={list.length} />
+        <Metric label="Visits" value={visits.toLocaleString("en-IN")} />
         <Metric label="Played" value={formatMinutes(minutes)} />
         <Metric label="Paid" value={formatINR(spent)} />
         <Metric label="Owes" value={formatINR(owed)} tone={owed > 0 ? "over" : undefined} />
         <Metric label="Plays most" value={favourite ? STATION_TYPE_LABEL[favourite] : "—"} />
       </div>
 
-      <Panel title="Visit history" flush>
+      <Panel
+        title="Visit history"
+        description={visits > list.length ? `Latest ${list.length} of ${visits.toLocaleString("en-IN")} visits` : undefined}
+        flush
+      >
         {list.length === 0 ? (
           <p className="px-4 py-6 text-sm text-muted">No sessions yet.</p>
         ) : (
