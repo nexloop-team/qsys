@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { nextDay, todayIn, zonedStart } from "@/lib/format";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const METHOD = { cash: "Cash", upi: "UPI", card: "Card" } as const;
+const METHOD = { cash: "Cash", upi: "UPI", card: "Card", wallet: "Wallet" } as const;
 
 // Text typed at the counter (player names) must not run as a spreadsheet formula,
 // so text starting with = + - @ or a tab/CR is prefixed with a quote. Numbers pass through.
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from("invoices")
     .select(
-      "number, created_at, customer_name, customer_phone, subtotal, discount, taxable_amount, cgst, sgst, total, gst_enabled, invoice_lines(description), payments(method, amount)",
+      "number, created_at, customer_name, customer_phone, subtotal, discount, discount_reason, taxable_amount, cgst, sgst, total, gst_enabled, voided_at, void_reason, invoice_lines(description), payments(method, amount)",
     )
     .eq("branch_id", branch.id)
     .gte("created_at", zonedStart(from, branch.timezone))
@@ -49,12 +49,14 @@ export async function GET(request: NextRequest) {
   const header = [
     "Bill",
     "Date time",
+    "Status",
     "Type",
     "Player",
     "Mobile",
     "Items",
     "Subtotal",
     "Discount",
+    "Discount reason",
     "Taxable value",
     "CGST",
     "SGST",
@@ -64,12 +66,15 @@ export async function GET(request: NextRequest) {
   const rows = (data ?? []).map((inv) => [
     inv.number,
     fmt.format(new Date(inv.created_at)).replace(",", ""),
+    // Cancelled bills are listed for the record; leave them out of any totals.
+    inv.voided_at ? `Cancelled: ${inv.void_reason ?? ""}` : "Paid",
     inv.gst_enabled ? "Tax invoice" : "Receipt",
     inv.customer_name,
     inv.customer_phone,
     inv.invoice_lines.map((l) => l.description).join("; "),
     inv.subtotal,
     inv.discount,
+    inv.discount_reason,
     inv.taxable_amount,
     inv.cgst,
     inv.sgst,

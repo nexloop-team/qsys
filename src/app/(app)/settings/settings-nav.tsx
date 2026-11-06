@@ -7,6 +7,7 @@ import { cx } from "@/components/styles";
 const TABS = [
   { href: "/settings", label: "General" },
   { href: "/settings/billing", label: "Billing" },
+  { href: "/settings/pc", label: "PC app" },
   { href: "/settings/team", label: "Team" },
   { href: "/settings/branches", label: "Branches" },
   { href: "/settings/activity", label: "Activity" },

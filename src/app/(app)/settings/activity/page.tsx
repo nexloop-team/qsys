@@ -26,8 +26,9 @@ const ENTITY: Record<string, string> = {
   branch_settings: "settings",
   memberships: "team member",
   expenses: "expense",
+  invoices: "bill",
 };
-const VERB: Record<string, string> = { insert: "added", update: "changed", delete: "removed" };
+const VERB: Record<string, string> = { insert: "added", update: "changed", delete: "removed", void: "cancelled" };
 const HIDDEN_FIELDS = new Set(["updated_at", "created_at", "org_id", "branch_id", "id", "sort_order", "_label"]);
 
 type Details = Record<string, Json>;
@@ -36,6 +37,7 @@ function describe(entity: string, action: string, details: Details) {
   const label = typeof details._label === "string" ? details._label : typeof details.name === "string" ? details.name : "";
   const name = label ? ` ${label}` : "";
   const thing = `${ENTITY[entity] ?? entity}${name}`;
+  if (action === "void" && typeof details.reason === "string") return `cancelled ${thing}: “${details.reason}”`;
   if (action !== "update") return `${VERB[action] ?? action} ${thing}`;
 
   const changes = Object.entries(details)
@@ -57,7 +59,7 @@ async function Activity() {
   }
 
   const supabase = await createClient();
-  const [{ data: changes }, { data: writeOffs }] = await Promise.all([
+  const [{ data: changes }, { data: writeOffs }, { data: discounts }] = await Promise.all([
     supabase
       .from("audit_log")
       .select("id, actor_id, action, entity, details, created_at")
@@ -71,22 +73,51 @@ async function Activity() {
       .eq("kind", "write_off")
       .order("created_at", { ascending: false })
       .limit(50),
+    // Every discount, with who gave it and why.
+    supabase
+      .from("invoices")
+      .select("id, number, discount, discount_reason, created_by, created_at")
+      .eq("org_id", org.id)
+      .gt("discount", 0)
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
 
-  const actorIds = [...new Set([...(changes ?? []), ...(writeOffs ?? [])].map((r) => r.actor_id).filter(Boolean))] as string[];
+  const actorIds = [
+    ...new Set([
+      ...[...(changes ?? []), ...(writeOffs ?? [])].map((r) => r.actor_id),
+      ...(discounts ?? []).map((d) => d.created_by),
+    ].filter(Boolean)),
+  ] as string[];
   const { data: profiles } = actorIds.length
     ? await supabase.from("profiles").select("id, full_name").in("id", actorIds)
     : { data: [] };
   const who = (id: string | null) => (id && profiles?.find((p) => p.id === id)?.full_name) || "System";
 
   const items = [
-    ...(changes ?? []).map((c) => ({
-      key: `a${c.id}`,
-      at: c.created_at,
-      actor: who(c.actor_id),
-      text: describe(c.entity, c.action, (c.details ?? {}) as Details),
-      alert: false,
-    })),
+    ...(changes ?? []).map((c) => {
+      const details = (c.details ?? {}) as Details;
+      // Reported by the PC app itself: "PC-04 closed blocked app taskmgr.exe".
+      if (c.action === "blocked_app" || c.action === "staff_unlock") {
+        return {
+          key: `a${c.id}`,
+          at: c.created_at,
+          actor: typeof details.name === "string" ? details.name : "A PC",
+          text:
+            c.action === "staff_unlock"
+              ? "was unlocked with the staff PIN on the PC"
+              : `closed blocked app ${typeof details.app === "string" ? details.app : ""}`.trim(),
+          alert: true,
+        };
+      }
+      return {
+        key: `a${c.id}`,
+        at: c.created_at,
+        actor: who(c.actor_id),
+        text: describe(c.entity, c.action, details),
+        alert: false,
+      };
+    }),
     ...(writeOffs ?? []).map((w) => {
       const d = (w.details ?? {}) as { reason?: string; amount?: number };
       return {
@@ -97,10 +128,17 @@ async function Activity() {
         alert: true,
       };
     }),
+    ...(discounts ?? []).map((d) => ({
+      key: `d${d.id}`,
+      at: d.created_at,
+      actor: who(d.created_by),
+      text: `gave ${formatINR(d.discount)} discount on ${d.number}${d.discount_reason ? `: “${d.discount_reason}”` : ""}`,
+      alert: false,
+    })),
   ].sort((a, b) => b.at.localeCompare(a.at));
 
   return (
-    <SettingsSection title="Activity" description="Who changed what: stations, prices, settings, team and write-offs." flush>
+    <SettingsSection title="Activity" description="Who changed what: stations, prices, settings, team, write-offs and apps closed by the PC app." flush>
       {items.length === 0 ? (
         <p className="px-4 py-6 text-sm text-muted">Nothing yet.</p>
       ) : (

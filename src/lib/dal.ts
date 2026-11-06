@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { MemberRole } from "@/lib/constants";
 
@@ -35,7 +36,10 @@ export type AppContext = {
 
 // Resolves the signed-in user's org, role and active branch.
 // Sends users without an org to onboarding.
+// Waits for the real request first: every page uses "now" (today's takings, timers, date ranges)
+// after this, and Cache Components refuses to prerender the clock from cookies alone.
 export const getAppContext = cache(async (): Promise<AppContext> => {
+  await connection();
   const user = await requireUser();
   const supabase = await createClient();
 

@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Bell, BellOff, LayoutGrid, Map as MapIcon, Pause, PencilRuler, WifiOff } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, LayoutGrid, Map as MapIcon, MonitorOff, Pause, PencilRuler, Play, ShoppingBag, WifiOff } from "lucide-react";
+import { isOnline } from "@/lib/devices";
 import { estimateCharge, prepaidRemainingSeconds, type Charge } from "@/lib/pricing";
 import { STATION_TYPE_LABEL, STATION_TYPES, type StationType } from "@/lib/constants";
 import { formatClock, formatINR } from "@/lib/format";
 import { Empty, PageHeader, Panel } from "@/components/card";
 import { Button, Segmented, buttonClass, cx } from "@/components/ui";
-import { beep, useFloorSessions, useLocalPref, useMuted, useServerClock } from "./use-floor";
+import { useDevices, useFloorSessions, useLocalPref, useMuted, useServerClock } from "./use-floor";
 import { FloorMap, LayoutEditor, initialPlacements } from "./floor-map";
 import { StationSheet } from "./station-sheet";
 import { CheckoutDialog } from "./checkout-dialog";
+import { QuickSaleDialog } from "./quick-sale-dialog";
 import {
   ENDING_SOON_SECONDS,
   type FloorData,
@@ -43,7 +45,7 @@ export function deriveTile(
   }
   if (!session) return { state: "free", clock: null, clockLabel: "Free", charge: null, remaining: null };
 
-  const charge = plan
+  const timeCharge = plan
     ? estimateCharge(
         { ...session, pauses: session.session_pauses },
         plan,
@@ -51,6 +53,9 @@ export function deriveTile(
         { timeZone, graceMinutes, earlyEndPolicy, nowMs, cache },
       )
     : null;
+  // While a session is live, charge_amount holds the snacks added so far (time is fixed at the end).
+  const snacks = Number(session.charge_amount ?? 0);
+  const charge = timeCharge ? { ...timeCharge, total: timeCharge.total + snacks } : null;
 
   if (session.mode === "prepaid") {
     const remaining = prepaidRemainingSeconds(session.planned_end_at, session.paused_at, nowMs) ?? 0;
@@ -116,15 +121,38 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
   const { branch, stations, plans, settings } = initial;
   const { sessions, connected, refetch, supabase } = useFloorSessions(branch.id, initial.sessions);
   const now = useServerClock(initial.serverNow);
+  const { devices, refetchDevices } = useDevices(supabase, branch.id, initial.devices);
+  const deviceByStation = useMemo(() => new Map(devices.map((d) => [d.station_id, d])), [devices]);
 
   const [filter, setFilter] = useState<StationType | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checkoutIds, setCheckoutIds] = useState<string[] | null>(null);
+  const [quickSaleOpen, setQuickSaleOpen] = useState(false);
   const [muted, setMuted] = useMuted();
   const [view, setView] = useLocalPref<"grid" | "map">("qs_floor_view", "grid");
   const [editingLayout, setEditingLayout] = useState(false);
   const [placements, setPlacements] = useState(() => initialPlacements(stations));
+  const [batchPending, setBatchPending] = useState(false);
   const canEditLayout = initial.role === "owner";
+
+  const runningSessions = sessions.filter((s) => s.status === "running");
+  const pausedSessions = sessions.filter((s) => s.status === "paused");
+
+  const pauseAll = async () => {
+    if (!runningSessions.length || batchPending) return;
+    setBatchPending(true);
+    await Promise.all(runningSessions.map((s) => supabase.rpc("pause_session", { p_session_id: s.id })));
+    await refetch();
+    setBatchPending(false);
+  };
+
+  const resumeAll = async () => {
+    if (!pausedSessions.length || batchPending) return;
+    setBatchPending(true);
+    await Promise.all(pausedSessions.map((s) => supabase.rpc("resume_session", { p_session_id: s.id })));
+    await refetch();
+    setBatchPending(false);
+  };
 
   const planById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
   // Rate lookups per plan per minute never change, so cache them across ticks.
@@ -159,14 +187,8 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
     };
   });
 
-  // Beep once when a fixed-time session runs out.
-  const alerted = useRef(new Set<string>());
-  const overIds = tiles.filter((t) => t.info.state === "over" && t.session).map((t) => t.session!.id);
-  useEffect(() => {
-    const fresh = overIds.filter((id) => !alerted.current.has(id));
-    fresh.forEach((id) => alerted.current.add(id));
-    if (fresh.length && !muted) beep();
-  }, [overIds.join(","), muted]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The time's-up sound and toast come from TimeUpWatcher in the app layout (every page, not
+  // only this one); the mute button here controls it.
 
   const counts = {
     free: tiles.filter((t) => t.info.state === "free").length,
@@ -216,6 +238,37 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
               <span className={cx("size-1.5 rounded-full", connected ? "bg-free blink" : "bg-ending")} />
               {connected ? "Live" : "Reconnecting"}
             </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setQuickSaleOpen(true)}
+              title="Sell snacks & drinks to walk-in or waiting customers"
+              className="gap-1.5"
+            >
+              <ShoppingBag className="size-3.5" /> Quick Sale
+            </Button>
+            {pausedSessions.length > 0 && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={resumeAll}
+                disabled={batchPending}
+                title="Resume all paused sessions"
+              >
+                <Play /> Resume all ({pausedSessions.length})
+              </Button>
+            )}
+            {runningSessions.length > 1 && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={pauseAll}
+                disabled={batchPending}
+                title="Pause all running sessions (e.g. power cut)"
+              >
+                <Pause /> Pause all ({runningSessions.length})
+              </Button>
+            )}
             {view === "map" && canEditLayout && !editingLayout && (
               <Button size="sm" variant="secondary" onClick={() => setEditingLayout(true)}>
                 <PencilRuler /> Edit layout
@@ -262,16 +315,17 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
         </div>
       )}
 
-      {/* At a glance */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        <Count dot="bg-free" label="Free" value={counts.free} total={tiles.length} />
-        <Count dot="bg-busy" label="In use" value={counts.busy} total={tiles.length} />
-        <Count dot="bg-ending" label="Ending soon" value={counts.ending} highlight={counts.ending > 0} tone="ending" />
-        <Count dot="bg-over" label="Overtime" value={counts.over} highlight={counts.over > 0} tone="over" />
-        <div className="col-span-2 flex flex-col justify-center rounded-xl border border-line bg-panel px-3.5 py-2.5 shadow-xs sm:col-span-1">
-          <span className="text-xs font-medium text-muted">Running now</span>
-          <span className="num text-lg font-semibold tracking-tight">{formatINR(runningTotal)}</span>
-        </div>
+      {/* At a glance: one line. Ending / overtime only show when there is something to act on. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+        <Count dot="bg-free" label="free" value={counts.free} />
+        <Count dot="bg-busy" label="in use" value={counts.busy} />
+        {counts.ending > 0 && <Count dot="bg-ending" label="ending soon" value={counts.ending} tone="ending" />}
+        {counts.over > 0 && <Count dot="bg-over blink" label="overtime" value={counts.over} tone="over" />}
+        {runningTotal > 0 && (
+          <span className="ml-auto text-muted">
+            Running <span className="num font-semibold text-fg">{formatINR(runningTotal)}</span>
+          </span>
+        )}
       </div>
 
       {view === "grid" && typesPresent.length > 1 && (
@@ -388,6 +442,9 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
                   <div className="flex items-center gap-2">
                     <span className={cx("size-2 shrink-0 rounded-full", DOT[info.state])} />
                     <span className="truncate text-sm font-semibold tracking-tight">{station.name}</span>
+                    {deviceByStation.has(station.id) && !isOnline(deviceByStation.get(station.id), now) && (
+                      <MonitorOff className="size-3.5 shrink-0 text-faint" aria-label="PC app offline" />
+                    )}
                     {station.tier !== "standard" && (
                       <span className="ml-auto shrink-0 rounded-md bg-subtle px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted">
                         {station.tier}
@@ -451,6 +508,9 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
           supabase={supabase}
           onChanged={refetch}
           onMoved={(toId) => setSelectedId(toId)}
+          device={deviceByStation.get(selected.station.id)}
+          deviceOnline={isOnline(deviceByStation.get(selected.station.id), now)}
+          onDeviceCommand={() => void refetchDevices()}
           onCheckout={(ids) => {
             setSelectedId(null);
             setCheckoutIds(ids);
@@ -467,6 +527,7 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
           plans={plans}
           settings={settings}
           canWriteOff={initial.role === "owner"}
+          venueName={initial.orgName}
           supabase={supabase}
           onDone={() => {
             setCheckoutIds(null);
@@ -474,6 +535,17 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
           }}
         />
       )}
+
+      <QuickSaleDialog
+        open={quickSaleOpen}
+        onOpenChange={setQuickSaleOpen}
+        branchId={branch.id}
+        branchName={branch.name}
+        supabase={supabase}
+        gst={{ enabled: settings.gstEnabled, rate: settings.gstRate, inclusive: settings.pricesIncludeTax }}
+        discountLimit={initial.role === "owner" ? null : settings.staffMaxDiscountPct}
+        onDone={() => void refetch()}
+      />
     </div>
   );
 }
@@ -482,34 +554,25 @@ function Count({
   dot,
   label,
   value,
-  total,
-  highlight = false,
   tone,
 }: {
   dot: string;
   label: string;
   value: number;
-  total?: number;
-  highlight?: boolean;
   tone?: "ending" | "over";
 }) {
   return (
-    <div
+    <span
       className={cx(
-        "flex flex-col justify-center rounded-xl border bg-panel px-3.5 py-2.5 shadow-xs",
-        highlight && tone === "ending" && "border-ending/40 bg-ending/8",
-        highlight && tone === "over" && "border-over/40 bg-over/8",
-        !highlight && "border-line",
+        "inline-flex items-center gap-1.5",
+        tone === "ending" && "font-medium text-ending",
+        tone === "over" && "font-medium text-over",
+        !tone && "text-muted",
       )}
     >
-      <span className="flex items-center gap-1.5 text-xs font-medium text-muted">
-        <span className={cx("size-1.5 rounded-full", dot, highlight && tone === "over" && "blink")} />
-        {label}
-      </span>
-      <span className="num text-lg font-semibold tracking-tight">
-        {value}
-        {total !== undefined && <span className="text-sm font-normal text-faint"> / {total}</span>}
-      </span>
-    </div>
+      <span className={cx("size-2 rounded-full", dot)} />
+      <span className={cx("num font-semibold", !tone && "text-fg")}>{value}</span>
+      {label}
+    </span>
   );
 }

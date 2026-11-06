@@ -33,7 +33,15 @@ export type Database = {
   public: {
     Tables: {
       profiles: Table<{ id: string; full_name: string; phone: string | null; created_at: Ts; updated_at: Ts }>;
-      orgs: Table<{ id: string; name: string; created_by: string | null; created_at: Ts; updated_at: Ts }>;
+      orgs: Table<{
+        id: string;
+        name: string;
+        created_by: string | null;
+        /** Wallet top-up offers: [{ pay, bonus }] */
+        wallet_offers: Json;
+        created_at: Ts;
+        updated_at: Ts;
+      }>;
       memberships: Table<
         { org_id: string; user_id: string; role: E["member_role"]; created_at: Ts },
         [Rel<"memberships_org_id_fkey", ["org_id"], "orgs", ["id"]>]
@@ -65,8 +73,12 @@ export type Database = {
         upi_vpa: string | null;
         upi_payee_name: string | null;
         overtime_grace_minutes: number;
+        staff_max_discount_pct: number;
         early_end_policy: "full" | "played";
         station_types: E["station_type"][];
+        blocked_apps: string[];
+        lock_message: string | null;
+        pc_player_login: boolean;
         updated_at: Ts;
       }>;
       stations: Table<{
@@ -164,9 +176,60 @@ export type Database = {
         org_id: string;
         phone: string;
         name: string;
+        wallet_balance: number;
+        /** Read-only: true when the player has a PC login PIN (the hash itself is never readable). */
+        pin_set: boolean;
         created_by: string | null;
         created_at: Ts;
         updated_at: Ts;
+      }>;
+      products: Table<{
+        id: string;
+        org_id: string;
+        branch_id: string;
+        name: string;
+        category: "beverage" | "snack" | "food" | "accessory" | "other";
+        price: number;
+        is_active: boolean;
+        /** null = stock not tracked */
+        stock: number | null;
+        low_stock_at: number;
+        created_at: Ts;
+      }>;
+      stock_moves: Table<{
+        id: string;
+        org_id: string;
+        product_id: string;
+        delta: number;
+        reason: "sale" | "return" | "receive" | "count" | "void" | "start";
+        invoice_id: string | null;
+        session_id: string | null;
+        note: string | null;
+        created_by: string | null;
+        created_at: Ts;
+      }>;
+      session_items: Table<{
+        id: string;
+        org_id: string;
+        session_id: string;
+        product_id: string | null;
+        name: string;
+        price: number;
+        quantity: number;
+        invoice_id: string | null;
+        created_at: Ts;
+      }>;
+      wallet_transactions: Table<{
+        id: string;
+        org_id: string;
+        customer_id: string;
+        amount: number;
+        balance_after: number;
+        method: "cash" | "upi" | "bonus" | "gameplay" | "void";
+        note: string | null;
+        invoice_id: string | null;
+        created_by: string | null;
+        created_at: Ts;
       }>;
       sessions: Table<
         {
@@ -226,10 +289,14 @@ export type Database = {
         customer_phone: string | null;
         subtotal: number;
         discount: number;
+        discount_reason: string | null;
         taxable_amount: number;
         cgst: number;
         sgst: number;
         total: number;
+        voided_at: Ts | null;
+        voided_by: string | null;
+        void_reason: string | null;
         created_by: string | null;
         created_at: Ts;
       }>;
@@ -243,6 +310,8 @@ export type Database = {
           minutes: number | null;
           amount: number;
           gst_rate: number;
+          product_id: string | null;
+          quantity: number | null;
         },
         [Rel<"invoice_lines_invoice_id_fkey", ["invoice_id"], "invoices", ["id"]>]
       >;
@@ -260,6 +329,32 @@ export type Database = {
         },
         [Rel<"payments_invoice_id_fkey", ["invoice_id"], "invoices", ["id"]>]
       >;
+      devices: Table<{
+        id: string;
+        org_id: string;
+        branch_id: string;
+        station_id: string;
+        hostname: string | null;
+        agent_version: string | null;
+        os: string | null;
+        ip: string | null;
+        mac: string | null;
+        screen_locked: boolean | null;
+        last_seen_at: Ts | null;
+        created_at: Ts;
+      }>;
+      station_commands: Table<{
+        id: string;
+        org_id: string;
+        station_id: string;
+        kind: "message" | "restart" | "shutdown" | "wake";
+        payload: Json;
+        created_by: string | null;
+        created_at: Ts;
+        delivered_at: Ts | null;
+        done_at: Ts | null;
+        result: string | null;
+      }>;
       team_invites: Table<{
         id: string;
         org_id: string;
@@ -325,8 +420,34 @@ export type Database = {
           p_payments?: Json;
           p_customer_name?: string;
           p_customer_phone?: string;
+          p_discount_reason?: string | null;
         };
         Returns: string;
+      };
+      quick_sale: {
+        Args: {
+          p_branch_id: string;
+          p_items: Json;
+          p_discount?: number;
+          p_payments?: Json;
+          p_customer_name?: string | null;
+          p_customer_phone?: string | null;
+          p_discount_reason?: string | null;
+        };
+        Returns: string;
+      };
+      create_pairing_code: { Args: { p_station_id: string }; Returns: string };
+      unpair_device: { Args: { p_station_id: string }; Returns: undefined };
+      send_station_command: {
+        Args: { p_station_id: string; p_kind: "message" | "restart" | "shutdown" | "wake"; p_payload?: Json };
+        Returns: string;
+      };
+      set_player_pin: { Args: { p_customer_id: string; p_pin: string }; Returns: undefined };
+      clear_player_pin: { Args: { p_customer_id: string }; Returns: undefined };
+      void_invoice: { Args: { p_invoice_id: string; p_reason: string; p_restock?: boolean }; Returns: Json };
+      adjust_stock: {
+        Args: { p_product_id: string; p_mode: "receive" | "count"; p_qty: number | null; p_note?: string | null };
+        Returns: number | null;
       };
       write_off_session: { Args: { p_session_id: string; p_reason: string }; Returns: undefined };
       create_customer: { Args: { p_org_id: string; p_phone: string; p_name: string }; Returns: string };
@@ -350,6 +471,37 @@ export type Database = {
       save_station_layout: { Args: { p_branch_id: string; p_layout: Json }; Returns: undefined };
       player_summary: { Args: { p_customer_id: string }; Returns: Json };
       set_session_players: { Args: { p_session_id: string; p_players: number }; Returns: undefined };
+      add_session_item: {
+        Args: {
+          p_session_id: string;
+          p_name: string;
+          p_price: number;
+          p_quantity?: number;
+          p_product_id?: string | null;
+        };
+        Returns: string;
+      };
+      remove_session_item: { Args: { p_item_id: string }; Returns: undefined };
+      topup_wallet: {
+        Args: {
+          p_customer_id: string;
+          p_amount: number;
+          p_method?: string;
+          p_note?: string | null;
+          /** Owner only: a hand-picked bonus instead of the venue's offers. */
+          p_bonus?: number | null;
+        };
+        Returns: number;
+      };
+      deduct_wallet: {
+        Args: {
+          p_customer_id: string;
+          p_amount: number;
+          p_note?: string | null;
+          p_method?: "cash" | "upi";
+        };
+        Returns: number;
+      };
     };
     Enums: {
       member_role: "owner" | "manager" | "staff";
@@ -357,7 +509,7 @@ export type Database = {
       station_status: "active" | "maintenance" | "disabled";
       session_mode: "open" | "prepaid";
       session_status: "running" | "paused" | "ended";
-      payment_method: "cash" | "upi" | "card";
+      payment_method: "cash" | "upi" | "card" | "wallet";
       expense_category:
         | "salary"
         | "rent"

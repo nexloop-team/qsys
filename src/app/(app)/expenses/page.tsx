@@ -65,6 +65,7 @@ async function Expenses({ searchParams }: { searchParams: PageProps<"/expenses">
       .from("invoices")
       .select("total")
       .eq("branch_id", branch.id)
+      .is("voided_at", null)
       .gte("created_at", zonedStart(monthStart, branch.timezone))
       .lt("created_at", zonedStart(nextStart, branch.timezone)),
     supabase.from("memberships").select("user_id, role").eq("org_id", org.id).order("created_at"),

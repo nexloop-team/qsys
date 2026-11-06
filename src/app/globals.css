@@ -154,8 +154,8 @@
   --shadow-card: var(--shadow-md);
   --shadow-xs: var(--shadow-sm);
   --shadow-pop: var(--shadow-lg);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 body {

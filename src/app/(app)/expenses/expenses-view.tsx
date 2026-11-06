@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CalendarClock, ChevronLeft, ChevronRight, ReceiptIndianRupee, Repeat } from "lucide-react";
 import { EXPENSE_CATEGORY_LABEL, type ExpenseCategory } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
-import { Empty, Metric, PageHeader, Panel } from "@/components/card";
+import { Empty, PageHeader, Panel } from "@/components/card";
 import { AddExpenseButton, DeleteExpenseButton, EditExpenseButton, type TeamMember } from "./expense-forms";
 import { CATEGORY_ICON } from "./category-icons";
 
@@ -100,20 +100,29 @@ export function ExpensesView({
       />
 
       <div className="flex flex-col gap-5">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-          <Metric label="Revenue" value={formatINR(revenue)} sub="From bills this month" />
-          <Metric
-            label="Expenses"
-            value={formatINR(total)}
-            sub={`${expenses.length} entr${expenses.length === 1 ? "y" : "ies"}`}
-          />
-          <Metric label="Salaries" value={formatINR(salaries)} sub={total ? `${Math.round((salaries / total) * 100)}% of expenses` : "None logged"} />
-          <Metric
-            label="Net profit"
-            value={formatINR(net)}
-            tone={net < 0 ? "over" : net > 0 ? "ok" : undefined}
-            sub={margin === null ? "No revenue yet" : `${margin}% margin`}
-          />
+        {/* One line: what was spent, and what is left of the takings after it. */}
+        <div className="flex flex-wrap items-end gap-x-8 gap-y-3 rounded-xl border border-line bg-panel px-4 py-3 shadow-card">
+          <div>
+            <p className="text-xs text-muted">
+              Spent · {expenses.length} entr{expenses.length === 1 ? "y" : "ies"}
+            </p>
+            <p className="num text-xl font-semibold">{formatINR(total)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted">Net profit</p>
+            <p className={`num text-xl font-semibold ${net < 0 ? "text-over" : net > 0 ? "text-ok" : ""}`}>
+              {formatINR(net)}
+            </p>
+          </div>
+          <p className="text-sm text-muted">
+            {salaries > 0 && (
+              <>
+                Salaries <span className="num text-fg">{formatINR(salaries)}</span> ·{" "}
+              </>
+            )}
+            Revenue <span className="num text-fg">{formatINR(revenue)}</span>
+            {margin !== null && <> · {margin}% margin</>}
+          </p>
         </div>
 
         {due.length > 0 && (

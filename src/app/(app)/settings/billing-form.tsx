@@ -11,48 +11,10 @@ import {
   type SessionMode,
   type StationType,
 } from "@/lib/constants";
-import { Field, FormMessage, Input, Select, SubmitButton, cx } from "@/components/ui";
+import { Field, FormMessage, Input, Select, SubmitButton, Toggle, cx } from "@/components/ui";
 import { SaveBar, SettingsSection } from "./section";
 
 type Settings = Tables<"branch_settings">;
-
-function Toggle({
-  name,
-  checked,
-  onChange,
-  label,
-  description,
-}: {
-  name: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  description?: string;
-}) {
-  return (
-    <label className="flex cursor-pointer items-start justify-between gap-4">
-      <span>
-        <span className="block text-sm font-medium">{label}</span>
-        {description && <span className="block text-[13px] text-muted">{description}</span>}
-      </span>
-      <input type="checkbox" name={name} checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
-      <span
-        aria-hidden
-        className={cx(
-          "relative mt-0.5 h-5 w-9 shrink-0 rounded-full border transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-accent",
-          checked ? "border-accent bg-accent" : "border-line-strong bg-subtle",
-        )}
-      >
-        <span
-          className={cx(
-            "absolute top-0.5 size-3.5 rounded-full transition-all",
-            checked ? "left-[18px] bg-white shadow-xs" : "left-0.5 bg-faint",
-          )}
-        />
-      </span>
-    </label>
-  );
-}
 
 export function BillingForm({ settings, disabled }: { settings: Settings; disabled: boolean }) {
   const [state, action] = useActionState(saveBillingSettings, null);
@@ -66,27 +28,6 @@ export function BillingForm({ settings, disabled }: { settings: Settings; disabl
   return (
     <form action={action}>
       <fieldset disabled={disabled} className="min-w-0">
-        <SettingsSection
-          title="UPI payments"
-          description="With your UPI ID set, checkout shows a QR with the exact amount for the player to scan."
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="UPI ID" hint="As shown in your UPI app, e.g. arena@okaxis.">
-              <Input
-                name="upi_vpa"
-                defaultValue={settings.upi_vpa ?? ""}
-                placeholder="yourname@bank"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-            </Field>
-            <Field label="Name shown to the player" hint="Optional. Defaults to your venue name.">
-              <Input name="upi_payee_name" defaultValue={settings.upi_payee_name ?? ""} maxLength={60} />
-            </Field>
-          </div>
-        </SettingsSection>
-
         <SettingsSection title="Bills" description="Numbering and how much overtime is free on fixed-time sessions.">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Bill number prefix" hint="Bills are numbered PREFIX-00001.">
@@ -94,6 +35,18 @@ export function BillingForm({ settings, disabled }: { settings: Settings; disabl
             </Field>
             <Field label="Overtime grace (minutes)" hint="Fixed-time players aren't charged for this much extra.">
               <Input name="overtime_grace_minutes" type="number" min={0} max={30} defaultValue={settings.overtime_grace_minutes} />
+            </Field>
+            <Field
+              label="Staff discount limit (%)"
+              hint="Most a staff member can take off a bill. Every discount needs a reason. You have no limit."
+            >
+              <Input
+                name="staff_max_discount_pct"
+                type="number"
+                min={0}
+                max={100}
+                defaultValue={settings.staff_max_discount_pct}
+              />
             </Field>
           </div>
         </SettingsSection>

@@ -1,4 +1,5 @@
 import type { PricingPlan, PricingRule } from "@/lib/pricing";
+import type { DeviceStatus } from "@/lib/devices";
 import type { MemberRole, SessionMode, StationStatus, StationType } from "@/lib/constants";
 
 export type FloorStation = {
@@ -19,6 +20,7 @@ export type LiveSession = {
   rate_plan_id: string;
   mode: SessionMode;
   status: "running" | "paused" | "ended";
+  customer_id: string | null;
   customer_name: string | null;
   customer_phone: string | null;
   players: number;
@@ -59,8 +61,8 @@ export type FloorSettings = {
   gstEnabled: boolean;
   gstRate: number;
   pricesIncludeTax: boolean;
-  /** Counter UPI ID for the checkout QR; null until set in Settings → Billing. */
-  upi: { vpa: string; name: string } | null;
+  /** Most a staff member may discount, as % of the bill. The owner has no limit. */
+  staffMaxDiscountPct: number;
 };
 
 export type FloorData = {
@@ -74,10 +76,12 @@ export type FloorData = {
   plans: FloorPlan[];
   packages: FloorPackage[];
   settings: FloorSettings;
+  /** PC apps paired in this branch (one per PC station at most). */
+  devices: DeviceStatus[];
 };
 
 export const SESSION_SELECT =
-  "id, station_id, rate_plan_id, mode, status, customer_name, customer_phone, players, started_at, planned_end_at, prepaid_minutes, prepaid_amount, paused_at, ended_at, charge_amount, billed_amount, outstanding, session_pauses(started_at, ended_at)";
+  "id, station_id, rate_plan_id, mode, status, customer_id, customer_name, customer_phone, players, started_at, planned_end_at, prepaid_minutes, prepaid_amount, paused_at, ended_at, charge_amount, billed_amount, outstanding, session_pauses(started_at, ended_at)";
 
 // Live state of a station tile, derived each tick.
 export type TileState = "free" | "busy" | "ending" | "over" | "paused" | "off";

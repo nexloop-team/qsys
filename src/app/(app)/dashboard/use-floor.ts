@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { DEVICE_SELECT, type DeviceStatus } from "@/lib/devices";
+import type { Database } from "@/lib/database.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { SESSION_SELECT, type LiveSession } from "./types";
 
 // Live sessions for a branch: initial server data, then Supabase Realtime.
@@ -56,6 +59,27 @@ export function useFloorSessions(branchId: string, initial: LiveSession[]) {
   }, [branchId, refetch, supabase]);
 
   return { sessions, connected, refetch, supabase };
+}
+
+// PC apps in the branch: online status, hostname, lock state. They check in every 15 s, so a
+// 20 s refresh is enough to show a PC going offline within about a minute.
+export function useDevices(supabase: SupabaseClient<Database>, branchId: string, initial: DeviceStatus[]) {
+  const [devices, setDevices] = useState(initial);
+
+  const refetch = useCallback(async () => {
+    const { data, error } = await supabase.from("devices").select(DEVICE_SELECT).eq("branch_id", branchId);
+    if (!error) setDevices(data ?? []);
+  }, [supabase, branchId]);
+
+  useEffect(() => {
+    if (initial.length === 0) return; // no PC apps paired here: nothing to watch
+    const id = window.setInterval(() => {
+      if (!document.hidden) void refetch();
+    }, 20_000);
+    return () => window.clearInterval(id);
+  }, [refetch, initial.length]);
+
+  return { devices, refetchDevices: refetch };
 }
 
 // Per-device preferences (mute, grid/map view), persisted in localStorage.

@@ -3,14 +3,17 @@
 import { useActionState, useState, useTransition } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { deleteStation, updateStation } from "./actions";
-import { STATION_STATUS_LABEL, STATION_STATUSES, type StationStatus } from "@/lib/constants";
+import { STATION_STATUS_LABEL, STATION_STATUSES, type StationStatus, type StationType } from "@/lib/constants";
+import type { DeviceStatus } from "@/lib/devices";
 import type { ActionState } from "@/lib/action-state";
 import { Badge } from "@/components/card";
 import { Button, FormMessage, Input, Select, SubmitButton } from "@/components/ui";
+import { PcAppCell } from "./pc-app-cell";
 
 type Station = {
   id: string;
   name: string;
+  type: StationType;
   tier: string;
   zone: string | null;
   status: StationStatus;
@@ -18,7 +21,18 @@ type Station = {
 
 const STATUS_TONE = { active: "free", maintenance: "ending", disabled: "neutral" } as const;
 
-export function StationRow({ station, editable }: { station: Station; editable: boolean }) {
+export function StationRow({
+  station,
+  editable,
+  pcColumn,
+  device,
+}: {
+  station: Station;
+  editable: boolean;
+  /** The table has a "PC app" column (the venue has PCs). */
+  pcColumn: boolean;
+  device: DeviceStatus | undefined;
+}) {
   const [editing, setEditing] = useState(false);
   const [state, action] = useActionState(async (prev: ActionState, fd: FormData) => {
     const result = await updateStation(prev, fd);
@@ -31,7 +45,7 @@ export function StationRow({ station, editable }: { station: Station; editable: 
   if (editing) {
     return (
       <tr className="border-t border-line">
-        <td colSpan={5} className="px-4 py-3">
+        <td colSpan={pcColumn ? 6 : 5} className="px-4 py-3">
           <form action={action} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="id" value={station.id} />
             <Input name="name" defaultValue={station.name} aria-label="Name" className="w-32" required />
@@ -63,6 +77,15 @@ export function StationRow({ station, editable }: { station: Station; editable: 
       <td className="px-4 py-2.5">
         <Badge tone={STATUS_TONE[station.status]}>{STATION_STATUS_LABEL[station.status]}</Badge>
       </td>
+      {pcColumn && (
+        <td className="px-4 py-2.5">
+          {station.type === "pc" ? (
+            <PcAppCell stationId={station.id} stationName={station.name} device={device} editable={editable} />
+          ) : (
+            <span className="text-faint">—</span>
+          )}
+        </td>
+      )}
       <td className="px-4 py-2.5 text-right">
         {editable && (
           <span className="inline-flex gap-1">

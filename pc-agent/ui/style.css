@@ -1,0 +1,121 @@
+/* Neutral console look, same as the QueSys dashboard: colour only means state. */
+:root {
+  --bg: #0b0c0e;
+  --panel: #131418;
+  --subtle: #1a1c21;
+  --line: #262830;
+  --fg: #ececef;
+  --muted: #8d9099;
+  --faint: #5c5f68;
+  --free: #22c55e;
+  --busy: #3b82f6;
+  --ending: #f59e0b;
+  --over: #ef4444;
+  --accent: #e7e7ea;
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.45 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+[hidden] { display: none !important; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+b { color: var(--fg); font-weight: 600; }
+
+/* Lock screen ---------------------------------------------------------------------------------- */
+.lock { display: flex; flex-direction: column; height: 100vh; padding: 28px 36px; }
+.top, .bottom { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.venue { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.net { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ending); }
+.net .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ending); }
+.center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.eyebrow { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
+.station { margin: 0; font-size: clamp(56px, 10vw, 128px); font-weight: 650; letter-spacing: -0.03em; line-height: 1; }
+.lock-text { margin: 18px 0 0; max-width: 560px; font-size: 18px; color: var(--muted); }
+.lock-text.over { color: var(--over); font-weight: 600; }
+.lock-text.paused { color: var(--ending); }
+.banner {
+  margin: 28px 0 0; max-width: 560px; padding: 12px 18px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--panel); font-size: 16px;
+}
+.clock { font-size: 13px; color: var(--faint); }
+.login { margin-top: 32px; max-width: 400px; }
+.pin-field { flex: 0 0 96px; }
+
+/* Forms ---------------------------------------------------------------------------------------- */
+.card {
+  width: 100%; max-width: 420px; padding: 24px; text-align: left;
+  border: 1px solid var(--line); border-radius: 16px; background: var(--panel);
+  display: flex; flex-direction: column; gap: 14px;
+}
+.card-title { margin: 0; font-size: 18px; font-weight: 600; }
+.card p { margin: 0; }
+.field { display: flex; flex-direction: column; gap: 6px; flex: 1; font-size: 13px; font-weight: 500; }
+input {
+  height: 38px; width: 100%; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--bg); color: var(--fg); font: inherit; font-size: 14px; outline: none; user-select: text;
+}
+input:focus { border-color: var(--muted); }
+input.code { height: 48px; font-size: 22px; letter-spacing: 0.25em; text-transform: uppercase; text-align: center; }
+.row { display: flex; gap: 10px; align-items: center; }
+.row.end { justify-content: flex-end; }
+.grow { flex: 1; }
+.hint { font-size: 12px; color: var(--muted); }
+details { font-size: 13px; color: var(--muted); }
+details[open] { display: flex; flex-direction: column; gap: 10px; }
+summary { cursor: pointer; }
+.error { color: var(--over); font-size: 13px; }
+
+.btn {
+  height: 38px; padding: 0 16px; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--subtle); color: var(--fg); font: inherit; font-weight: 600; cursor: pointer;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #0b0c0e; }
+.btn:disabled { opacity: 0.6; cursor: default; }
+.link { border: 0; background: none; padding: 0; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.link:hover { color: var(--fg); text-decoration: underline; text-underline-offset: 3px; }
+.link.subtle { color: var(--faint); }
+.link.danger { color: var(--over); }
+
+/* The dialog itself is a bare frame; the form inside is the card. Never give the dialog a
+   display value, or it shows while closed. */
+dialog.dialog {
+  width: min(420px, calc(100vw - 32px)); max-width: none; margin: auto; padding: 0;
+  border: 0; background: transparent; color: var(--fg);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+
+/* Extra monitors ------------------------------------------------------------------------------- */
+.cover { height: 100vh; display: flex; align-items: flex-end; justify-content: flex-start; padding: 28px 36px; font-size: 13px; }
+
+/* Timer widget --------------------------------------------------------------------------------- */
+body.is-widget { background: transparent; }
+.widget {
+  height: 100vh; padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px;
+  background: rgba(19, 20, 24, 0.94); display: flex; flex-direction: column; gap: 2px; cursor: grab;
+}
+.w-row { display: flex; align-items: center; gap: 8px; }
+.w-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--busy); flex-shrink: 0; }
+.w-label { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.w-clock { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+.w-sub { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.w-message { margin: 6px 0 0; padding-top: 6px; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.35; overflow: hidden; }
+
+.widget.ending { border-color: rgba(245, 158, 11, 0.6); }
+.widget.ending .w-dot { background: var(--ending); }
+.widget.ending .w-clock { color: var(--ending); }
+.widget.last { border-color: var(--over); animation: pulse 1s ease-in-out infinite alternate; }
+.widget.last .w-dot { background: var(--over); }
+.widget.last .w-clock { color: var(--over); }
+.widget.staff .w-dot { background: var(--muted); }
+@keyframes pulse { to { border-color: rgba(239, 68, 68, 0.3); } }

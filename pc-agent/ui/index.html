@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QueSys</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- Lock screen (window "lock"): setup, locked -->
+    <main id="lock" class="lock" hidden>
+      <header class="top">
+        <span id="venue" class="venue"></span>
+        <span id="net" class="net" hidden><span class="dot"></span><span id="net-text">Offline</span></span>
+      </header>
+
+      <section id="locked" class="center" hidden>
+        <p class="eyebrow" id="lock-eyebrow">Locked</p>
+        <h1 id="station" class="station"></h1>
+        <p id="lock-text" class="lock-text"></p>
+        <p id="lock-banner" class="banner" hidden></p>
+
+        <form id="login-form" class="card login" autocomplete="off" hidden>
+          <p class="card-title">Log in to play</p>
+          <div class="row">
+            <label class="field grow">
+              <span>Mobile number</span>
+              <input id="login-mobile" class="mono" inputmode="numeric" maxlength="11" placeholder="98765 43210" required />
+            </label>
+            <label class="field pin-field">
+              <span>PIN</span>
+              <input id="login-pin" class="mono" type="password" inputmode="numeric" maxlength="4" placeholder="••••" required />
+            </label>
+          </div>
+          <p id="login-error" class="error" hidden></p>
+          <button id="login-btn" class="btn primary" type="submit">Start playing</button>
+          <p class="hint">Time runs until you're done. Pay at the counter at the end.</p>
+        </form>
+      </section>
+
+      <section id="setup" class="center" hidden>
+        <form id="setup-form" class="card" autocomplete="off">
+          <h1 class="card-title">Set up this PC</h1>
+          <p class="muted">In QueSys, open <b>Stations</b>, find this PC and press <b>Pair</b>. Type the code shown there.</p>
+          <label class="field">
+            <span>Pairing code</span>
+            <input id="code" class="mono code" maxlength="9" placeholder="ABCD 2345" required spellcheck="false" />
+          </label>
+          <div class="row">
+            <label class="field">
+              <span>Staff PIN</span>
+              <input id="pin" class="mono" type="password" inputmode="numeric" maxlength="8" placeholder="4–8 digits" required />
+            </label>
+            <label class="field">
+              <span>Repeat PIN</span>
+              <input id="pin2" class="mono" type="password" inputmode="numeric" maxlength="8" required />
+            </label>
+          </div>
+          <p class="hint">Staff use this PIN on this PC to open it without a session, or to unpair it.</p>
+          <details id="server-box">
+            <summary>Server settings</summary>
+            <label class="field">
+              <span>Server address</span>
+              <input id="server" class="mono" placeholder="https://xxxx.supabase.co" spellcheck="false" />
+            </label>
+            <label class="field">
+              <span>Publishable key</span>
+              <input id="key" class="mono" placeholder="sb_publishable_…" spellcheck="false" />
+            </label>
+          </details>
+          <p id="setup-error" class="error" hidden></p>
+          <button id="pair-btn" class="btn primary" type="submit">Pair</button>
+          <button id="skip-btn" class="link" type="button">Use this PC for 15 minutes without pairing</button>
+        </form>
+      </section>
+
+      <footer class="bottom">
+        <span id="clock" class="mono clock"></span>
+        <span class="row">
+          <button id="dev-quit" class="link danger" type="button" hidden>Quit (test build only)</button>
+          <button id="staff-btn" class="link subtle" type="button" hidden>Staff</button>
+        </span>
+      </footer>
+
+      <dialog id="pin-dialog" class="dialog">
+        <form id="pin-form" method="dialog" class="card">
+          <h2 class="card-title">Staff</h2>
+          <p class="muted">Open this PC for 15 minutes. It is logged in Activity.</p>
+          <label class="field">
+            <span>Staff PIN</span>
+            <input id="staff-pin" class="mono" type="password" inputmode="numeric" maxlength="8" autocomplete="off" />
+          </label>
+          <p id="pin-error" class="error" hidden></p>
+          <div class="row end">
+            <button id="unpair-btn" class="link danger" type="button">Unpair this PC</button>
+            <span class="grow"></span>
+            <button id="pin-cancel" class="btn" type="button">Cancel</button>
+            <button class="btn primary" type="submit" value="ok">Open</button>
+          </div>
+        </form>
+      </dialog>
+    </main>
+
+    <!-- Extra monitors (windows "cover-N") -->
+    <main id="cover" class="cover" hidden>
+      <span id="cover-station" class="muted"></span>
+    </main>
+
+    <!-- Timer (window "widget") -->
+    <main id="widget" class="widget" data-tauri-drag-region hidden>
+      <div class="w-row" data-tauri-drag-region>
+        <span class="w-dot" data-tauri-drag-region></span>
+        <span class="w-label" id="w-label" data-tauri-drag-region></span>
+        <span class="w-clock mono" id="w-clock" data-tauri-drag-region></span>
+      </div>
+      <div class="w-sub" data-tauri-drag-region>
+        <span id="w-sub" data-tauri-drag-region></span>
+        <button id="w-lock" class="link" type="button" hidden>Lock now</button>
+      </div>
+      <p id="w-message" class="w-message" hidden></p>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

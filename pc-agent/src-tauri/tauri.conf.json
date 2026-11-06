@@ -1,0 +1,65 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "QueSys PC",
+  "version": "0.1.0",
+  "identifier": "app.quesys.pc",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "lock",
+        "title": "QueSys",
+        "url": "index.html",
+        "fullscreen": true,
+        "alwaysOnTop": true,
+        "decorations": false,
+        "skipTaskbar": true,
+        "resizable": false,
+        "closable": false,
+        "minimizable": false,
+        "maximizable": false,
+        "focus": true,
+        "visible": true
+      },
+      {
+        "label": "widget",
+        "title": "QueSys timer",
+        "url": "index.html",
+        "width": 236,
+        "height": 64,
+        "alwaysOnTop": true,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "skipTaskbar": true,
+        "resizable": false,
+        "closable": false,
+        "minimizable": false,
+        "maximizable": false,
+        "focus": false,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "shortDescription": "QueSys PC app",
+    "longDescription": "Locks this PC until a session is started from the QueSys floor, shows the player's time, and closes blocked apps.",
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" }
+    }
+  }
+}

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Monitor } from "lucide-react";
 import { getAppContext, isOwner } from "@/lib/dal";
+import { DEVICE_SELECT, type DeviceStatus } from "@/lib/devices";
 import { createClient } from "@/lib/supabase/server";
 import { STATION_TYPE_LABEL, STATION_TYPE_PREFIX, STATION_TYPES, type StationType } from "@/lib/constants";
 import { Empty, PageHeader, PageSkeleton, Panel } from "@/components/card";
@@ -21,10 +22,12 @@ export default function StationsPage() {
 async function Stations() {
   const { branch, role } = await getAppContext();
   const supabase = await createClient();
-  const [{ data: stations }, { data: settings }] = await Promise.all([
+  const [{ data: stations }, { data: settings }, { data: devices }] = await Promise.all([
     supabase.from("stations").select("id, name, type, tier, zone, status").eq("branch_id", branch.id).order("sort_order"),
     supabase.from("branch_settings").select("station_types").eq("branch_id", branch.id).single(),
+    supabase.from("devices").select(DEVICE_SELECT).eq("branch_id", branch.id),
   ]);
+  const deviceByStation = new Map<string, DeviceStatus>((devices ?? []).map((d) => [d.station_id, d]));
 
   const list = stations ?? [];
   const editable = isOwner(role);
@@ -41,6 +44,9 @@ async function Stations() {
       return [t, highest + 1];
     }),
   ) as Record<StationType, number>;
+
+  const hasPcs = list.some((s) => s.type === "pc");
+  const columns = hasPcs ? 6 : 5;
 
   return (
     <>
@@ -65,13 +71,14 @@ async function Stations() {
       ) : (
         <Panel flush>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
                   <th className="px-4 py-2.5 font-medium">Name</th>
                   <th className="px-4 py-2.5 font-medium">Tier</th>
                   <th className="px-4 py-2.5 font-medium">Zone</th>
                   <th className="px-4 py-2.5 font-medium">Status</th>
+                  {hasPcs && <th className="px-4 py-2.5 font-medium">PC app</th>}
                   <th className="px-4 py-2.5" />
                 </tr>
               </thead>
@@ -80,12 +87,18 @@ async function Stations() {
                 return (
                   <tbody key={type} className="border-b border-line last:border-b-0">
                     <tr>
-                      <th colSpan={5} className="bg-subtle px-4 py-1.5 text-left text-xs font-medium text-muted">
+                      <th colSpan={columns} className="bg-subtle px-4 py-1.5 text-left text-xs font-medium text-muted">
                         {STATION_TYPE_LABEL[type]} · {group.length}
                       </th>
                     </tr>
                     {group.map((s) => (
-                      <StationRow key={s.id} station={s} editable={editable} />
+                      <StationRow
+                        key={s.id}
+                        station={s}
+                        editable={editable}
+                        pcColumn={hasPcs}
+                        device={deviceByStation.get(s.id)}
+                      />
                     ))}
                   </tbody>
                 );

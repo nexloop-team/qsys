@@ -7,7 +7,7 @@ import { Empty, Panel } from "@/components/card";
 import { cx } from "@/components/styles";
 import { ColumnChart, Heatmap, Legend, Meter, SegmentBar, Sparkline } from "./charts";
 
-type Method = "cash" | "upi";
+type Method = "cash" | "upi" | "wallet";
 
 export type Report = {
   revenue: number;
@@ -18,6 +18,14 @@ export type Report = {
   by_day: { day: string; total: number }[];
   by_method: Partial<Record<Method, number>>;
   by_type: { type: StationType; revenue: number; minutes: number }[];
+  /** Snacks & drinks on bills (play-time lines are in by_type). */
+  fnb?: number;
+  /** Cash/UPI put into player wallets: money in, not revenue until spent. */
+  wallet_topups?: number;
+  /** Free credit from top-up offers (spent later as "wallet", so not new money). */
+  wallet_bonus?: number;
+  /** Bills cancelled in this period (left out of every number). */
+  voided?: number;
 };
 
 export type Insights = {
@@ -36,6 +44,7 @@ export type Insights = {
 const METHODS: { key: Method; label: string; color: string }[] = [
   { key: "upi", label: "UPI", color: "var(--series-1)" },
   { key: "cash", label: "Cash", color: "var(--series-2)" },
+  { key: "wallet", label: "Player wallets", color: "var(--series-3)" },
 ];
 
 export type ReportRange = { key: string; label: string; days: number };
@@ -277,6 +286,16 @@ export function ReportView({
                   />
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  {Number(r.fnb ?? 0) > 0 && <MiniStat label="Snacks & drinks" value={formatINR(Number(r.fnb))} />}
+                  {Number(r.wallet_topups ?? 0) > 0 && (
+                    <MiniStat label="Wallet top-ups (not revenue yet)" value={formatINR(Number(r.wallet_topups))} />
+                  )}
+                  {Number(r.wallet_bonus ?? 0) > 0 && (
+                    <MiniStat label="Wallet bonus given" value={formatINR(Number(r.wallet_bonus))} />
+                  )}
+                  {Number(r.voided ?? 0) > 0 && (
+                    <MiniStat label="Bills cancelled" value={String(r.voided)} warn />
+                  )}
                   {Number(r.tax) > 0 && <MiniStat label="GST in revenue" value={formatINR(r.tax)} />}
                   <MiniStat label="Discounts given" value={formatINR(x.discounts)} />
                   <MiniStat

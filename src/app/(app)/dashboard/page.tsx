@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { getAppContext } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
+import { DEVICE_SELECT } from "@/lib/devices";
 import type { SessionMode, StationType } from "@/lib/constants";
 import { PageSkeleton } from "@/components/card";
 import { FloorBoard } from "./floor-board";
@@ -21,7 +22,7 @@ async function Floor() {
   const { branch, org, role } = await getAppContext();
   const supabase = await createClient();
 
-  const [stations, sessions, unpaid, plans, packages, settings, now] = await Promise.all([
+  const [stations, sessions, unpaid, plans, packages, settings, now, devices] = await Promise.all([
     supabase
       .from("stations")
       .select("id, name, type, tier, status, zone, layout_x, layout_y, layout_rot")
@@ -49,6 +50,7 @@ async function Floor() {
       .order("minutes"),
     supabase.from("branch_settings").select("*").eq("branch_id", branch.id).single(),
     supabase.rpc("server_time"),
+    supabase.from("devices").select(DEVICE_SELECT).eq("branch_id", branch.id),
   ]);
 
   const s = settings.data;
@@ -70,8 +72,9 @@ async function Floor() {
       gstEnabled: s?.gst_enabled ?? false,
       gstRate: Number(s?.gst_rate ?? 18),
       pricesIncludeTax: s?.prices_include_tax ?? false,
-      upi: s?.upi_vpa ? { vpa: s.upi_vpa, name: s.upi_payee_name || org.name } : null,
+      staffMaxDiscountPct: s?.staff_max_discount_pct ?? 10,
     },
+    devices: devices.data ?? [],
   };
 
   // Keyed by branch so switching branch starts from that branch's data, never the previous one's.

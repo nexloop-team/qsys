@@ -49,6 +49,7 @@ export async function TopbarStatus() {
     .from("invoices")
     .select("total")
     .eq("branch_id", branch.id)
+    .is("voided_at", null)
     .gte("created_at", zonedStart(today, branch.timezone))
     .lt("created_at", zonedStart(nextDay(today), branch.timezone));
   const collected = (invoices ?? []).reduce((sum, i) => sum + Number(i.total), 0);

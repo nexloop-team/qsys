@@ -132,3 +132,42 @@ export function Segmented<T extends string>({
     </div>
   );
 }
+
+// On/off switch backed by a real checkbox, so it posts with the form ("on" when checked).
+export function Toggle({
+  name,
+  checked,
+  onChange,
+  label,
+  description,
+}: {
+  name: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  description?: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start justify-between gap-4">
+      <span>
+        <span className="block text-sm font-medium">{label}</span>
+        {description && <span className="block text-[13px] text-muted">{description}</span>}
+      </span>
+      <input type="checkbox" name={name} checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
+      <span
+        aria-hidden
+        className={cx(
+          "relative mt-0.5 h-5 w-9 shrink-0 rounded-full border transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-accent",
+          checked ? "border-accent bg-accent" : "border-line-strong bg-subtle",
+        )}
+      >
+        <span
+          className={cx(
+            "absolute top-0.5 size-3.5 rounded-full transition-all",
+            checked ? "left-[18px] bg-white shadow-xs" : "left-0.5 bg-faint",
+          )}
+        />
+      </span>
+    </label>
+  );
+}

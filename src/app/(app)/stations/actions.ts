@@ -76,3 +76,23 @@ export async function deleteStation(id: string): Promise<ActionState> {
   refresh();
   return { ok: "Deleted." };
 }
+
+// PC app pairing (owner). The code is typed into the QueSys PC app on that PC.
+export async function createPairingCode(stationId: string): Promise<{ code?: string; error?: string }> {
+  await requireRole([...OWNER_ONLY]);
+  if (!z.uuid().safeParse(stationId).success) return { error: "Unknown station." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_pairing_code", { p_station_id: stationId });
+  if (error) return { error: friendlyDbError(error) };
+  return { code: data };
+}
+
+export async function unpairDevice(stationId: string): Promise<ActionState> {
+  await requireRole([...OWNER_ONLY]);
+  if (!z.uuid().safeParse(stationId).success) return { error: "Unknown station." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("unpair_device", { p_station_id: stationId });
+  if (error) return { error: friendlyDbError(error) };
+  refresh();
+  return { ok: "Unpaired. The PC app on it stops working until paired again." };
+}

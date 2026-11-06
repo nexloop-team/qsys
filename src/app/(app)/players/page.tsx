@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDateTime, formatINR } from "@/lib/format";
 import { Empty, PageHeader, PageSkeleton, Panel } from "@/components/card";
 import { buttonClass } from "@/components/styles";
-import { AddPlayerButton, EditPlayerButton, PlayerSearch } from "./player-forms";
+import { AddPlayerButton, EditPlayerButton, PlayerSearch, TopupWalletButton } from "./player-forms";
 
 export const metadata: Metadata = { title: "Players" };
 
@@ -32,13 +32,27 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
   const page = Math.max(1, Math.floor(Number(sp.page) || 1));
 
   const supabase = await createClient();
-  const { data: players, error } = await supabase.rpc("list_customers", {
-    p_org_id: org.id,
-    p_search: q || undefined,
-    p_limit: PAGE_SIZE,
-    p_offset: (page - 1) * PAGE_SIZE,
-  });
-  const total = Number(players?.[0]?.total_count ?? 0);
+  const [res, { data: orgRow }] = await Promise.all([
+    supabase.rpc("list_customers", {
+      p_org_id: org.id,
+      p_search: q || undefined,
+      p_limit: PAGE_SIZE,
+      p_offset: (page - 1) * PAGE_SIZE,
+    }),
+    supabase.from("orgs").select("wallet_offers").eq("id", org.id).single(),
+  ]);
+  const { data: players, error } = res;
+  const offers = (orgRow?.wallet_offers ?? []) as { pay: number; bonus: number }[];
+
+  const ids = (players ?? []).map((p) => p.id);
+  const { data: balances } = ids.length
+    ? await supabase.from("customers").select("id, wallet_balance").in("id", ids)
+    : { data: [] as { id: string; wallet_balance: number }[] };
+  const walletMap: Record<string, number> = Object.fromEntries(
+    (balances ?? []).map((b) => [b.id, Number(b.wallet_balance ?? 0)]),
+  );
+
+  const total = Number(players?.[0]?.total_count ?? players?.length ?? 0);
   const first = (page - 1) * PAGE_SIZE + 1;
   const last = first + (players?.length ?? 0) - 1;
   const pageHref = (n: number) => `/players?${new URLSearchParams({ ...(q ? { q } : {}), page: String(n) })}`;
@@ -70,6 +84,7 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
                 <tr className="border-b border-line text-left text-xs text-muted">
                   <th className="px-4 py-2.5 font-medium">Name</th>
                   <th className="px-4 py-2.5 font-medium">Mobile</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Wallet</th>
                   <th className="px-4 py-2.5 text-right font-medium">Visits</th>
                   <th className="px-4 py-2.5 text-right font-medium">Spent</th>
                   <th className="px-4 py-2.5 font-medium">Last visit</th>
@@ -88,13 +103,28 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
                       </Link>
                     </td>
                     <td className="num px-4 py-2.5 text-muted">{formatPhone(p.phone)}</td>
+                    <td className="num px-4 py-2.5 text-right">
+                      <span className={`font-semibold ${(walletMap[p.id] ?? 0) > 0 ? "text-ok" : "text-muted"}`}>
+                        {formatINR(walletMap[p.id] ?? 0)}
+                      </span>
+                    </td>
                     <td className="num px-4 py-2.5 text-right">{p.visits}</td>
                     <td className="num px-4 py-2.5 text-right">{formatINR(p.total_spent)}</td>
                     <td className="px-4 py-2.5 text-muted">
                       {p.last_visit ? formatDateTime(p.last_visit, branch.timezone) : "—"}
                     </td>
                     <td className="px-4 py-2.5 text-right">
-                      {editable && <EditPlayerButton player={p} />}
+                      <div className="flex items-center justify-end gap-1.5">
+                        <TopupWalletButton
+                          customerId={p.id}
+                          playerName={p.name}
+                          currentBalance={walletMap[p.id] ?? 0}
+                          canRefund={editable}
+                          offers={offers}
+                          compact
+                        />
+                        {editable && <EditPlayerButton player={p} />}
+                      </div>
                     </td>
                   </tr>
                 ))}

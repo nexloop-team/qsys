@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  Coffee,
   Contact,
   LayoutGrid,
   Menu,
@@ -41,6 +42,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { href: "/stations", label: "Stations", icon: Monitor },
       { href: "/pricing", label: "Pricing", icon: Tags },
+      { href: "/inventory", label: "Snacks & Drinks", icon: Coffee },
       { href: "/settings", label: "Settings", icon: Settings },
     ],
   },

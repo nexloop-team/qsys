@@ -72,22 +72,7 @@ const billingSchema = z
       .regex(/^[A-Z0-9-]{1,10}$/, "Bill prefix: up to 10 letters, numbers or dashes."),
     overtime_grace_minutes: z.coerce.number().int().min(0).max(30),
     early_end_policy: z.enum(["full", "played"]),
-    upi_vpa: z
-      .string()
-      .trim()
-      .toLowerCase()
-      .transform((v) => v || null)
-      .pipe(
-        z
-          .string()
-          .regex(/^[a-z0-9._-]{2,64}@[a-z0-9]{2,64}$/, "UPI ID looks like name@bank, e.g. arena@okaxis.")
-          .nullable(),
-      ),
-    upi_payee_name: z
-      .string()
-      .trim()
-      .max(60, "Keep the name under 60 characters.")
-      .transform((v) => v || null),
+    staff_max_discount_pct: z.coerce.number().int().min(0, "0% or more.").max(100, "100% at most."),
   })
   .refine((v) => !v.gst_enabled || v.gstin, {
     message: "Enter your GSTIN to turn GST on.",
@@ -182,4 +167,73 @@ export async function changePassword(_prev: ActionState, formData: FormData): Pr
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) return { error: error.message };
   return { ok: "Password changed." };
+}
+
+// Wallet top-up offers ("pay ₹500, get ₹50 extra"). Venue-wide, owner only.
+const offersSchema = z
+  .array(
+    z.object({
+      pay: z.coerce.number().int().min(1, "Pay amount must be at least ₹1.").max(100000),
+      bonus: z.coerce.number().int().min(1, "Bonus must be at least ₹1.").max(100000),
+    }),
+  )
+  .max(6, "Keep it to 6 offers or fewer.")
+  .refine((offers) => offers.every((o) => o.bonus <= o.pay), { message: "A bonus can't be more than the amount paid." })
+  .refine((offers) => new Set(offers.map((o) => o.pay)).size === offers.length, {
+    message: "Two offers have the same pay amount.",
+  });
+
+export async function saveWalletOffers(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { org } = await requireRole(["owner"]);
+  const pays = formData.getAll("pay");
+  const bonuses = formData.getAll("bonus");
+  const rows = pays
+    .map((pay, i) => ({ pay: String(pay).trim(), bonus: String(bonuses[i] ?? "").trim() }))
+    .filter((r) => r.pay !== "" || r.bonus !== "");
+  const parsed = offersSchema.safeParse(rows);
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("orgs")
+    .update({ wallet_offers: [...parsed.data].sort((a, b) => a.pay - b.pay) })
+    .eq("id", org.id);
+  if (error) return { error: friendlyDbError(error) };
+  refresh();
+  return { ok: "Offers saved." };
+}
+
+// PC app: apps it closes while a player is on the PC, and the text on the lock screen.
+const pcSchema = z.object({
+  blocked_apps: z
+    .string()
+    .transform((v) =>
+      [...new Set(v.split(/[\n,]+/).map((s) => s.trim().toLowerCase()).filter(Boolean))].map((s) =>
+        s.endsWith(".exe") ? s : `${s}.exe`,
+      ),
+    )
+    .pipe(
+      z
+        .array(z.string().max(60, "An app name is too long.").regex(/^[a-z0-9 ._()+-]+\.exe$/, "Use program names like taskmgr.exe."))
+        .max(100, "Keep the list to 100 apps or fewer."),
+    ),
+  lock_message: z
+    .string()
+    .trim()
+    .max(200, "Keep the lock-screen message under 200 characters.")
+    .transform((v) => v || null),
+  // A checkbox: present ("on") when ticked, missing when not.
+  pc_player_login: z.string().optional().transform((v) => v === "on"),
+});
+
+export async function savePcSettings(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { branch } = await requireRole(["owner"]);
+  const parsed = pcSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("branch_settings").update(parsed.data).eq("branch_id", branch.id);
+  if (error) return { error: friendlyDbError(error) };
+  refresh();
+  return { ok: "Saved. PCs pick it up within a few seconds." };
 }

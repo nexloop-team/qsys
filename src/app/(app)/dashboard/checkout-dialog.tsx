@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CheckCircle2, Printer } from "lucide-react";
@@ -9,8 +9,13 @@ import { computeBill } from "@/lib/bill";
 import { formatINR } from "@/lib/format";
 import { Modal } from "@/components/overlay";
 import { Button, ErrorText, Field, Input, buttonClass } from "@/components/ui";
+import { WhatsAppButton } from "../bills/[id]/whatsapp-button";
 import { PaymentFields, type PaymentRow } from "./payment-fields";
+import { DiscountFields, discountReady } from "./discount-fields";
 import type { FloorPlan, FloorSettings, FloorStation, LiveSession } from "./types";
+import { SESSION_MODE_LABEL } from "@/lib/constants";
+
+const METHOD_NAME = { cash: "Cash", upi: "UPI", wallet: "Wallet" } as const;
 
 export function CheckoutDialog({
   open,
@@ -20,6 +25,7 @@ export function CheckoutDialog({
   plans,
   settings,
   canWriteOff = false,
+  venueName,
   supabase,
   onDone,
 }: {
@@ -30,17 +36,40 @@ export function CheckoutDialog({
   plans: FloorPlan[];
   settings: FloorSettings;
   canWriteOff?: boolean;
+  venueName: string;
   supabase: SupabaseClient<Database>;
   onDone: () => void;
 }) {
   const [discount, setDiscount] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
   const [paid, setPaid] = useState<{ id: string; number: string; total: number } | null>(null);
   const [writeOff, setWriteOff] = useState<string | null>(null);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
 
   const billable = sessions.filter((s) => s.status === "ended" && Number(s.outstanding) > 0);
+  const primaryPhone = billable.find((s) => s.customer_phone)?.customer_phone;
+  const primaryName = billable.find((s) => s.customer_name)?.customer_name;
+  // The wallet that can pay is the bill's own player (the database charges the same one).
+  const customerId = billable.find((s) => s.customer_id)?.customer_id ?? null;
+
+  useEffect(() => {
+    if (!open || !customerId) return;
+    let cancelled = false;
+    supabase
+      .from("customers")
+      .select("wallet_balance")
+      .eq("id", customerId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setWalletBalance(Number(data?.wallet_balance ?? 0));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, customerId, supabase]);
   const lines = billable.map((s) => {
     const plan = plans.find((p) => p.id === s.rate_plan_id);
     return {
@@ -59,12 +88,15 @@ export function CheckoutDialog({
   const confirm = () =>
     startTransition(async () => {
       setError(undefined);
-      const { data: invoiceId, error } = await supabase.rpc("checkout", {
+      // One call: the database creates the bill and takes any wallet part, together or not at all.
+      const res = await supabase.rpc("checkout", {
         p_session_ids: billable.map((s) => s.id),
         p_discount: bill.discount,
         p_payments: payments,
+        p_discount_reason: bill.discount > 0 ? discountReason.trim() : null,
       });
-      if (error || !invoiceId) return setError(error?.message ?? "Couldn't create the bill.");
+      if (res.error || !res.data) return setError(res.error?.message ?? "Couldn't create the bill.");
+      const invoiceId = res.data;
       const { data: inv } = await supabase.from("invoices").select("number, total").eq("id", invoiceId).single();
       setPaid({ id: invoiceId, number: inv?.number ?? "", total: Number(inv?.total ?? bill.total) });
     });
@@ -87,11 +119,28 @@ export function CheckoutDialog({
           <p className="num text-3xl font-semibold">{formatINR(paid.total)}</p>
           <p className="text-sm text-muted">Bill {paid.number}</p>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Link href={`/bills/${paid.id}`} target="_blank" className={buttonClass("secondary")}>
-            <Printer /> Print bill
-          </Link>
-          <Button onClick={onDone}>Done</Button>
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Link href={`/bills/${paid.id}`} target="_blank" className={buttonClass("secondary")}>
+              <Printer /> Print bill
+            </Link>
+            <WhatsAppButton
+              phone={primaryPhone}
+              venueName={venueName}
+              billNumber={paid.number}
+              dateTime={new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+              items={lines.map((l) => ({
+                description: `${l.station?.name ?? "Station"} · ${SESSION_MODE_LABEL[l.session.mode].toLowerCase()}`,
+                amount: formatINR(l.amount),
+              }))}
+              total={formatINR(paid.total)}
+              paidBy={payments.map((p) => METHOD_NAME[p.method]).join(" + ") || "—"}
+              size="md"
+            />
+          </div>
+          <Button onClick={onDone} className="w-full">
+            Done
+          </Button>
         </div>
       </Modal>
     );
@@ -119,17 +168,14 @@ export function CheckoutDialog({
             ))}
           </ul>
 
-          <Field label="Discount (₹)">
-            <Input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              max={bill.subtotal}
-              value={discount}
-              onChange={(e) => setDiscount(e.target.value)}
-              placeholder="0"
-            />
-          </Field>
+          <DiscountFields
+            subtotal={bill.subtotal}
+            value={discount}
+            onChange={setDiscount}
+            reason={discountReason}
+            onReasonChange={setDiscountReason}
+            maxPct={canWriteOff ? null : settings.staffMaxDiscountPct}
+          />
 
           <dl className="grid grid-cols-[1fr_auto] gap-y-1 text-sm">
             <dt className="text-muted">Subtotal</dt>
@@ -161,8 +207,8 @@ export function CheckoutDialog({
           <PaymentFields
             total={bill.total}
             onChange={setPayments}
-            upi={settings.upi}
-            note={names ? `Game time · ${names}` : "Game time"}
+            walletBalance={walletBalance}
+            playerName={primaryName ?? undefined}
           />
 
           <ErrorText>{error}</ErrorText>
@@ -171,7 +217,14 @@ export function CheckoutDialog({
             <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={pending}>
               Not now
             </Button>
-            <Button onClick={confirm} disabled={pending || bill.total <= 0}>
+            <Button
+              onClick={confirm}
+              disabled={
+                pending ||
+                bill.total <= 0 ||
+                !discountReady(bill.subtotal, discount, discountReason, canWriteOff ? null : settings.staffMaxDiscountPct)
+              }
+            >
               {pending ? "Saving…" : `Mark paid ${formatINR(bill.total)}`}
             </Button>
           </div>

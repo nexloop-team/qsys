@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ArrowRightLeft, Pause, Play, Plus, Square, Users } from "lucide-react";
+import { ArrowRightLeft, Coffee, Pause, Play, Plus, Square, Users } from "lucide-react";
 import type { Database } from "@/lib/database.types";
 import { SESSION_MODE_HINT, SESSION_MODE_LABEL, STATION_TYPE_LABEL, type SessionMode } from "@/lib/constants";
 import { formatClock, formatINR, formatMinutes, formatTime } from "@/lib/format";
@@ -12,6 +12,9 @@ import { Badge } from "@/components/card";
 import { Button, ErrorText, Field, Input, Segmented, Select } from "@/components/ui";
 import { PaymentFields, type PaymentRow } from "./payment-fields";
 import { PlayerField, type PlayerValue } from "./player-field";
+import { SessionSnacksForm } from "./session-snacks";
+import { PcControls } from "./pc-controls";
+import type { DeviceStatus } from "@/lib/devices";
 import type { TileInfo } from "./floor-board";
 import type { FloorData, FloorPackage, FloorPlan, FloorStation, LiveSession } from "./types";
 
@@ -33,6 +36,9 @@ export function StationSheet({
   onChanged,
   onCheckout,
   onMoved,
+  device,
+  deviceOnline,
+  onDeviceCommand,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -47,6 +53,10 @@ export function StationSheet({
   onCheckout: (sessionIds: string[]) => void;
   /** The session moved to another station: follow it there. */
   onMoved: (stationId: string) => void;
+  /** PC stations: the paired PC app, if any. */
+  device: DeviceStatus | undefined;
+  deviceOnline: boolean;
+  onDeviceCommand: () => void;
 }) {
   const plan = useMemo(() => resolvePlan(data.plans, station, session), [data.plans, station, session]);
   const packages = data.packages.filter(
@@ -68,41 +78,56 @@ export function StationSheet({
         plan ? `${formatINR(plan.per_hour)}/hr${plan.rate_rules.length ? " · time-based rates apply" : ""}` : "No price set"
       }
     >
-      {station.status !== "active" && !session ? (
-        <p className="text-sm text-muted">
-          This station is in <strong className="text-fg">{station.status}</strong>. Change it under Stations to use it.
-        </p>
-      ) : !plan ? (
-        <p className="text-sm text-muted">Set a price for {STATION_TYPE_LABEL[station.type]} under Pricing first.</p>
-      ) : session ? (
-        <LiveView
-          station={station}
-          session={session}
-          info={info}
-          plan={plan}
-          packages={packages}
-          data={data}
-          nowMs={nowMs}
-          freeStations={freeStations.filter((s) => s.id !== station.id)}
-          supabase={supabase}
-          onChanged={onChanged}
-          onCheckout={onCheckout}
-          onMoved={onMoved}
-          onClose={() => onOpenChange(false)}
-        />
-      ) : (
-        <StartForm
-          station={station}
-          plan={plan}
-          packages={packages}
-          data={data}
-          supabase={supabase}
-          onStarted={async () => {
-            await onChanged();
-            onOpenChange(false);
-          }}
-        />
-      )}
+      <>
+        {station.status !== "active" && !session ? (
+          <p className="text-sm text-muted">
+            This station is in <strong className="text-fg">{station.status}</strong>. Change it under Stations to use it.
+          </p>
+        ) : !plan ? (
+          <p className="text-sm text-muted">Set a price for {STATION_TYPE_LABEL[station.type]} under Pricing first.</p>
+        ) : session ? (
+          <LiveView
+            station={station}
+            session={session}
+            info={info}
+            plan={plan}
+            packages={packages}
+            data={data}
+            nowMs={nowMs}
+            freeStations={freeStations.filter((s) => s.id !== station.id)}
+            supabase={supabase}
+            onChanged={onChanged}
+            onCheckout={onCheckout}
+            onMoved={onMoved}
+            onClose={() => onOpenChange(false)}
+          />
+        ) : (
+          <StartForm
+            station={station}
+            plan={plan}
+            packages={packages}
+            data={data}
+            supabase={supabase}
+            onStarted={async () => {
+              await onChanged();
+              onOpenChange(false);
+            }}
+          />
+        )}
+        {station.type === "pc" && (
+          <PcControls
+            stationId={station.id}
+            stationName={station.name}
+            device={device}
+            online={deviceOnline}
+            nowMs={nowMs}
+            sessionLive={Boolean(session && session.status !== "ended")}
+            isOwner={data.role === "owner"}
+            supabase={supabase}
+            onSent={onDeviceCommand}
+          />
+        )}
+      </>
     </Sheet>
   );
 }
@@ -279,7 +304,7 @@ function StartForm({
             <span className="text-muted">(otherwise at the end)</span>
           </label>
           {collectNow && (
-            <PaymentFields total={bill.total} onChange={setPayments} upi={data.settings.upi} note={`Game time · ${station.name}`} />
+            <PaymentFields total={bill.total} onChange={setPayments} />
           )}
         </div>
       )}
@@ -340,7 +365,7 @@ function LiveView({
   onMoved: (stationId: string) => void;
   onClose: () => void;
 }) {
-  const [panel, setPanel] = useState<"none" | "extend" | "transfer">("none");
+  const [panel, setPanel] = useState<"none" | "extend" | "transfer" | "snack">("none");
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
   const tz = data.branch.timezone;
@@ -494,7 +519,23 @@ function LiveView({
             <ArrowRightLeft /> Move to another {STATION_TYPE_LABEL[station.type]}
           </Button>
         )}
+        <Button
+          variant="secondary"
+          className="col-span-2"
+          onClick={() => setPanel(panel === "snack" ? "none" : "snack")}
+        >
+          <Coffee /> {panel === "snack" ? "Hide snacks & drinks" : "Add snacks & drinks"}
+        </Button>
       </div>
+
+      {panel === "snack" && (
+        <SessionSnacksForm
+          sessionId={session.id}
+          branchId={data.branch.id}
+          supabase={supabase}
+          onDone={onChanged}
+        />
+      )}
 
       {panel === "extend" && (
         <ExtendForm
@@ -609,7 +650,7 @@ function ExtendForm({
         Collect payment now
       </label>
       {collectNow && (
-        <PaymentFields total={bill.total} onChange={setPayments} upi={data.settings.upi} note="Extra game time" />
+        <PaymentFields total={bill.total} onChange={setPayments} />
       )}
       <ErrorText>{error}</ErrorText>
       <Button

@@ -4,6 +4,8 @@ import { AccountMenu, TopbarStatus } from "./account-menu";
 import { Logo } from "@/components/logo";
 import { Skeleton } from "@/components/card";
 import { ThemeToggle } from "@/components/theme";
+import { getAppContext } from "@/lib/dal";
+import { TimeUpWatcher } from "./time-up-watcher";
 
 // Static shell (nav) prerenders; anything that reads the session streams in
 // behind Suspense, as Cache Components requires.
@@ -45,6 +47,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <MobileNav />
         </Suspense>
       </nav>
+
+      {/* Time's-up alerts on every page, not only the Floor. */}
+      <Suspense fallback={null}>
+        <TimeUpWatcherGate />
+      </Suspense>
     </div>
   );
+}
+
+async function TimeUpWatcherGate() {
+  const { branch } = await getAppContext();
+  // Keyed so switching branch watches the new branch from scratch.
+  return <TimeUpWatcher key={branch.id} branchId={branch.id} />;
 }
