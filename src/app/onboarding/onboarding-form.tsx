@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { createOrganization, joinWithCode } from "./actions";
-import { Field, FormMessage, Input, Segmented, Select, SubmitButton } from "@/components/ui";
+import { Field, FormMessage, Input, Select, SubmitButton, cx } from "@/components/ui";
 import { StationTypePicker } from "@/components/station-type-picker";
 
 const TIMEZONES = ["Asia/Kolkata", "Asia/Dubai", "Asia/Kathmandu", "Asia/Dhaka", "Asia/Colombo"];
@@ -12,8 +12,20 @@ export function OnboardingChoice() {
 
   return (
     <div className="flex flex-col gap-6">
+      {mode === "create" && (
+        <ol aria-label="Setup steps" className="grid grid-cols-3 gap-2">
+          {["Your venue", "Stations", "Prices"].map((label, i) => (
+            <li key={label} className="flex flex-col gap-1.5">
+              <span aria-hidden className={cx("h-[3px] rounded-full", i === 0 ? "bg-fg" : "bg-line-strong")} />
+              <span className={cx("font-plexmono text-xs", i === 0 ? "font-semibold text-fg" : "text-muted")}>
+                {i + 1} · {label}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">
+        <h1 className="text-[32px] leading-[1.05] font-semibold tracking-[-0.03em]">
           {mode === "create" ? "Set up your venue" : "Join your team"}
         </h1>
         <p className="mt-1 text-sm text-muted">
@@ -22,16 +34,31 @@ export function OnboardingChoice() {
             : "Ask the owner for an invite code from the Team page."}
         </p>
       </div>
-      <Segmented
-        value={mode}
-        onChange={setMode}
-        className="w-full"
-        options={[
-          { value: "create", label: "I own a venue" },
-          { value: "join", label: "Join with invite code" },
-        ]}
-      />
-      <div className="rounded-2xl border border-line bg-panel p-5 shadow-pop sm:p-6">
+      {/* Owner or staff: two big choices, easy to hit with a thumb. */}
+      <div role="radiogroup" aria-label="Who are you" className="grid grid-cols-2 gap-2">
+        {(
+          [
+            ["create", "I own a venue", "Create it, invite staff"],
+            ["join", "I work at one", "Join with an invite code"],
+          ] as const
+        ).map(([value, title, note]) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={mode === value}
+            onClick={() => setMode(value)}
+            className={cx(
+              "flex flex-col items-start gap-0.5 rounded-lg border bg-panel p-3.5 text-left transition-colors",
+              mode === value ? "border-fg ring-1 ring-fg" : "border-line-strong hover:border-faint",
+            )}
+          >
+            <b className="text-[15px] font-semibold">{title}</b>
+            <span className="text-xs text-muted">{note}</span>
+          </button>
+        ))}
+      </div>
+      <div className="rounded-xl border border-line bg-panel p-5 sm:p-6">
         {mode === "create" ? <CreateForm /> : <JoinForm />}
       </div>
     </div>

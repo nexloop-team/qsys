@@ -13,6 +13,7 @@
   --panel: #ffffff;
   --subtle: #f1f2f5;
   --hover: #eceef2;
+  --glow: rgb(255 255 255 / 0.95);
   --line: #e5e7eb;
   --line-strong: #d5d8de;
   --fg: #0f1115;
@@ -54,6 +55,7 @@
   --panel: #111217;
   --subtle: #17191f;
   --hover: #1d1f26;
+  --glow: rgb(255 255 255 / 0.075);
   --line: #23252d;
   --line-strong: #30333c;
   --fg: #ededf0;
@@ -92,6 +94,7 @@
     --panel: #111217;
     --subtle: #17191f;
     --hover: #1d1f26;
+    --glow: rgb(255 255 255 / 0.075);
     --line: #23252d;
     --line-strong: #30333c;
     --fg: #ededf0;
@@ -159,6 +162,10 @@
   --shadow-pop: var(--shadow-lg);
   --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* Pre-login pages: IBM Plex (loaded in src/lib/marketing-fonts.ts). */
+  --font-plex: var(--font-plex-sans), system-ui, sans-serif;
+  --font-display: var(--font-plex-condensed), var(--font-plex-sans), system-ui, sans-serif;
+  --font-plexmono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
 /* Phones never scroll the page sideways: wide content scrolls inside its own box. `clip`
@@ -166,6 +173,11 @@
 html,
 body {
   overflow-x: clip;
+}
+
+/* Links to #sections land below the floating top bar of the public pages. */
+html {
+  scroll-padding-top: 5.5rem;
 }
 
 body {
@@ -222,8 +234,43 @@ progress {
 .blink {
   animation: pulse-ring 1.2s ease-in-out infinite;
 }
+/* Landing page band: two copies side by side drift left forever. */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee {
+  animation: marquee 80s linear infinite;
+}
+
+/* Landing, Features: the line under the open feature fills, then the list moves on. */
+.feature-progress {
+  width: 0;
+  animation: feature-progress 4.5s linear forwards;
+}
+@keyframes feature-progress {
+  to { width: 100%; }
+}
+
+/* Headings come into focus as they scroll into view: up, unblurred, opaque. Browsers without
+   scroll-driven animations just show them. */
+@keyframes reveal {
+  from { opacity: 0; filter: blur(10px); translate: 0 18px; }
+  to { opacity: 1; filter: blur(0); translate: 0 0; }
+}
+@supports (animation-timeline: view()) {
+  .reveal {
+    animation: reveal linear both;
+    animation-timeline: view();
+    animation-range: entry 5% cover 28%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .blink { animation: none; }
+  .marquee { animation: none; }
+  .reveal, .feature-progress { animation: none; }
+  .iso-scene * { transition: none !important; }
   html.theme-transition,
   html.theme-transition * { transition: none !important; }
 }
@@ -236,6 +283,7 @@ progress {
     --bg: #ffffff;
     --panel: #ffffff;
     --subtle: #f4f4f5;
+    --glow: transparent;
     --line: #d4d4d8;
     --line-strong: #a1a1aa;
     --fg: #000000;

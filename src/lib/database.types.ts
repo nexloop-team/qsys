@@ -485,6 +485,19 @@ export type Database = {
       remove_session_item: { Args: { p_item_id: string }; Returns: undefined };
       /** Take some off a line (default 1); down to zero removes it. */
       reduce_session_item: { Args: { p_item_id: string; p_quantity?: number }; Returns: undefined };
+      /** Public contact form: stores a message for the QueSys team. */
+      submit_contact_message: {
+        Args: {
+          p_name: string;
+          p_email: string | null;
+          p_phone: string | null;
+          p_venue: string | null;
+          p_topic: "setup" | "pricing" | "pc_app" | "support" | "other";
+          p_message: string;
+          p_sender_hash?: string | null;
+        };
+        Returns: undefined;
+      };
       topup_wallet: {
         Args: {
           p_customer_id: string;

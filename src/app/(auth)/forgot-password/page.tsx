@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Reset password" };
 export default function ForgotPasswordPage() {
   return (
     <>
-      <h1 className="text-xl font-semibold tracking-tight">Reset your password</h1>
+      <h1 className="text-[32px] leading-[1.05] font-semibold tracking-[-0.03em]">Reset your password</h1>
       <p className="mb-6 mt-1 text-sm text-muted">We&apos;ll email you a link to set a new one.</p>
       <ForgotForm />
       <p className="mt-6 text-sm text-muted">
