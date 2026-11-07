@@ -52,7 +52,7 @@ async function Team() {
       <SettingsSection title="Members" description={`${members?.length ?? 0} people at ${org.name}.`} flush>
         <ul className="divide-y divide-line">
           {(members ?? []).map((m) => (
-            <li key={m.user_id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
+            <li key={m.user_id} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm sm:px-4 sm:py-2.5">
               <span className="grid size-8 shrink-0 place-items-center rounded-full bg-subtle text-xs font-semibold">
                 {nameOf(m.user_id).slice(0, 1).toUpperCase()}
               </span>
@@ -99,7 +99,7 @@ async function Team() {
       <SettingsSection title="What each role can do" flush>
         <dl className="divide-y divide-line text-sm">
           {ROLE_HELP.map(([r, text]) => (
-            <div key={r} className="grid gap-1 px-4 py-2.5 sm:grid-cols-[96px_1fr]">
+            <div key={r} className="grid gap-1 px-5 py-3 sm:grid-cols-[96px_1fr] sm:px-4 sm:py-2.5">
               <dt className="font-medium">{r}</dt>
               <dd className="text-muted">{text}</dd>
             </div>

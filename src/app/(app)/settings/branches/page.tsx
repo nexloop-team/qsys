@@ -34,7 +34,7 @@ async function Branches() {
       >
         <ul className="divide-y divide-line">
           {branches.map((b) => (
-            <li key={b.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+            <li key={b.id} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm sm:px-4">
               <span className="min-w-0 flex-1">
                 <span className="block font-medium">{b.name}</span>
                 <span className="block text-xs text-muted">

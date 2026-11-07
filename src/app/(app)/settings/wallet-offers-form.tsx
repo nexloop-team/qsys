@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { saveWalletOffers } from "./actions";
 import { formatINR } from "@/lib/format";
-import { Button, FormMessage, Input, SubmitButton } from "@/components/ui";
+import { Button, Field, FormMessage, Input, SubmitButton } from "@/components/ui";
 import { SaveBar, SettingsSection } from "./section";
 
 type Offer = { pay: string; bonus: string };
@@ -25,42 +25,37 @@ export function WalletOffersForm({ offers, disabled }: { offers: { pay: number; 
         <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-2">
           {rows.length === 0 && <p className="text-sm text-muted">No offers. Top-ups add exactly what is paid.</p>}
           {rows.map((r, i) => (
-            <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-muted">Pay ₹</span>
-              <Input
-                name="pay"
-                type="number"
-                min={1}
-                value={r.pay}
-                onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, pay: e.target.value } : x)))}
-                className="w-28"
-                aria-label="Pay amount"
-              />
-              <span className="text-muted">get ₹</span>
-              <Input
-                name="bonus"
-                type="number"
-                min={1}
-                value={r.bonus}
-                onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, bonus: e.target.value } : x)))}
-                className="w-24"
-                aria-label="Bonus amount"
-              />
-              <span className="text-muted">extra</span>
+            // Two labelled boxes side by side (fits a phone), the result underneath.
+            <div key={i} className="flex flex-col gap-1.5 rounded-lg border border-line p-3">
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">
+                <Field label="Player pays (₹)">
+                  <Input
+                    name="pay"
+                    type="number"
+                    min={1}
+                    value={r.pay}
+                    onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, pay: e.target.value } : x)))}
+                  />
+                </Field>
+                <Field label="Bonus (₹)">
+                  <Input
+                    name="bonus"
+                    type="number"
+                    min={1}
+                    value={r.bonus}
+                    onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, bonus: e.target.value } : x)))}
+                  />
+                </Field>
+                <Button size="md" variant="ghost" aria-label="Remove offer" onClick={() => setRows(rows.filter((_, j) => j !== i))}>
+                  <X />
+                </Button>
+              </div>
               {Number(r.pay) > 0 && Number(r.bonus) > 0 && (
-                <span className="text-xs text-muted">
-                  → wallet gets {formatINR(Number(r.pay) + Number(r.bonus))} ({Math.round((Number(r.bonus) / Number(r.pay)) * 100)}% bonus)
-                </span>
+                <p className="text-xs text-muted">
+                  Wallet gets <span className="num font-medium text-fg">{formatINR(Number(r.pay) + Number(r.bonus))}</span> (
+                  {Math.round((Number(r.bonus) / Number(r.pay)) * 100)}% bonus)
+                </p>
               )}
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label="Remove offer"
-                onClick={() => setRows(rows.filter((_, j) => j !== i))}
-                className="ml-auto"
-              >
-                <X />
-              </Button>
             </div>
           ))}
           {rows.length < 6 && (

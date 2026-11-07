@@ -43,7 +43,7 @@ function TabList({ pathname }: { pathname: string }) {
                 ref={active ? activeRef : undefined}
                 aria-current={active ? "page" : undefined}
                 className={cx(
-                  "-mb-px block whitespace-nowrap border-b-2 px-3 py-2.5 text-[13px] transition-colors pointer-coarse:py-3",
+                  "-mb-px block whitespace-nowrap rounded-t-md border-b-2 px-3 py-2.5 text-[13px] transition-colors focus-visible:outline-offset-[-2px] pointer-coarse:py-3",
                   active ? "border-fg font-semibold text-fg" : "border-transparent font-medium text-muted hover:text-fg",
                 )}
               >

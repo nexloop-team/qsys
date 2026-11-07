@@ -34,7 +34,16 @@ export function SettingsSection({
         </div>
         {action}
       </div>
-      <div className={cx("min-w-0", flush && "overflow-hidden rounded-lg border border-line")}>{children}</div>
+      {/* A list or table: edge to edge inside the card on phones (no box in a box), boxed from sm up. */}
+      <div
+        className={cx(
+          "min-w-0",
+          flush &&
+            "-mx-5 -mb-6 border-t border-line sm:mx-0 sm:mb-0 sm:overflow-hidden sm:rounded-lg sm:border",
+        )}
+      >
+        {children}
+      </div>
     </section>
   );
 }
