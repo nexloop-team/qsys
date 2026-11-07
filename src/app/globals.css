@@ -183,6 +183,14 @@ html.theme-transition * {
     color 180ms ease !important;
 }
 
+/* Rows that swipe sideways (tabs, filter chips): no scrollbar track under them on phones. */
+.swipe-row {
+  scrollbar-width: none;
+}
+.swipe-row::-webkit-scrollbar {
+  display: none;
+}
+
 /* Numbers that tick (timers, money) must not jitter. */
 .num {
   font-family: var(--font-mono);

@@ -209,7 +209,7 @@ export function SessionSnacksForm({
           </div>
 
           {categories.length > 1 && (
-            <div role="group" aria-label="Category" className="flex gap-1.5 overflow-x-auto">
+            <div role="group" aria-label="Category" className="swipe-row flex gap-1.5 overflow-x-auto">
               {["all", ...categories].map((c) => (
                 <button
                   key={c}

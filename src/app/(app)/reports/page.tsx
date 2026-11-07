@@ -116,7 +116,7 @@ async function Reports({ searchParams }: { searchParams: PageProps<"/reports">["
             <Download /> Export bills
           </a>
           <CustomRange from={from} to={to} max={today} active={range.key === "custom"} />
-          <nav aria-label="Period" className="inline-flex max-w-full overflow-x-auto rounded-lg border border-line bg-subtle p-0.5">
+          <nav aria-label="Period" className="swipe-row inline-flex max-w-full overflow-x-auto rounded-lg border border-line bg-subtle p-0.5">
             {PRESETS.map((v) => (
               <Link
                 key={v.key}

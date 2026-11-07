@@ -129,24 +129,24 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
               <li key={inv.id}>
                 <Link
                   href={`/bills/${inv.id}`}
-                  className={`flex items-start gap-3 px-4 py-3 active:bg-subtle ${inv.voided_at ? "text-muted line-through" : ""}`}
+                  className={`flex flex-col gap-1 px-4 py-3 active:bg-subtle ${inv.voided_at ? "text-muted" : ""}`}
                 >
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline gap-2">
-                      <span className="num text-sm font-medium">{inv.number}</span>
-                      <span className="num text-xs text-muted">{formatTime(inv.created_at, branch.timezone)}</span>
-                    </span>
-                    <span className="mt-0.5 block truncate text-[13px] text-muted">
-                      {inv.invoice_lines.map((l) => l.description).join(", ")}
-                      {inv.customer_name && ` · ${inv.customer_name}`}
+                  {/* Bill · time ........ total */}
+                  <span className="flex items-baseline gap-2">
+                    <span className={`num text-sm font-medium ${inv.voided_at ? "line-through" : ""}`}>{inv.number}</span>
+                    <span className="num text-xs text-muted">{formatTime(inv.created_at, branch.timezone)}</span>
+                    <span className={`num ml-auto text-[15px] font-semibold ${inv.voided_at ? "line-through" : ""}`}>
+                      {formatINR(inv.total)}
                     </span>
                   </span>
-                  <span className="shrink-0 text-right">
-                    <span className="num block text-sm font-semibold">{formatINR(inv.total)}</span>
-                    <span className="block text-xs text-muted">
+                  {/* What it was for ........ how it was paid */}
+                  <span className="flex items-baseline gap-3 text-[13px]">
+                    <span className="min-w-0 flex-1 truncate">{billSummary(inv.invoice_lines)}</span>
+                    <span className="shrink-0 text-xs text-muted">
                       {inv.voided_at ? "Cancelled" : [...new Set(inv.payments.map((p) => METHOD_LABEL[p.method]))].join(" + ")}
                     </span>
                   </span>
+                  {inv.customer_name && <span className="truncate text-xs text-muted">{inv.customer_name}</span>}
                 </Link>
               </li>
             ))}
@@ -192,4 +192,12 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
       </Panel>
     </>
   );
+}
+
+// Short "what was this for" for a bill card: station or item names, not the full line text
+// ("PC-01 · 5 min booked + 11 min extra" → "PC-01"). Two names, then "+N more".
+function billSummary(lines: { description: string }[]) {
+  const names = [...new Set(lines.map((l) => l.description.split(" · ")[0].trim()).filter(Boolean))];
+  if (names.length === 0) return "Bill";
+  return names.length <= 2 ? names.join(", ") : `${names.slice(0, 2).join(", ")} +${names.length - 2} more`;
 }

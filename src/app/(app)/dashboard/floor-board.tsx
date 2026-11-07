@@ -357,7 +357,7 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
       </div>
 
       {typesPresent.length > 1 && (
-        <div className={cx("-mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0", view !== "grid" && "sm:hidden")}>
+        <div className={cx("swipe-row -mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0", view !== "grid" && "sm:hidden")}>
           {(["all", ...typesPresent] as const).map((t) => {
             const n = t === "all" ? tiles.length : tiles.filter((x) => x.station.type === t).length;
             return (

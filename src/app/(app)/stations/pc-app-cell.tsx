@@ -6,7 +6,6 @@ import { CircleCheck, Loader2, MonitorSmartphone, Unlink } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { DEVICE_SELECT, isOnline, seenAgo, type DeviceStatus } from "@/lib/devices";
 import { Modal } from "@/components/overlay";
-import { Badge } from "@/components/card";
 import { Button } from "@/components/ui";
 import { createPairingCode, unpairDevice } from "./actions";
 
@@ -35,19 +34,24 @@ export function PcAppCell({
   const online = isOnline(device, now);
 
   return (
+    // One line: status on the left (dot = online or not), actions on the right.
     <div className="flex flex-wrap items-center gap-2">
       {device ? (
-        <>
-          <Badge tone={online ? "free" : "neutral"}>{online ? "Online" : "Offline"}</Badge>
-          <span className="text-xs text-muted" title={device.ip ?? undefined}>
-            {device.hostname ?? "PC"} · {online ? (device.screen_locked ? "locked" : "unlocked") : seenAgo(device.last_seen_at, now)}
+        <span className="flex min-w-0 flex-1 items-center gap-2 text-xs" title={device.ip ?? undefined}>
+          <span className={`size-2 shrink-0 rounded-full ${online ? "bg-free" : "bg-faint"}`} aria-hidden />
+          <span className="min-w-0 truncate">
+            <span className="font-medium">{online ? "Online" : "Offline"}</span>
+            <span className="text-muted">
+              {" · "}
+              {device.hostname ?? "PC"} · {online ? (device.screen_locked ? "locked" : "unlocked") : seenAgo(device.last_seen_at, now)}
+            </span>
           </span>
-        </>
+        </span>
       ) : (
-        <span className="text-xs text-faint">Not paired</span>
+        <span className="flex-1 text-xs text-muted">PC app not paired</span>
       )}
       {editable && (
-        <span className="ml-auto inline-flex gap-1">
+        <span className="inline-flex shrink-0 gap-1">
           <Button size="sm" variant="secondary" onClick={() => setPairing(true)}>
             <MonitorSmartphone /> {device ? "Re-pair" : "Pair"}
           </Button>

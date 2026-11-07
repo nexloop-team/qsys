@@ -84,20 +84,25 @@ async function Pricing() {
                   <ul className="divide-y divide-line">
                     {typePlans.map((plan) => (
                       <li key={plan.id} className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <span className="num text-lg font-semibold">{formatINR(plan.per_hour)}</span>
-                          <span className="text-sm text-muted">/ hour</span>
-                          <Badge>{plan.tier ?? "All tiers"}</Badge>
-                          {!plan.is_active && <Badge tone="danger">Inactive</Badge>}
-                          <span className="text-[13px] text-muted">
-                            {plan.rounding_minutes === 1 ? "Exact minutes" : `Rounded up to ${plan.rounding_minutes} min`}
-                            {plan.min_minutes > 0 && ` · min ${formatMinutes(plan.min_minutes)}`}
-                            {Number(plan.extra_player_per_hour) > 0 &&
-                              ` · +${formatINR(plan.extra_player_per_hour)}/hr per ${type === "ps5" || type === "xbox" ? "controller" : "player"} over ${plan.included_players}`}
-                            {plan.gst_rate_override != null && ` · GST ${plan.gst_rate_override}%`}
-                          </span>
+                        {/* Price and its actions on one line; the rules that shape the bill below. */}
+                        <div className="flex items-start gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="num text-lg font-semibold">{formatINR(plan.per_hour)}</span>
+                              <span className="text-sm text-muted">/ hour</span>
+                              {(plan.tier || tiers.length > 1) && <Badge>{plan.tier ?? "All tiers"}</Badge>}
+                              {!plan.is_active && <Badge tone="danger">Inactive</Badge>}
+                            </p>
+                            <p className="mt-0.5 text-[13px] text-muted">
+                              {plan.rounding_minutes === 1 ? "Exact minutes" : `Rounded up to ${plan.rounding_minutes} min`}
+                              {plan.min_minutes > 0 && ` · min ${formatMinutes(plan.min_minutes)}`}
+                              {Number(plan.extra_player_per_hour) > 0 &&
+                                ` · +${formatINR(plan.extra_player_per_hour)}/hr per ${type === "ps5" || type === "xbox" ? "controller" : "player"} over ${plan.included_players}`}
+                              {plan.gst_rate_override != null && ` · GST ${plan.gst_rate_override}%`}
+                            </p>
+                          </div>
                           {editable && (
-                            <span className="ml-auto flex items-center gap-1">
+                            <span className="flex shrink-0 items-center gap-1">
                               <RuleDialogButton ratePlanId={plan.id} />
                               <PlanDialogButton stationType={type} tiers={tiers} plan={plan} />
                               <DeleteButton

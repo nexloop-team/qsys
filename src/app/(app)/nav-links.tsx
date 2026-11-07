@@ -113,7 +113,10 @@ export function MobileNavFallback() {
 }
 
 function MobileList({ pathname }: { pathname: string }) {
-  const [open, setOpen] = useState(false);
+  // Open "on" a page: going to another page closes it by itself. Links must not close it first:
+  // closing undoes the sheet's history entry, which would cancel the navigation in progress.
+  const [openOn, setOpenOn] = useState<string | null>(null);
+  const open = openOn !== null && openOn === pathname;
   const inMore = pathname !== "" && !MOBILE_PRIMARY.some((i) => isActive(pathname, i.href));
 
   return (
@@ -137,7 +140,7 @@ function MobileList({ pathname }: { pathname: string }) {
         <li>
           <button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={() => setOpenOn(pathname)}
             className={cx(
               "flex min-h-14 w-full flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium",
               inMore ? "text-accent-ink" : "text-muted",
@@ -148,8 +151,8 @@ function MobileList({ pathname }: { pathname: string }) {
           </button>
         </li>
       </ul>
-      <Sheet open={open} onOpenChange={setOpen} title="More">
-        <MoreMenu pathname={pathname} onNavigate={() => setOpen(false)} />
+      <Sheet open={open} onOpenChange={(o) => setOpenOn(o ? pathname : null)} title="More">
+        <MoreMenu pathname={pathname} onSamePage={() => setOpenOn(null)} />
       </Sheet>
     </>
   );
@@ -157,13 +160,17 @@ function MobileList({ pathname }: { pathname: string }) {
 
 // Phone "More" sheet. Only what the bottom bar doesn't already show; 48px rows for thumbs;
 // account first and log out last (the sidebar's account box isn't on phones).
-function MoreMenu({ pathname, onNavigate }: { pathname: string; onNavigate: () => void }) {
+function MoreMenu({ pathname, onSamePage }: { pathname: string; onSamePage: () => void }) {
+  // Tapping the page you are on just closes the menu; other pages close it when they open.
+  const tap = (href: string) => () => {
+    if (pathname === href) onSamePage();
+  };
   const row = "flex h-12 items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors";
   return (
     <div className="flex flex-col gap-5">
       <Link
         href="/settings/account"
-        onClick={onNavigate}
+        onClick={tap("/settings/account")}
         className={cx(row, "border border-line", isActive(pathname, "/settings/account") ? "bg-accent-soft" : "hover:bg-hover")}
       >
         <UserRound className="size-5 text-muted" strokeWidth={1.9} />
@@ -181,7 +188,7 @@ function MoreMenu({ pathname, onNavigate }: { pathname: string; onNavigate: () =
                 <li key={href}>
                   <Link
                     href={href}
-                    onClick={onNavigate}
+                    onClick={tap(href)}
                     aria-current={active ? "page" : undefined}
                     className={cx(row, active ? "bg-accent-soft text-fg" : "text-fg hover:bg-hover")}
                   >

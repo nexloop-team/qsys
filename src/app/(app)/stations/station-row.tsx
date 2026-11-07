@@ -95,25 +95,48 @@ export function StationRow({
     ) : null;
 
   if (card) {
+    // Phones: only what differs from normal is shown (a tier other than standard, a zone, a status
+    // other than active). Delete is rare and final, so it lives in the edit form, not on every card.
+    const details = [station.tier !== "standard" ? station.tier : null, station.zone].filter(Boolean).join(" · ");
     return (
       <li className="px-4 py-3">
         {editing ? (
-          editForm
+          <div className="flex flex-col gap-3">
+            {editForm}
+            {editable && (
+              <button
+                type="button"
+                disabled={deleting}
+                className="self-start text-xs font-medium text-danger underline-offset-4 hover:underline disabled:opacity-50"
+                onClick={() => {
+                  if (!confirm(`Delete ${station.name}? This can't be undone.`)) return;
+                  startDelete(async () => setDeleteError((await deleteStation(station.id))?.error));
+                }}
+              >
+                Delete {station.name}
+              </button>
+            )}
+            {deleteError && <p className="text-xs text-danger">{deleteError}</p>}
+          </div>
         ) : (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-start gap-3">
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
-                <p className="font-medium">{station.name}</p>
-                <p className="mt-0.5 text-xs text-muted">
-                  {station.tier}
-                  {station.zone ? ` · ${station.zone}` : ""}
+                <p className="flex items-center gap-2 font-medium">
+                  {station.name}
+                  {station.status !== "active" && (
+                    <Badge tone={STATUS_TONE[station.status]}>{STATION_STATUS_LABEL[station.status]}</Badge>
+                  )}
                 </p>
+                {details && <p className="mt-0.5 text-xs capitalize text-muted">{details}</p>}
               </div>
-              <Badge tone={STATUS_TONE[station.status]}>{STATION_STATUS_LABEL[station.status]}</Badge>
-              {actions}
+              {editable && (
+                <Button size="sm" variant="ghost" onClick={() => setEditing(true)} aria-label={`Edit ${station.name}`}>
+                  <Pencil />
+                </Button>
+              )}
             </div>
             {pcApp}
-            {deleteError && <p className="text-xs text-danger">{deleteError}</p>}
           </div>
         )}
       </li>
