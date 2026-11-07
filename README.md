@@ -69,6 +69,7 @@ Each file in `supabase/migrations` runs once, in order. After pulling new code, 
   net profit in Reports.
 - `20261114000001_gap_fixes.sql`: players list paging, exact player totals, monthly repeating expenses,
   changing the player count on a live session.
+- `20261115000001_players_sort.sql`: players list sorted by recent visit, top spend, or who owes money.
 
 ### Password reset emails
 "Forgot password" works with Supabase's default email template, as long as the person opens the link in the

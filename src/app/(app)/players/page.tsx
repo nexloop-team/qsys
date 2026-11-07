@@ -25,11 +25,19 @@ function formatPhone(p: string) {
 
 const PAGE_SIZE = 50;
 
+type Sort = "recent" | "spent" | "owes";
+const SORTS: { key: Sort; label: string }[] = [
+  { key: "recent", label: "Recent" },
+  { key: "spent", label: "Top spenders" },
+  { key: "owes", label: "Owes money" },
+];
+
 async function Players({ searchParams }: { searchParams: PageProps<"/players">["searchParams"] }) {
   const { org, role, branch } = await getAppContext();
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.slice(0, 40) : "";
   const page = Math.max(1, Math.floor(Number(sp.page) || 1));
+  const sort = SORTS.some((x) => x.key === sp.sort) ? (sp.sort as Sort) : "recent";
 
   const supabase = await createClient();
   const { data: players, error } = await supabase.rpc("list_customers", {
@@ -37,11 +45,14 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
     p_search: q || undefined,
     p_limit: PAGE_SIZE,
     p_offset: (page - 1) * PAGE_SIZE,
+    p_sort: sort,
   });
   const total = Number(players?.[0]?.total_count ?? 0);
   const first = (page - 1) * PAGE_SIZE + 1;
   const last = first + (players?.length ?? 0) - 1;
-  const pageHref = (n: number) => `/players?${new URLSearchParams({ ...(q ? { q } : {}), page: String(n) })}`;
+  const hrefWith = (over: Record<string, string>) =>
+    `/players?${new URLSearchParams({ ...(q ? { q } : {}), ...(sort !== "recent" ? { sort } : {}), ...over })}`;
+  const pageHref = (n: number) => hrefWith({ page: String(n) });
   const editable = isOwner(role);
 
   return (
@@ -52,16 +63,35 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
         actions={<AddPlayerButton />}
       />
 
-      <div className="mb-3">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <PlayerSearch initial={q} />
+        <nav aria-label="Sort players" className="inline-flex rounded-lg border border-line bg-subtle p-0.5">
+          {SORTS.map((x) => (
+            <Link
+              key={x.key}
+              href={x.key === "recent" ? `/players${q ? `?q=${encodeURIComponent(q)}` : ""}` : `/players?${new URLSearchParams({ ...(q ? { q } : {}), sort: x.key })}`}
+              aria-current={sort === x.key ? "page" : undefined}
+              className={
+                sort === x.key
+                  ? "rounded-md bg-panel px-3 py-1.5 text-[13px] font-semibold shadow-[0_0_0_1px_var(--line),0_1px_2px_rgb(16_24_40/0.06)]"
+                  : "rounded-md px-3 py-1.5 text-[13px] font-medium text-muted hover:text-fg"
+              }
+            >
+              {x.label}
+            </Link>
+          ))}
+        </nav>
       </div>
 
       <Panel flush>
         {error ? (
           <p className="px-4 py-6 text-sm text-danger">{error.message}</p>
         ) : !players?.length ? (
-          <Empty icon={<Contact />} title={q ? "No players match" : "No players yet"}>
-            {!q && "Players are added automatically when you start a session with their mobile number."}
+          <Empty
+            icon={<Contact />}
+            title={q ? "No players match" : sort === "owes" ? "Nobody owes money" : "No players yet"}
+          >
+            {!q && sort !== "owes" && "Players are added automatically when you start a session with their mobile number."}
           </Empty>
         ) : (
           <div className="overflow-x-auto">
@@ -80,12 +110,17 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
                 {players.map((p) => (
                   <tr key={p.id} className="border-b border-line last:border-0 hover:bg-subtle/60">
                     <td className="px-4 py-2.5 font-medium">
-                      <Link href={`/players/${p.id}`} className="inline-flex items-center gap-2.5 hover:text-accent-ink">
-                        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent-ink">
+                      <Link href={`/players/${p.id}`} className="inline-flex items-center gap-2.5 hover:underline hover:underline-offset-4">
+                        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-subtle text-[11px] font-semibold text-fg ring-1 ring-line">
                           {p.name.slice(0, 1).toUpperCase()}
                         </span>
                         {p.name}
                       </Link>
+                      {Number(p.owed) > 0 && (
+                        <span className="num ml-2 rounded-md bg-over/10 px-1.5 py-px text-[11px] font-semibold text-over">
+                          Owes {formatINR(p.owed)}
+                        </span>
+                      )}
                     </td>
                     <td className="num px-4 py-2.5 text-muted">{formatPhone(p.phone)}</td>
                     <td className="num px-4 py-2.5 text-right">{p.visits}</td>

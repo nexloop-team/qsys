@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Download, ReceiptText } from "lucide-react";
+import { Download, Printer, ReceiptText, Search } from "lucide-react";
 import { getAppContext, isOwner } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { formatINR, formatTime, nextDay, todayIn, zonedStart } from "@/lib/format";
@@ -21,6 +21,12 @@ export default function BillsPage(props: PageProps<"/bills">) {
 
 // "card" only appears on old bills; checkout offers cash and UPI.
 const METHOD_LABEL = { cash: "Cash", upi: "UPI", card: "Card" } as const;
+// Same hues as the payment mix in Reports (UPI blue, cash orange); text stays readable.
+const METHOD_CHIP = {
+  upi: "bg-series-1/12 text-fg",
+  cash: "bg-series-2/14 text-fg",
+  card: "bg-subtle text-muted",
+} as const;
 
 async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["searchParams"] }) {
   const { branch, role } = await getAppContext();
@@ -28,6 +34,7 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
   const today = todayIn(branch.timezone);
   const wanted = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : today;
   const date = wanted > today ? today : wanted;
+  const q = typeof sp.q === "string" ? sp.q.trim().slice(0, 40) : "";
 
   const supabase = await createClient();
   const { data: invoices } = await supabase
@@ -38,9 +45,20 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
     .lt("created_at", zonedStart(nextDay(date), branch.timezone))
     .order("created_at", { ascending: false });
 
-  const list = invoices ?? [];
-  const total = list.reduce((s, i) => s + Number(i.total), 0);
-  const byMethod = list
+  const all = invoices ?? [];
+  // Search the day's bills by number, player, or station on any line.
+  const needle = q.toLowerCase();
+  const list = needle
+    ? all.filter(
+        (i) =>
+          i.number.toLowerCase().includes(needle) ||
+          (i.customer_name ?? "").toLowerCase().includes(needle) ||
+          i.invoice_lines.some((l) => l.description.toLowerCase().includes(needle)),
+      )
+    : all;
+  // Day totals always cover every bill, whatever the search.
+  const total = all.reduce((s, i) => s + Number(i.total), 0);
+  const byMethod = all
     .flatMap((i) => i.payments)
     .reduce<Record<string, number>>((acc, p) => ({ ...acc, [p.method]: (acc[p.method] ?? 0) + Number(p.amount) }), {});
 
@@ -63,14 +81,39 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <Metric label="Collected" value={formatINR(total)} />
-        <Metric label="Bills" value={list.length} sub={list.length ? `Average ${formatINR(Math.round(total / list.length))}` : undefined} />
+        <Metric label="Bills" value={all.length} sub={all.length ? `Average ${formatINR(Math.round(total / all.length))}` : undefined} />
         <Metric label="Cash" value={formatINR(byMethod.cash ?? 0)} sub={total ? `${Math.round(((byMethod.cash ?? 0) / total) * 100)}% of takings` : undefined} />
         <Metric label="UPI" value={formatINR(byMethod.upi ?? 0)} sub={total ? `${Math.round(((byMethod.upi ?? 0) / total) * 100)}% of takings` : undefined} />
       </div>
 
       <Panel flush>
+        {/* Plain GET form: works before JavaScript loads, keeps the date. */}
+        <form className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3" role="search">
+          <input type="hidden" name="date" value={date} />
+          <label className="relative min-w-0 flex-1 sm:max-w-sm">
+            <span className="sr-only">Search bills</span>
+            <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted" />
+            <input
+              name="q"
+              defaultValue={q}
+              placeholder="Bill no., player or station"
+              className="h-9 w-full rounded-lg border border-line-strong bg-panel pl-9 pr-3 text-sm outline-none placeholder:text-faint focus:border-accent"
+            />
+          </label>
+          <button type="submit" className={buttonClass("secondary")}>
+            Search
+          </button>
+          {q && (
+            <Link href={`/bills?date=${date}`} className={buttonClass("ghost")}>
+              Clear
+            </Link>
+          )}
+          <span className="num ml-auto text-xs text-muted">
+            {q ? `${list.length} of ${all.length} bills` : `${all.length} bill${all.length === 1 ? "" : "s"}`}
+          </span>
+        </form>
         {list.length === 0 ? (
-          <Empty icon={<ReceiptText />} title="No bills on this day" />
+          <Empty icon={<ReceiptText />} title={q ? "No bills match" : "No bills on this day"} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[620px] text-sm">
@@ -81,13 +124,16 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
                   <th className="px-4 py-2.5 font-medium">For</th>
                   <th className="px-4 py-2.5 font-medium">Paid by</th>
                   <th className="px-4 py-2.5 text-right font-medium">Total</th>
+                  <th className="w-12 px-2 py-2.5">
+                    <span className="sr-only">Print</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {list.map((inv) => (
                   <tr key={inv.id} className="border-b border-line last:border-0 hover:bg-subtle/60">
                     <td className="px-4 py-2.5">
-                      <Link href={`/bills/${inv.id}`} className="num font-medium text-accent-ink underline-offset-4 hover:underline">
+                      <Link href={`/bills/${inv.id}`} className="num font-medium text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">
                         {inv.number}
                       </Link>
                     </td>
@@ -96,10 +142,26 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
                       {inv.invoice_lines.map((l) => l.description).join(", ")}
                       {inv.customer_name && <span className="text-muted"> · {inv.customer_name}</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-muted">
-                      {[...new Set(inv.payments.map((p) => METHOD_LABEL[p.method]))].join(" + ")}
+                    <td className="px-4 py-2.5">
+                      <span className="flex flex-wrap gap-1">
+                        {[...new Set(inv.payments.map((p) => p.method))].map((m) => (
+                          <span key={m} className={`rounded-md px-1.5 py-px text-xs font-medium ${METHOD_CHIP[m]}`}>
+                            {METHOD_LABEL[m]}
+                          </span>
+                        ))}
+                      </span>
                     </td>
-                    <td className="num px-4 py-2.5 text-right font-medium">{formatINR(inv.total)}</td>
+                    <td className="num px-4 py-2.5 text-right font-semibold">{formatINR(inv.total)}</td>
+                    <td className="px-2 py-2.5 text-right">
+                      <Link
+                        href={`/bills/${inv.id}`}
+                        aria-label={`Open bill ${inv.number} to print`}
+                        title="Open to print"
+                        className="inline-grid size-8 place-items-center rounded-lg text-faint transition-colors hover:bg-hover hover:text-fg"
+                      >
+                        <Printer className="size-4" />
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>

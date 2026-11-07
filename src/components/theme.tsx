@@ -146,7 +146,7 @@ function ThemeSwatch({ kind }: { kind: ThemePreference }) {
       <div className={cx("w-3 rounded-[3px]", dark ? "bg-[#17191f]" : "bg-white")} />
       <div className={cx("flex flex-1 flex-col gap-1 rounded-[3px] p-1", dark ? "bg-[#111217]" : "bg-white")}>
         <div className={cx("h-1 w-2/3 rounded-full", dark ? "bg-[#30333c]" : "bg-[#d5d8de]")} />
-        <div className="h-1 w-1/3 rounded-full bg-[#5b5fe9]" />
+        <div className={cx("h-1 w-1/3 rounded-full", dark ? "bg-[#ededf0]" : "bg-[#16181d]")} />
       </div>
     </div>
   );

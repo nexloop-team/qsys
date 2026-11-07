@@ -21,7 +21,7 @@ async function Floor() {
   const { branch, org, role } = await getAppContext();
   const supabase = await createClient();
 
-  const [stations, sessions, unpaid, plans, packages, settings, now] = await Promise.all([
+  const [stations, sessions, unpaid, plans, packages, settings, now, hours] = await Promise.all([
     supabase
       .from("stations")
       .select("id, name, type, tier, status, zone, layout_x, layout_y, layout_rot")
@@ -49,11 +49,13 @@ async function Floor() {
       .order("minutes"),
     supabase.from("branch_settings").select("*").eq("branch_id", branch.id).single(),
     supabase.rpc("server_time"),
+    supabase.from("branches").select("closing_time").eq("id", branch.id).maybeSingle(),
   ]);
 
   const s = settings.data;
   const data: FloorData = {
     branch,
+    closingTime: hours.data?.closing_time ?? null,
     orgId: org.id,
     orgName: org.name,
     role,

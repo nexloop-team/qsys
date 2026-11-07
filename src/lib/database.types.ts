@@ -331,7 +331,7 @@ export type Database = {
       write_off_session: { Args: { p_session_id: string; p_reason: string }; Returns: undefined };
       create_customer: { Args: { p_org_id: string; p_phone: string; p_name: string }; Returns: string };
       list_customers: {
-        Args: { p_org_id: string; p_search?: string; p_limit?: number; p_offset?: number };
+        Args: { p_org_id: string; p_search?: string; p_limit?: number; p_offset?: number; p_sort?: "recent" | "spent" | "owes" };
         Returns: {
           id: string;
           name: string;
@@ -340,6 +340,7 @@ export type Database = {
           visits: number;
           total_spent: number;
           last_visit: string | null;
+          owed: number;
           total_count: number;
         }[];
       };

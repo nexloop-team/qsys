@@ -34,10 +34,6 @@ const STEPS = [
 export default function Home() {
   return (
     <div className="relative isolate flex flex-1 flex-col overflow-hidden">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-48 left-1/2 -z-10 h-[420px] w-[900px] -translate-x-1/2 rounded-full bg-accent/12 blur-3xl"
-      />
       <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
         <Logo />
         <div className="flex items-center gap-1.5">
@@ -58,8 +54,7 @@ export default function Home() {
             Gaming lounges · Pool &amp; snooker halls
           </p>
           <h1 className="mt-4 text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl">
-            Every station, every minute,{" "}
-            <span className="bg-gradient-to-r from-accent-ink to-busy bg-clip-text text-transparent">one screen.</span>
+            Every station, every minute, one screen.
           </h1>
           <p className="mt-5 max-w-md text-[17px] leading-relaxed text-muted">
             Stop walking to each PC and writing times on paper. QueSys times every PC, console and table, bills to the

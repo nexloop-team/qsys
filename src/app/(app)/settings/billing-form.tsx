@@ -214,7 +214,7 @@ export function BillingForm({ settings, disabled }: { settings: Settings; disabl
         <div className="sticky bottom-[calc(64px+env(safe-area-inset-bottom))] z-10 -mx-1 rounded-lg border border-line bg-panel/95 px-3 py-2.5 backdrop-blur md:bottom-3">
           <SaveBar>
             <FormMessage state={state} />
-            <SubmitButton>Save billing</SubmitButton>
+            <SubmitButton>Save billing settings</SubmitButton>
           </SaveBar>
         </div>
       )}

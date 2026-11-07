@@ -13,13 +13,14 @@ import { RuleDialogButton } from "./rule-form";
 import { PackageDialogButton } from "./package-form";
 import { DeleteButton, PackageActiveToggle } from "./row-actions";
 import { deletePackage, deleteRatePlan, deleteRateRule } from "./actions";
+import { PriceCheck } from "./price-check";
 
 export const metadata: Metadata = { title: "Pricing" };
 
-export default function PricingPage() {
+export default function PricingPage(props: PageProps<"/pricing">) {
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <Pricing />
+      <Pricing searchParams={props.searchParams} />
     </Suspense>
   );
 }
@@ -32,7 +33,7 @@ function describeDays(days: number[]) {
   return [...days].sort().map((d) => DAY_LABELS[d]).join(" ");
 }
 
-async function Pricing() {
+async function Pricing({ searchParams }: { searchParams: PageProps<"/pricing">["searchParams"] }) {
   const { branch, role } = await getAppContext();
   const supabase = await createClient();
 
@@ -44,6 +45,8 @@ async function Pricing() {
 
   const editable = isOwner(role);
   const types = STATION_TYPES.filter((t) => (stations ?? []).some((s) => s.type === t));
+  const sp = await searchParams;
+  const active = types.find((t) => t === sp.type) ?? types[0];
 
   return (
     <>
@@ -62,14 +65,41 @@ async function Pricing() {
         </Panel>
       ) : (
         <div className="flex flex-col gap-5">
-          {types.map((type) => {
+          {/* One tab per station type; types with no active rate are flagged. */}
+          <nav aria-label="Station type" className="flex flex-wrap gap-1.5">
+            {types.map((t) => {
+              const priced = (plans ?? []).some((p) => p.station_type === t && p.is_active);
+              const on = t === active;
+              return (
+                <Link
+                  key={t}
+                  href={`/pricing?type=${t}`}
+                  aria-current={on ? "page" : undefined}
+                  className={
+                    on
+                      ? "inline-flex h-9 items-center gap-2 rounded-full bg-accent px-4 text-[13px] font-semibold text-accent-fg"
+                      : priced
+                        ? "inline-flex h-9 items-center gap-2 rounded-full border border-line bg-panel px-4 text-[13px] font-medium text-muted hover:border-line-strong hover:text-fg"
+                        : "inline-flex h-9 items-center gap-2 rounded-full border border-ending/40 bg-ending/8 px-4 text-[13px] font-medium text-ending"
+                  }
+                >
+                  {!priced && <span className="size-1.5 rounded-full bg-ending" aria-hidden />}
+                  {STATION_TYPE_LABEL[t]}
+                  {!priced && <span className="text-xs">· no price</span>}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {types.filter((t) => t === active).map((type) => {
             const tiers = [...new Set((stations ?? []).filter((s) => s.type === type).map((s) => s.tier))];
             const typePlans = (plans ?? []).filter((p) => p.station_type === type);
             const typePackages = (packages ?? []).filter((p) => p.station_type === type);
+            const checkPlan = typePlans.find((p) => p.is_active && p.tier === null) ?? typePlans.find((p) => p.is_active);
 
             return (
+              <div key={type} className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
               <Panel
-                key={type}
                 title={STATION_TYPE_LABEL[type]}
                 description={tiers.length > 1 ? `Tiers: ${tiers.join(", ")}` : undefined}
                 action={editable && <PlanDialogButton stationType={type} tiers={tiers} />}
@@ -147,7 +177,17 @@ async function Pricing() {
                       <tbody>
                         {typePackages.map((pkg) => (
                           <tr key={pkg.id} className={pkg.is_active ? "" : "text-faint"}>
-                            <td className="py-1.5 pr-3 font-medium">{pkg.name}</td>
+                            <td className="py-1.5 pr-3 font-medium">
+                              {pkg.name}
+                              {checkPlan && Math.round((Number(checkPlan.per_hour) * pkg.minutes) / 60) - Number(pkg.price) > 0 && (
+                                <span className="num ml-2 rounded-md bg-free/10 px-1.5 py-px text-[11px] font-semibold text-free">
+                                  save {formatINR(Math.round((Number(checkPlan.per_hour) * pkg.minutes) / 60) - Number(pkg.price))}
+                                </span>
+                              )}
+                              {!pkg.is_active && (
+                                <span className="ml-2 rounded-md bg-subtle px-1.5 py-px text-[11px] font-medium text-muted">Hidden</span>
+                              )}
+                            </td>
                             <td className="num py-1.5 pr-3 text-muted">{formatMinutes(pkg.minutes)}</td>
                             <td className="num py-1.5 pr-3">{formatINR(pkg.price)}</td>
                             <td className="py-1.5 pr-3 text-muted">{pkg.tier ?? "All tiers"}</td>
@@ -170,6 +210,19 @@ async function Pricing() {
                   )}
                 </div>
               </Panel>
+
+              {/* Price check for this type's main rate */}
+              {checkPlan && (
+                <Panel title="Price check" description="What a session would cost with these rates">
+                  <PriceCheck
+                    plan={checkPlan}
+                    rules={checkPlan.rate_rules}
+                    timeZone={branch.timezone}
+                    canHaveExtraPlayers={Number(checkPlan.extra_player_per_hour) > 0}
+                  />
+                </Panel>
+              )}
+              </div>
             );
           })}
         </div>

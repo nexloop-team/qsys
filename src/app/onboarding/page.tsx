@@ -15,10 +15,6 @@ export const metadata: Metadata = { title: "Get started" };
 export default function OnboardingPage() {
   return (
     <main className="relative isolate flex flex-1 flex-col items-center overflow-hidden px-4 py-8 sm:py-14">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-80 w-[640px] -translate-x-1/2 rounded-full bg-accent/15 blur-3xl"
-      />
       <div className="flex w-full max-w-md items-center justify-between">
         <Logo />
         <div className="flex items-center gap-1.5">

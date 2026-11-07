@@ -5,6 +5,7 @@ import { formatINR } from "@/lib/format";
 import { Empty, Metric, PageHeader, Panel } from "@/components/card";
 import { AddExpenseButton, DeleteExpenseButton, EditExpenseButton, type TeamMember } from "./expense-forms";
 import { CATEGORY_ICON } from "./category-icons";
+import type { DueExpense } from "@/lib/expenses-due";
 
 export type ExpenseRow = {
   id: string;
@@ -17,15 +18,7 @@ export type ExpenseRow = {
   repeats_monthly: boolean;
 };
 
-/** A monthly cost logged in an earlier month but not yet in this one. */
-export type DueExpense = {
-  key: string;
-  category: ExpenseCategory;
-  name: string;
-  amount: number;
-  staff_id: string | null;
-  lastPaid: string;
-};
+export type { DueExpense } from "@/lib/expenses-due";
 
 // Pure view for /expenses: a month of spending against that month's revenue.
 export function ExpensesView({
@@ -172,7 +165,7 @@ export function ExpensesView({
               {team.length === 0 ? (
                 <div className="px-4 py-6 text-center text-sm text-muted">
                   No staff yet.{" "}
-                  <Link href="/settings/team" className="font-medium text-accent-ink hover:underline">
+                  <Link href="/settings/team" className="font-medium text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">
                     Invite your team
                   </Link>{" "}
                   to track their salaries here.
@@ -280,7 +273,7 @@ export function ExpensesView({
 
         <p className="text-xs text-muted">
           Net profit = revenue from bills − expenses logged here. See it by day and period in{" "}
-          <Link href="/reports" className="font-medium text-accent-ink hover:underline">
+          <Link href="/reports" className="font-medium text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">
             Reports
           </Link>
           .

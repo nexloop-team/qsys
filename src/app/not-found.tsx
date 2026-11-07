@@ -10,10 +10,6 @@ export const metadata: Metadata = { title: "Page not found" };
 export default function NotFound() {
   return (
     <main className="relative isolate flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-16 text-center">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-80 w-[640px] -translate-x-1/2 rounded-full bg-accent/15 blur-3xl"
-      />
       <Logo href="/dashboard" />
       <div className="mt-10 grid size-12 place-items-center rounded-2xl border border-line bg-panel text-muted shadow-xs">
         <Compass className="size-6" />

@@ -31,7 +31,12 @@ export function SettingsSection({
   );
 }
 
-// Save row at the bottom of a settings form.
+// Save row at the bottom of a settings form. Sticks to the bottom of the screen on long
+// forms so Save is always in reach (above the phone tab bar).
 export function SaveBar({ children }: { children: ReactNode }) {
-  return <div className="flex items-center justify-end gap-3">{children}</div>;
+  return (
+    <div className="sticky bottom-20 z-10 -mx-1 flex items-center justify-end gap-3 rounded-xl border border-line bg-panel/95 px-3 py-2.5 shadow-pop backdrop-blur md:bottom-4">
+      {children}
+    </div>
+  );
 }

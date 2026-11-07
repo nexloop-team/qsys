@@ -18,22 +18,16 @@ import {
 import { Sheet } from "@/components/overlay";
 import { cx } from "@/components/ui";
 
-type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavItem = { href: string; label: string; icon: LucideIcon; badge?: "live" | "due" };
 
-const GROUPS: { label: string; items: NavItem[] }[] = [
+// Analytics (money over time) is its own group, set apart from running the floor.
+const GROUPS: { label: string; items: NavItem[]; separated?: boolean }[] = [
   {
     label: "Operate",
     items: [
-      { href: "/dashboard", label: "Floor", icon: LayoutGrid },
+      { href: "/dashboard", label: "Floor", icon: LayoutGrid, badge: "live" },
       { href: "/bills", label: "Bills", icon: ReceiptText },
       { href: "/players", label: "Players", icon: Contact },
-    ],
-  },
-  {
-    label: "Insights",
-    items: [
-      { href: "/reports", label: "Reports", icon: BarChart3 },
-      { href: "/expenses", label: "Expenses", icon: Wallet },
     ],
   },
   {
@@ -44,7 +38,17 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/settings", label: "Settings", icon: Settings },
     ],
   },
+  {
+    label: "Analytics",
+    separated: true,
+    items: [
+      { href: "/reports", label: "Reports", icon: BarChart3 },
+      { href: "/expenses", label: "Expenses", icon: Wallet, badge: "due" },
+    ],
+  },
 ];
+
+export type NavBadges = { live?: number; due?: number };
 
 const MOBILE_PRIMARY = GROUPS[0].items;
 
@@ -52,8 +56,8 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function SidebarNav() {
-  return <SidebarList pathname={usePathname()} />;
+export function SidebarNav({ badges }: { badges?: NavBadges }) {
+  return <SidebarList pathname={usePathname()} badges={badges} />;
 }
 
 // Rendered in the static shell before the URL is known (no active highlight).
@@ -61,15 +65,16 @@ export function SidebarNavFallback() {
   return <SidebarList pathname="" />;
 }
 
-function SidebarList({ pathname }: { pathname: string }) {
+function SidebarList({ pathname, badges }: { pathname: string; badges?: NavBadges }) {
   return (
     <nav className="flex flex-col gap-5 px-2.5">
       {GROUPS.map((group) => (
-        <div key={group.label}>
+        <div key={group.label} className={cx(group.separated && "border-t border-line pt-4")}>
           <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">{group.label}</p>
           <ul className="flex flex-col gap-px">
-            {group.items.map(({ href, label, icon: Icon }) => {
+            {group.items.map(({ href, label, icon: Icon, badge }) => {
               const active = isActive(pathname, href);
+              const count = badge ? badges?.[badge] : undefined;
               return (
                 <li key={href}>
                   <Link
@@ -78,15 +83,25 @@ function SidebarList({ pathname }: { pathname: string }) {
                     className={cx(
                       "group flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors",
                       active
-                        ? "bg-accent-soft text-fg"
+                        ? "bg-accent-soft text-fg shadow-[inset_0_0_0_1px_var(--line)]"
                         : "text-muted hover:bg-hover hover:text-fg",
                     )}
                   >
                     <Icon
-                      className={cx("size-4", active ? "text-accent-ink" : "text-faint group-hover:text-muted")}
+                      className={cx("size-4", active ? "text-fg" : "text-faint group-hover:text-muted")}
                       strokeWidth={1.9}
                     />
-                    {label}
+                    <span className="flex-1">{label}</span>
+                    {count ? (
+                      <span
+                        className={cx(
+                          "num rounded-full px-1.5 py-px text-[11px]",
+                          badge === "due" ? "bg-ending/12 text-ending" : "bg-subtle text-muted",
+                        )}
+                      >
+                        {count} {badge === "due" ? "due" : "live"}
+                      </span>
+                    ) : null}
                   </Link>
                 </li>
               );

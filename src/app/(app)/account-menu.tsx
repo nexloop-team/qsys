@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { LogOut } from "lucide-react";
-import { getAppContext } from "@/lib/dal";
+import { getAppContext, isOwner } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { ROLE_LABEL } from "@/lib/constants";
-import { formatINR, nextDay, todayIn, zonedStart } from "@/lib/format";
+import { todayIn } from "@/lib/format";
+import { countDueExpenses } from "@/lib/expenses-due";
 import { logout } from "@/app/(auth)/actions";
 import { BranchSwitcher } from "./branch-switcher";
+import { SidebarNav } from "./nav-links";
+import { SearchButton } from "./search";
 
 export async function AccountMenu() {
   const { org, user, role } = await getAppContext();
@@ -16,7 +19,7 @@ export async function AccountMenu() {
       <Link
         href="/settings/account"
         title="Your account"
-        className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-semibold text-accent-ink ring-1 ring-accent/20"
+        className="grid size-8 shrink-0 place-items-center rounded-full bg-subtle text-xs font-semibold text-fg ring-1 ring-line"
       >
         {initials}
       </Link>
@@ -40,31 +43,50 @@ export async function AccountMenu() {
   );
 }
 
-// Top bar: branch, and today's takings (from bills, in the branch's time zone).
-export async function TopbarStatus() {
-  const { branch, branches } = await getAppContext();
-  const supabase = await createClient();
-  const today = todayIn(branch.timezone);
-  const { data: invoices } = await supabase
-    .from("invoices")
-    .select("total")
-    .eq("branch_id", branch.id)
-    .gte("created_at", zonedStart(today, branch.timezone))
-    .lt("created_at", zonedStart(nextDay(today), branch.timezone));
-  const collected = (invoices ?? []).reduce((sum, i) => sum + Number(i.total), 0);
+// Venue + branch at the top of the sidebar; switching branch happens here.
+export async function VenueCard() {
+  const { org, branch, branches } = await getAppContext();
+  const initials = org.name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
 
   return (
-    <div className="ml-auto flex items-center gap-2">
-      <Link
-        href="/bills"
-        title="Collected today"
-        className="inline-flex h-8 items-center gap-2 rounded-lg border border-line bg-panel px-2.5 text-xs font-medium shadow-xs transition-colors hover:bg-hover"
-      >
-        <span className="size-1.5 rounded-full bg-free" aria-hidden />
-        <span className="text-muted">Today</span>
-        <span className="num text-[13px]">{formatINR(collected)}</span>
-      </Link>
-      <BranchSwitcher branches={branches} activeId={branch.id} />
+    <div className="flex items-center gap-2.5 rounded-xl border border-line bg-bg px-2.5 py-2">
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-[12px] font-semibold text-accent-fg">
+        {initials || "Q"}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-semibold">{org.name}</p>
+        {branches.length > 1 ? (
+          <BranchSwitcher branches={branches} activeId={branch.id} />
+        ) : (
+          <p className="truncate text-xs text-muted">{branch.name}</p>
+        )}
+      </div>
     </div>
   );
+}
+
+// Sidebar links with live counts: sessions running now, and (owner) monthly costs still due.
+export async function SidebarNavWithBadges() {
+  const { org, branch, role } = await getAppContext();
+  const supabase = await createClient();
+  const monthStart = `${todayIn(branch.timezone).slice(0, 7)}-01`;
+  const [{ count: live }, due] = await Promise.all([
+    supabase
+      .from("sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("branch_id", branch.id)
+      .neq("status", "ended"),
+    isOwner(role) ? countDueExpenses(supabase, org.id, branch.id, monthStart) : Promise.resolve(0),
+  ]);
+  return <SidebarNav badges={{ live: live ?? 0, due }} />;
+}
+
+// Search button for the top bar; needs the venue and branch to search in.
+export async function TopbarSearch() {
+  const { org, branch } = await getAppContext();
+  return <SearchButton orgId={org.id} branchId={branch.id} />;
 }

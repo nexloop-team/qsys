@@ -9,7 +9,7 @@ import { formatClock, formatINR, formatMinutes, formatTime } from "@/lib/format"
 import { computeBill } from "@/lib/bill";
 import { Sheet } from "@/components/overlay";
 import { Badge } from "@/components/card";
-import { Button, ErrorText, Field, Input, Segmented, Select } from "@/components/ui";
+import { Button, ErrorText, Field, Input, Segmented, Select, cx } from "@/components/ui";
 import { PaymentFields, type PaymentRow } from "./payment-fields";
 import { PlayerField, type PlayerValue } from "./player-field";
 import type { TileInfo } from "./floor-board";
@@ -381,25 +381,85 @@ function LiveView({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-line bg-subtle/40">
-        <Cell label={info.clockLabel} value={info.clock ?? "—"} strong />
-        <Cell label="Charge so far" value={formatINR(info.charge?.total ?? 0)} strong />
-        <Cell label="Started" value={formatTime(session.started_at, tz)} />
-        {session.mode === "prepaid" ? (
-          <Cell label="Ends" value={session.planned_end_at ? formatTime(session.planned_end_at, tz) : elapsed} />
-        ) : (
-          // Elapsed is already shown above; this is what the rounding rules bill for.
-          <Cell label="Billed as" value={formatMinutes(info.charge?.billableMinutes ?? 0)} />
+      {/* The timer, big, in the state's colour. */}
+      <div
+        className={cx(
+          "rounded-2xl border p-4",
+          info.state === "over"
+            ? "border-over/40 bg-over/[0.06]"
+            : info.state === "ending"
+              ? "border-ending/40 bg-ending/[0.06]"
+              : info.state === "paused"
+                ? "border-dashed border-line-strong bg-subtle/50"
+                : "border-line bg-subtle/50",
         )}
+      >
+        <div className="flex items-baseline justify-between gap-3 text-xs">
+          <span
+            className={cx(
+              "font-medium",
+              info.state === "over" ? "text-over" : info.state === "ending" ? "text-ending" : "text-muted",
+            )}
+          >
+            {session.status === "paused"
+              ? "Paused"
+              : session.mode === "prepaid"
+                ? info.state === "over"
+                  ? "Over the booking by"
+                  : "Time left"
+                : "Playing for"}
+          </span>
+          <span className="text-muted">
+            {session.mode === "prepaid" && session.planned_end_at
+              ? `ends ${formatTime(session.planned_end_at, tz)}`
+              : `started ${formatTime(session.started_at, tz)}`}
+          </span>
+        </div>
+        <p
+          className={cx(
+            "num mt-1 text-[44px] font-semibold leading-none tracking-tight",
+            info.state === "over" ? "text-over" : info.state === "ending" ? "text-ending" : "text-fg",
+          )}
+        >
+          {info.clock ?? elapsed}
+        </p>
+        {session.mode === "prepaid" && session.prepaid_minutes > 0 && info.remaining !== null && (
+          <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-line">
+            <span
+              className={cx(
+                "block h-full rounded-full",
+                info.state === "over" ? "bg-over" : info.state === "ending" ? "bg-ending" : "bg-busy",
+              )}
+              style={{
+                width: `${Math.min(100, Math.max(0, 100 - (info.remaining / (session.prepaid_minutes * 60)) * 100))}%`,
+              }}
+            />
+          </span>
+        )}
+        <p className="mt-2 text-xs text-muted">
+          {session.mode === "prepaid"
+            ? `${formatMinutes(Math.floor((info.charge?.activeSeconds ?? 0) / 60))} played of ${formatMinutes(session.prepaid_minutes)} booked`
+            : `Billed as ${formatMinutes(info.charge?.billableMinutes ?? 0)} with the rounding rules`}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-line">
+        <Cell label="Charge so far" value={formatINR(info.charge?.total ?? 0)} strong />
+        <Cell label="Paid up front" value={formatINR(session.billed_amount)} strong />
+        <Cell
+          label={session.mode === "prepaid" ? "Booking" : "Rate"}
+          value={
+            session.mode === "prepaid"
+              ? `${formatMinutes(session.prepaid_minutes)} · ${formatINR(session.prepaid_amount)}`
+              : `${formatINR(plan.per_hour)}/hr`
+          }
+        />
+        <Cell label="Started" value={formatTime(session.started_at, tz)} />
       </div>
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
-        <dt className="text-muted">Mode</dt>
-        <dd>
-          {SESSION_MODE_LABEL[session.mode]}
-          {session.mode === "prepaid" &&
-            ` · ${formatMinutes(session.prepaid_minutes)} booked (${formatINR(session.prepaid_amount)})`}
-        </dd>
+        <dt className="text-muted">Timer</dt>
+        <dd>{SESSION_MODE_LABEL[session.mode]}</dd>
         {session.customer_name && (
           <>
             <dt className="text-muted">Player</dt>
@@ -461,6 +521,25 @@ function LiveView({
 
       <ErrorText>{error}</ErrorText>
 
+      {session.mode === "prepaid" && (
+        // One-tap top-ups; "Add time" below has packages and custom minutes.
+        <div className="grid grid-cols-2 gap-2">
+          {[30, 60].map((m) => (
+            <Button
+              key={m}
+              variant="secondary"
+              disabled={pending}
+              onClick={() =>
+                run(() => supabase.rpc("extend_session", { p_session_id: session.id, p_minutes: m, p_payments: [] }))
+              }
+            >
+              <Plus /> {m === 30 ? "30 min" : "1 hour"} ·{" "}
+              <span className="num">{formatINR(Math.round((Number(plan.per_hour) * m) / 60))}</span>
+            </Button>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2">
         {session.status === "running" ? (
           <Button variant="secondary" disabled={pending} onClick={() => run(() => supabase.rpc("pause_session", { p_session_id: session.id }))}>
@@ -473,7 +552,7 @@ function LiveView({
         )}
         {session.mode === "prepaid" ? (
           <Button variant="secondary" disabled={pending} onClick={() => setPanel(panel === "extend" ? "none" : "extend")}>
-            <Plus /> Add time
+            <Plus /> More time…
           </Button>
         ) : (
           <Button

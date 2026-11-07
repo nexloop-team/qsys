@@ -16,7 +16,13 @@ export function PlayerSearch({ initial }: { initial: string }) {
   useEffect(() => {
     if (q === initial) return;
     const id = window.setTimeout(() => {
-      router.replace(q ? `${pathname}?q=${encodeURIComponent(q)}` : pathname);
+      // Keep the sort; a new search starts again at page 1.
+      const params = new URLSearchParams(window.location.search);
+      params.delete("page");
+      if (q) params.set("q", q);
+      else params.delete("q");
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
     }, 300);
     return () => window.clearTimeout(id);
   }, [q, initial, pathname, router]);

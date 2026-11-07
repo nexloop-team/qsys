@@ -1,12 +1,14 @@
 import { Suspense, type ReactNode } from "react";
-import { MobileNav, MobileNavFallback, SidebarNav, SidebarNavFallback } from "./nav-links";
-import { AccountMenu, TopbarStatus } from "./account-menu";
+import { MobileNav, MobileNavFallback, SidebarNavFallback } from "./nav-links";
+import { AccountMenu, SidebarNavWithBadges, TopbarSearch, VenueCard } from "./account-menu";
+import { Breadcrumb } from "./search";
 import { Logo } from "@/components/logo";
 import { Skeleton } from "@/components/card";
 import { ThemeToggle } from "@/components/theme";
 
 // Static shell (nav) prerenders; anything that reads the session streams in
-// behind Suspense, as Cache Components requires.
+// behind Suspense, as Cache Components requires. Takings are not shown here:
+// money over time lives in Analytics.
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-1">
@@ -14,9 +16,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div className="flex h-14 items-center px-5">
           <Logo href="/dashboard" />
         </div>
+        <div className="px-2.5 pb-2">
+          <Suspense fallback={<Skeleton className="h-[50px]" />}>
+            <VenueCard />
+          </Suspense>
+        </div>
         <div className="flex-1 overflow-y-auto py-3">
           <Suspense fallback={<SidebarNavFallback />}>
-            <SidebarNav />
+            <SidebarNavWithBadges />
           </Suspense>
         </div>
         <div className="border-t border-line p-2.5">
@@ -27,17 +34,21 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-line bg-bg/80 px-4 backdrop-blur-md md:px-6 print:hidden">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-line bg-panel/90 px-4 backdrop-blur-md md:px-6 print:hidden">
           <span className="md:hidden">
             <Logo href="/dashboard" />
           </span>
-          <Suspense fallback={<Skeleton className="ml-auto h-8 w-48" />}>
-            <TopbarStatus />
+          <Suspense>
+            <Breadcrumb />
+          </Suspense>
+          <span className="flex-1" />
+          <Suspense fallback={<Skeleton className="h-9 w-9 sm:w-72" />}>
+            <TopbarSearch />
           </Suspense>
           <ThemeToggle />
         </header>
 
-        <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 pb-24 md:px-8 md:pb-10">{children}</main>
+        <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 pb-24 md:px-8 md:pb-10">{children}</main>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-panel/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden print:hidden">

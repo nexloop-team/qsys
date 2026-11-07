@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ROLE_LABEL } from "@/lib/constants";
 import { todayIn, zonedStart } from "@/lib/format";
 import { Empty, PageHeader, PageSkeleton, Panel } from "@/components/card";
-import { ExpensesView, type DueExpense } from "./expenses-view";
+import { ExpensesView } from "./expenses-view";
+import { dueExpenses } from "@/lib/expenses-due";
 import type { TeamMember } from "./expense-forms";
 
 export const metadata: Metadata = { title: "Expenses" };
@@ -100,20 +101,7 @@ async function Expenses({ searchParams }: { searchParams: PageProps<"/expenses">
     lastSalary: Number(salaries?.find((s) => s.staff_id === m.user_id)?.amount ?? 0) || null,
   }));
 
-  // Due: the latest of each repeating cost that hasn't been logged in the month shown.
-  // Matched on category + person + name, so "Rent" and "Salary · Ravi" each count once.
-  const keyOf = (e: { category: string; staff_id: string | null; name: string }) =>
-    `${e.category}|${e.staff_id ?? ""}|${e.name.trim().toLowerCase()}`;
-  const loggedThisMonth = new Set((expenses ?? []).map(keyOf));
-  const teamIds = new Set(team.map((m) => m.id));
-  const due: DueExpense[] = [];
-  for (const e of recurring ?? []) {
-    const key = keyOf(e);
-    if (loggedThisMonth.has(key) || due.some((d) => d.key === key)) continue;
-    // Salary for someone who has left the team: nothing to pay.
-    if (e.category === "salary" && (!e.staff_id || !teamIds.has(e.staff_id))) continue;
-    due.push({ key, category: e.category, name: e.name, amount: Number(e.amount), staff_id: e.staff_id, lastPaid: e.spent_on });
-  }
+  const due = dueExpenses(expenses ?? [], recurring ?? [], new Set(team.map((m) => m.id)));
 
   return (
     <ExpensesView

@@ -135,7 +135,7 @@ export function ReportView({
               ) : (
                 <span>
                   No expenses logged.{" "}
-                  <Link href="/expenses" className="font-medium text-accent-ink hover:underline">
+                  <Link href="/expenses" className="font-medium text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">
                     Add them
                   </Link>
                 </span>
@@ -243,7 +243,7 @@ export function ReportView({
                 <p className="border-t border-line px-4 py-2.5 text-xs text-muted">
                   In use = share of opening hours a station was running
                   {" "}(24 h a day until opening hours are set in{" "}
-                  <Link href="/settings" className="text-accent-ink hover:underline">
+                  <Link href="/settings" className="text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">
                     Settings
                   </Link>
                   ).
@@ -324,7 +324,7 @@ export function ReportView({
                   empty="No player sessions yet."
                   head={["Player", "Visits", "Played", "Spent"]}
                   rows={x.top_players.map((p) => [
-                    <Link key="n" href={`/players/${p.id}`} className="font-medium hover:text-accent-ink hover:underline">
+                    <Link key="n" href={`/players/${p.id}`} className="font-medium hover:text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">
                       {p.name}
                     </Link>,
                     p.visits,

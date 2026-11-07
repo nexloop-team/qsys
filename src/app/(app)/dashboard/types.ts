@@ -65,6 +65,8 @@ export type FloorSettings = {
 
 export type FloorData = {
   branch: { id: string; name: string; timezone: string };
+  /** Branch closing time ("HH:MM:SS"), shown as "open till …" when set. */
+  closingTime: string | null;
   orgId: string;
   orgName: string;
   role: MemberRole;
