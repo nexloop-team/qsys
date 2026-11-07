@@ -84,36 +84,36 @@ export function BillingForm({ settings, disabled }: { settings: Settings; disabl
           flush
         >
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] text-sm">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
-                  <th className="px-4 py-2.5 font-medium">Station</th>
+                  <th className="px-3 py-2.5 font-medium sm:px-4">Station</th>
                   {SESSION_MODES.map((m) => (
-                    <th key={m} className="px-3 py-2.5 text-center font-medium">
+                    <th key={m} className="px-1.5 py-2.5 text-center font-medium sm:px-3">
                       {SESSION_MODE_LABEL[m]}
                     </th>
                   ))}
-                  <th className="px-4 py-2.5 font-medium">Starts as</th>
+                  <th className="px-3 py-2.5 font-medium sm:px-4">Starts as</th>
                 </tr>
               </thead>
               <tbody>
                 {/* Types the venue doesn't have stay in the form (hidden) so their values are kept. */}
                 {STATION_TYPES.map((type) => (
                   <tr key={type} className={cx("border-b border-line last:border-0", !types.includes(type) && "hidden")}>
-                    <td className="px-4 py-2 font-medium">{STATION_TYPE_LABEL[type]}</td>
+                    <td className="px-3 py-2 font-medium sm:px-4">{STATION_TYPE_LABEL[type]}</td>
                     {SESSION_MODES.map((mode) => (
-                      <td key={mode} className="px-3 py-2 text-center">
+                      <td key={mode} className="px-1.5 py-2 text-center sm:px-3">
                         <input
                           type="checkbox"
                           name={`allow_${type}_${mode}`}
                           defaultChecked={allowed?.[type]?.includes(mode) ?? true}
                           aria-label={`${STATION_TYPE_LABEL[type]}: ${SESSION_MODE_LABEL[mode]}`}
-                          className="size-4"
+                          className="size-4 pointer-coarse:size-5"
                         />
                       </td>
                     ))}
-                    <td className="px-4 py-2">
-                      <Select name={`default_${type}`} defaultValue={defaults?.[type] ?? "open"} className="h-8 w-32">
+                    <td className="px-3 py-2 sm:px-4">
+                      <Select name={`default_${type}`} defaultValue={defaults?.[type] ?? "open"} className="h-8 w-28 sm:w-32">
                         {SESSION_MODES.map((mode) => (
                           <option key={mode} value={mode}>
                             {SESSION_MODE_LABEL[mode]}
@@ -164,12 +164,10 @@ export function BillingForm({ settings, disabled }: { settings: Settings; disabl
       </fieldset>
 
       {!disabled && (
-        <div className="sticky bottom-[calc(64px+env(safe-area-inset-bottom))] z-10 -mx-1 rounded-lg border border-line bg-panel/95 px-3 py-2.5 backdrop-blur md:bottom-3">
-          <SaveBar>
-            <FormMessage state={state} />
-            <SubmitButton>Save billing</SubmitButton>
-          </SaveBar>
-        </div>
+        <SaveBar>
+          <FormMessage state={state} />
+          <SubmitButton>Save billing</SubmitButton>
+        </SaveBar>
       )}
     </form>
   );

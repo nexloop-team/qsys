@@ -126,7 +126,56 @@ async function InventoryList() {
             if (items.length === 0) return null;
             return (
               <Panel key={cat} title={CATEGORY_LABEL[cat] ?? cat} flush>
-                <div className="overflow-x-auto">
+                {/* Phones: one card per item. */}
+                <ul className="divide-y divide-line text-sm sm:hidden">
+                  {items.map((it) => (
+                    <li key={it.id} className="flex flex-col gap-2 px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        <span className="min-w-0 flex-1">
+                          <span className={`block font-medium ${it.is_active ? "" : "text-muted"}`}>{it.name}</span>
+                          <span className="mt-0.5 block text-xs">
+                            {it.stock === null ? (
+                              <span className="text-muted">Stock not tracked</span>
+                            ) : (
+                              <span
+                                className={
+                                  it.stock === 0
+                                    ? "font-semibold text-over"
+                                    : it.stock <= it.low_stock_at
+                                      ? "font-semibold text-ending"
+                                      : "text-muted"
+                                }
+                              >
+                                <span className="num">{it.stock}</span> in stock
+                                {it.stock === 0 ? " · out" : it.stock <= it.low_stock_at ? " · low" : ""}
+                              </span>
+                            )}
+                            {!it.is_active && <span className="text-muted"> · hidden</span>}
+                          </span>
+                        </span>
+                        <span className="num shrink-0 font-semibold">{formatINR(it.price)}</span>
+                      </div>
+                      {owner && (
+                        <div className="flex flex-wrap items-center gap-1">
+                          <ToggleProductButton id={it.id} active={it.is_active} />
+                          <span className="ml-auto flex items-center gap-1">
+                            <StockButton product={it} />
+                            <ProductDialogButton
+                              product={it}
+                              trigger={
+                                <Button variant="ghost" size="sm">
+                                  Edit
+                                </Button>
+                              }
+                            />
+                            <DeleteProductButton id={it.id} name={it.name} />
+                          </span>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <div className="hidden overflow-x-auto sm:block">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-line text-left text-xs text-muted">

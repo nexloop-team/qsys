@@ -22,7 +22,7 @@ export function StationTypesForm({ types: initial, disabled }: { types: StationT
         </fieldset>
         {!disabled && (
           <div className="mt-4 border-t border-line pt-4">
-            <SaveBar>
+            <SaveBar inline>
               {types.length === 0 ? (
                 <p className="text-sm text-danger">Pick at least one.</p>
               ) : (

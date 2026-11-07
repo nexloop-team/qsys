@@ -102,9 +102,9 @@ export function WhatsAppButton({
       <button
         type="button"
         onClick={handleShare}
-        className={buttonClass(variant, size, "bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 border-[#25D366]/30")}
+        className={buttonClass(variant, size)}
       >
-        <MessageCircle className="size-4 text-[#25D366]" /> WhatsApp
+        <MessageCircle className="size-4" /> WhatsApp
       </button>
 
       <Modal open={askPhone} onOpenChange={setAskPhone} title="Share via WhatsApp">
@@ -124,7 +124,7 @@ export function WhatsAppButton({
             <Button variant="secondary" type="button" onClick={() => setAskPhone(false)}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-[#25D366] hover:bg-[#20ba59] text-white">
+            <Button type="submit">
               <MessageCircle className="size-4" /> Send WhatsApp
             </Button>
           </div>

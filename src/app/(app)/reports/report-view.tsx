@@ -212,12 +212,12 @@ export function ReportView({
                   <p className="px-4 py-8 text-center text-sm text-muted">No active stations.</p>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[480px] text-sm">
+                    <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-line text-xs text-muted">
                           <th className="px-4 py-2.5 text-left font-medium">Type</th>
                           <th className="px-4 py-2.5 text-left font-medium">In use</th>
-                          <th className="px-4 py-2.5 text-right font-medium">Played</th>
+                          <th className="hidden px-4 py-2.5 text-right font-medium sm:table-cell">Played</th>
                           <th className="px-4 py-2.5 text-right font-medium">Revenue</th>
                         </tr>
                       </thead>
@@ -228,13 +228,13 @@ export function ReportView({
                               <span className="font-medium">{STATION_TYPE_LABEL[t.type]}</span>
                               {t.stations > 0 && <span className="ml-1.5 text-xs text-muted">×{t.stations}</span>}
                             </td>
-                            <td className="w-[38%] px-4 py-3">
+                            <td className="px-3 py-3 sm:w-[38%] sm:px-4">
                               <div className="flex items-center gap-3">
                                 <Meter pct={t.pct} />
                                 <span className="num w-12 shrink-0 text-right text-[13px]">{round1(t.pct)}%</span>
                               </div>
                             </td>
-                            <td className="num px-4 py-3 text-right text-muted">{formatHours(t.minutes)}</td>
+                            <td className="num hidden px-4 py-3 text-right text-muted sm:table-cell">{formatHours(t.minutes)}</td>
                             <td className="px-4 py-3 text-right">
                               <span className="num font-medium">{formatINR(t.revenue)}</span>
                               {typeRevenue > 0 && (
@@ -427,7 +427,14 @@ function RankTable({ head, rows, empty }: { head: string[]; rows: ReactNode[][];
           <tr className="border-b border-line text-xs text-muted">
             <th className="w-10 py-2.5 pl-4 text-left font-medium">#</th>
             {head.map((h, i) => (
-              <th key={h} className={cx("px-4 py-2.5 font-medium", i === 0 ? "text-left" : "text-right")}>
+              <th
+                key={h}
+                className={cx(
+                  "px-4 py-2.5 font-medium",
+                  i === 0 ? "text-left" : "text-right",
+                  i > 0 && i < head.length - 1 && "hidden sm:table-cell",
+                )}
+              >
                 {h}
               </th>
             ))}
@@ -444,7 +451,7 @@ function RankTable({ head, rows, empty }: { head: string[]; rows: ReactNode[][];
                     "px-4 py-2.5",
                     j === 0 ? "text-left" : "num text-right",
                     j === row.length - 1 && "font-medium",
-                    j > 0 && j < row.length - 1 && "text-muted",
+                    j > 0 && j < row.length - 1 && "hidden text-muted sm:table-cell",
                   )}
                 >
                   {cell}

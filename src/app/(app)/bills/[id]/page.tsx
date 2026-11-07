@@ -17,15 +17,25 @@ export const metadata: Metadata = { title: "Bill" };
 export default function BillPage(props: PageProps<"/bills/[id]">) {
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <Bill params={props.params} />
+      <Bill params={props.params} searchParams={props.searchParams} />
     </Suspense>
   );
 }
 
 const METHOD_LABEL = { cash: "Cash", upi: "UPI", card: "Card", wallet: "Wallet" } as const;
 
-async function Bill({ params }: { params: PageProps<"/bills/[id]">["params"] }) {
+async function Bill({
+  params,
+  searchParams,
+}: {
+  params: PageProps<"/bills/[id]">["params"];
+  searchParams: PageProps<"/bills/[id]">["searchParams"];
+}) {
   const { id } = await params;
+  // Opened from checkout on the Floor: print straight away, and "back" goes to the Floor.
+  const sp = await searchParams;
+  const fromFloor = sp.from === "floor";
+  const autoPrint = sp.print === "1";
   const { branch, org, role } = await getAppContext();
   const supabase = await createClient();
 
@@ -49,8 +59,8 @@ async function Bill({ params }: { params: PageProps<"/bills/[id]">["params"] }) 
   return (
     <div className="mx-auto max-w-sm">
       <div className="mb-4 flex items-center justify-between print:hidden">
-        <Link href="/bills" className={buttonClass("ghost", "sm")}>
-          <ArrowLeft /> Bills
+        <Link href={fromFloor ? "/dashboard" : "/bills"} className={buttonClass("ghost", "sm")}>
+          <ArrowLeft /> {fromFloor ? "Floor" : "Bills"}
         </Link>
         <div className="flex items-center gap-2">
           <WhatsAppButton
@@ -63,7 +73,7 @@ async function Bill({ params }: { params: PageProps<"/bills/[id]">["params"] }) 
             total={formatINR(inv.total)}
             paidBy={inv.payments.map((p) => METHOD_LABEL[p.method]).join(" + ") || "UPI"}
           />
-          <PrintButton />
+          <PrintButton autoPrint={autoPrint && !voided} />
           {role === "owner" && !voided && (
             <CancelBillButton
               invoiceId={inv.id}

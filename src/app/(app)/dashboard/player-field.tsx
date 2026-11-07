@@ -23,7 +23,7 @@ export function PlayerField({
   onChange: (value: PlayerValue) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<{ q: string; matches: Match[] } | null>(null);
+  const [results, setResults] = useState<{ q: string; matches: Match[]; failed?: boolean } | null>(null);
   const [picked, setPicked] = useState<Match | null>(null);
   const [newName, setNewName] = useState("");
   const [active, setActive] = useState(0);
@@ -36,6 +36,8 @@ export function PlayerField({
   const loading = searchable && results?.q !== q;
   const matches = searchable && results?.q === q ? results.matches : [];
   const exact = fullMobile ? matches.find((m) => m.phone === digits) : undefined;
+  const failed = searchable && results?.q === q && Boolean(results.failed);
+  // Offline, a "new" player may already exist; the database still finds them by mobile.
   const offerNew = fullMobile && !loading && !exact;
 
   // Debounced search across the venue's players (name or any part of the mobile).
@@ -43,11 +45,12 @@ export function PlayerField({
     if (!searchable) return;
     let cancelled = false;
     const id = window.setTimeout(async () => {
-      const { data } = await supabase.rpc("list_customers", { p_org_id: orgId, p_search: q, p_limit: 6 });
+      const { data, error } = await supabase.rpc("list_customers", { p_org_id: orgId, p_search: q, p_limit: 6 });
       if (!cancelled) {
         setResults({
           q,
           matches: (data ?? []).map((c) => ({ id: c.id, name: c.name, phone: c.phone, visits: Number(c.visits) })),
+          failed: Boolean(error),
         });
         setActive(0);
       }
@@ -126,7 +129,7 @@ export function PlayerField({
       </Field>
 
       {matches.length > 0 && (
-        <ul id="player-suggestions" role="listbox" className="overflow-hidden rounded-lg border border-line bg-panel shadow-card">
+        <ul id="player-suggestions" role="listbox" className="overflow-hidden rounded-lg border border-line bg-panel shadow-pop">
           {matches.map((m, i) => (
             <li key={m.id} role="option" aria-selected={i === active}>
               <button
@@ -154,7 +157,11 @@ export function PlayerField({
         </ul>
       )}
 
-      {searchable && !loading && matches.length === 0 && !offerNew && (
+      {failed && (
+        <p className="text-xs text-ending">Couldn&apos;t search players. Check the internet; a full mobile number still works.</p>
+      )}
+
+      {searchable && !loading && !failed && matches.length === 0 && !offerNew && (
         <p className="text-xs text-muted">
           No player found.{" "}
           {isPhone ? "Finish the 10-digit mobile to add them." : "Type their mobile number to add a new player."}

@@ -7,6 +7,7 @@ import { MessageSquare, Power, RotateCcw, Zap } from "lucide-react";
 import type { Database } from "@/lib/database.types";
 import { seenAgo, type DeviceStatus } from "@/lib/devices";
 import { Button, ErrorText, Input, cx } from "@/components/ui";
+import { friendlyError } from "@/lib/errors";
 
 type Kind = "message" | "restart" | "shutdown" | "wake";
 
@@ -73,7 +74,7 @@ export function PcControls({
       setNote(undefined);
       const { error } = await supabase.rpc("send_station_command", { p_station_id: stationId, p_kind: kind, p_payload: payload });
       if (error) {
-        setError(error.message);
+        setError(friendlyError(error));
         return;
       }
       setNote(SENT[kind]);

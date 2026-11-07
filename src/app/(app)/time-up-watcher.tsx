@@ -62,7 +62,15 @@ export function TimeUpWatcher({ branchId }: { branchId: string }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "sessions", filter: `branch_id=eq.${branchId}` }, () =>
         void load(),
       )
-      .subscribe();
+      // (Re)connected: catch up on anything missed while offline.
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void load();
+      });
+    // A sleeping tablet misses changes: reload when the screen comes back.
+    const onVisible = () => {
+      if (!document.hidden) void load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     // Offer system notifications once, a moment after the app opens.
     const ask = window.setTimeout(() => {
@@ -78,6 +86,7 @@ export function TimeUpWatcher({ branchId }: { branchId: string }) {
     return () => {
       cancelled = true;
       window.clearTimeout(ask);
+      document.removeEventListener("visibilitychange", onVisible);
       void supabase.removeChannel(channel);
     };
   }, [supabase, branchId, load]);

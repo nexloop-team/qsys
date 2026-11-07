@@ -32,7 +32,7 @@ export function BranchForm({ branch, disabled }: { branch: Tables<"branches">; d
         </fieldset>
         {!disabled && (
           <div className="mt-4 border-t border-line pt-4">
-            <SaveBar>
+            <SaveBar inline>
               <FormMessage state={state} />
               <SubmitButton>Save branch</SubmitButton>
             </SaveBar>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DEVICE_SELECT, type DeviceStatus } from "@/lib/devices";
 import type { Database } from "@/lib/database.types";
@@ -13,8 +13,11 @@ export function useFloorSessions(branchId: string, initial: LiveSession[]) {
   const [sessions, setSessions] = useState(initial);
   const [connected, setConnected] = useState(true);
   const [supabase] = useState(createClient);
+  // Replies can arrive out of order (a burst of changes, a slow network): only the newest wins.
+  const latest = useRef(0);
 
   const refetch = useCallback(async () => {
+    const ticket = ++latest.current;
     const [live, unpaid] = await Promise.all([
       supabase.from("sessions").select(SESSION_SELECT).eq("branch_id", branchId).neq("status", "ended"),
       supabase
@@ -25,17 +28,23 @@ export function useFloorSessions(branchId: string, initial: LiveSession[]) {
         .eq("written_off", false)
         .gt("outstanding", 0),
     ]);
-    if (live.error || unpaid.error) return;
+    if (live.error || unpaid.error || ticket !== latest.current) return;
     setSessions([...(live.data ?? []), ...(unpaid.data ?? [])] as LiveSession[]);
   }, [branchId, supabase]);
 
   useEffect(() => {
+    // "Pause all" or a checkout changes many rows at once: refetch once for the burst.
+    let timer: number | undefined;
+    const soon = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void refetch(), 150);
+    };
     const channel = supabase
       .channel(`floor:${branchId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "sessions", filter: `branch_id=eq.${branchId}` },
-        () => void refetch(),
+        soon,
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
@@ -48,12 +57,19 @@ export function useFloorSessions(branchId: string, initial: LiveSession[]) {
 
     const goOffline = () => setConnected(false);
     const goOnline = () => void refetch().then(() => setConnected(true));
+    // Tablets and phones at the counter sleep: catch up the moment the screen is back.
+    const onVisible = () => {
+      if (!document.hidden) void refetch();
+    };
     window.addEventListener("offline", goOffline);
     window.addEventListener("online", goOnline);
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
+      window.clearTimeout(timer);
       window.removeEventListener("offline", goOffline);
       window.removeEventListener("online", goOnline);
+      document.removeEventListener("visibilitychange", onVisible);
       void supabase.removeChannel(channel);
     };
   }, [branchId, refetch, supabase]);
@@ -63,7 +79,12 @@ export function useFloorSessions(branchId: string, initial: LiveSession[]) {
 
 // PC apps in the branch: online status, hostname, lock state. They check in every 15 s, so a
 // 20 s refresh is enough to show a PC going offline within about a minute.
-export function useDevices(supabase: SupabaseClient<Database>, branchId: string, initial: DeviceStatus[]) {
+export function useDevices(
+  supabase: SupabaseClient<Database>,
+  branchId: string,
+  initial: DeviceStatus[],
+  hasPcs: boolean,
+) {
   const [devices, setDevices] = useState(initial);
 
   const refetch = useCallback(async () => {
@@ -72,12 +93,12 @@ export function useDevices(supabase: SupabaseClient<Database>, branchId: string,
   }, [supabase, branchId]);
 
   useEffect(() => {
-    if (initial.length === 0) return; // no PC apps paired here: nothing to watch
+    if (!hasPcs) return; // no PC stations here: nothing to watch
     const id = window.setInterval(() => {
       if (!document.hidden) void refetch();
     }, 20_000);
     return () => window.clearInterval(id);
-  }, [refetch, initial.length]);
+  }, [refetch, hasPcs]);
 
   return { devices, refetchDevices: refetch };
 }
@@ -123,9 +144,25 @@ export function useMuted() {
 }
 
 // Wall clock aligned to the database clock, ticking every second.
-export function useServerClock(serverNowIso: string) {
-  const [offset] = useState(() => Date.parse(serverNowIso) - Date.now());
+// The page's server time is a first guess (it includes the page-load delay); one round trip
+// on mount, timed at its midpoint, corrects it.
+export function useServerClock(serverNowIso: string, supabase?: SupabaseClient<Database>) {
+  const [offset, setOffset] = useState(() => Date.parse(serverNowIso) - Date.now());
   const [now, setNow] = useState(() => Date.now() + offset);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+    const sent = Date.now();
+    void supabase.rpc("server_time").then(({ data }) => {
+      if (cancelled || !data) return;
+      const received = Date.now();
+      setOffset(Date.parse(data) - (sent + received) / 2);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now() + offset), 1000);

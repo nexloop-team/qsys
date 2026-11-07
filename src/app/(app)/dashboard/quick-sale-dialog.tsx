@@ -7,11 +7,12 @@ import { CheckCircle2, Minus, Plus, Printer, Search, ShoppingBag, Trash2 } from 
 import type { Database } from "@/lib/database.types";
 import { formatINR } from "@/lib/format";
 import { computeBill } from "@/lib/bill";
-import { Modal } from "@/components/overlay";
+import { Modal, StickyActions } from "@/components/overlay";
 import { Button, buttonClass, ErrorText, Input, cx } from "@/components/ui";
 import { PaymentFields, type PaymentRow } from "./payment-fields";
 import { DiscountFields, discountReady } from "./discount-fields";
 import { WhatsAppButton } from "@/app/(app)/bills/[id]/whatsapp-button";
+import { friendlyError } from "@/lib/errors";
 
 type Supa = SupabaseClient<Database>;
 
@@ -62,49 +63,29 @@ export function QuickSaleDialog({
 
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [walletBalance, setWalletBalance] = useState<number>(0);
+  // The balance belongs to one exact mobile number: change the number and it no longer applies.
+  // customers.wallet_balance is the only source of truth (the database charges from it).
+  const cleanPhone = customerPhone.replace(/\D/g, "").replace(/^(91|0)(?=\d{10}$)/, "");
+  const [wallet, setWallet] = useState<{ phone: string; balance: number } | null>(null);
+  const walletBalance = wallet && wallet.phone === cleanPhone ? wallet.balance : 0;
 
   useEffect(() => {
-    const cleanPhone = customerPhone.replace(/\D/g, "");
     if (cleanPhone.length !== 10) return;
     let ignore = false;
-
-    async function lookupCustomer() {
-      const { data } = await supabase
-        .from("customers")
-        .select("id, name, wallet_balance")
-        .eq("phone", cleanPhone)
-        .maybeSingle();
-
-      if (ignore) return;
-      if (data) {
-        if (!customerName && data.name) setCustomerName(data.name);
-        if (data.wallet_balance !== undefined && data.wallet_balance !== null && Number(data.wallet_balance) > 0) {
-          setWalletBalance(Number(data.wallet_balance));
-        } else {
-          // Fallback: check latest transaction from wallet_transactions
-          const { data: txns } = await supabase
-            .from("wallet_transactions")
-            .select("balance_after")
-            .eq("customer_id", data.id)
-            .order("created_at", { ascending: false })
-            .limit(1);
-          if (!ignore && txns && txns.length > 0) {
-            setWalletBalance(Number(txns[0].balance_after || 0));
-          } else if (!ignore) {
-            setWalletBalance(0);
-          }
-        }
-      } else {
-        setWalletBalance(0);
-      }
-    }
-
-    lookupCustomer();
+    void supabase
+      .from("customers")
+      .select("name, wallet_balance")
+      .eq("phone", cleanPhone)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (ignore) return;
+        if (data?.name) setCustomerName((name) => name || data.name);
+        setWallet({ phone: cleanPhone, balance: Number(data?.wallet_balance ?? 0) });
+      });
     return () => {
       ignore = true;
     };
-  }, [customerPhone, customerName, supabase]);
+  }, [cleanPhone, supabase]);
 
   const [discountRupees, setDiscountRupees] = useState("");
   const [discountReason, setDiscountReason] = useState("");
@@ -245,7 +226,7 @@ export function QuickSaleDialog({
       });
 
       if (rpcErr || !invoiceId) {
-        setError(rpcErr?.message ?? "Failed to create quick sale bill.");
+        setError(friendlyError(rpcErr, "Couldn't create the bill."));
         return;
       }
 
@@ -284,7 +265,7 @@ export function QuickSaleDialog({
 
         <div className="flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-2">
-            <Link href={`/bills/${paid.id}`} target="_blank" className={buttonClass("secondary")}>
+            <Link href={`/bills/${paid.id}?print=1&from=floor`} className={buttonClass("secondary")}>
               <Printer /> Print bill
             </Link>
             <WhatsAppButton
@@ -316,14 +297,17 @@ export function QuickSaleDialog({
       title="Quick Counter Sale"
       description="Sell snacks, drinks & accessories to walk-in or waiting customers (no station required)"
     >
-      <div className="flex flex-col gap-4 max-h-[75vh] overflow-y-auto pr-1">
+      <div className="flex flex-col gap-4">
         {/* Customer Info (Optional) */}
         <div className="rounded-xl border border-line bg-subtle/50 p-3">
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <div>
-              <label className="text-xs font-medium text-muted">Customer Mobile (optional)</label>
+              <label htmlFor="qs-phone" className="text-xs font-medium text-muted">Customer mobile (optional)</label>
               <Input
+                id="qs-phone"
                 type="tel"
+                inputMode="numeric"
+                autoComplete="off"
                 placeholder="10-digit number"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
@@ -331,8 +315,9 @@ export function QuickSaleDialog({
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted">Customer Name (optional)</label>
+              <label htmlFor="qs-name" className="text-xs font-medium text-muted">Customer name (optional)</label>
               <Input
+                id="qs-name"
                 type="text"
                 placeholder="Name"
                 value={customerName}
@@ -533,16 +518,18 @@ export function QuickSaleDialog({
           </div>
         )}
 
-        {error && <ErrorText>{error}</ErrorText>}
-
-        {/* Action Button */}
-        <Button
-          onClick={handleCheckout}
-          disabled={cart.length === 0 || pending || !discountReady(subtotal, discountRupees, discountReason, discountLimit)}
-          className="w-full mt-1 h-10 text-sm font-semibold"
-        >
-          {pending ? "Creating bill..." : `Complete Sale · ${formatINR(finalTotal)}`}
-        </Button>
+        {/* Pinned to the bottom: always in thumb reach, however long the cart gets. */}
+        <StickyActions>
+          {error && <ErrorText>{error}</ErrorText>}
+          <Button
+            size="lg"
+            onClick={handleCheckout}
+            disabled={cart.length === 0 || pending || !discountReady(subtotal, discountRupees, discountReason, discountLimit)}
+            className="w-full"
+          >
+            {pending ? "Creating bill…" : cart.length === 0 ? "Add items to sell" : `Complete sale · ${formatINR(finalTotal)}`}
+          </Button>
+        </StickyActions>
       </div>
     </Modal>
   );

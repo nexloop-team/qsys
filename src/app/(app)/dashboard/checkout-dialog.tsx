@@ -7,13 +7,14 @@ import { CheckCircle2, Printer } from "lucide-react";
 import type { Database } from "@/lib/database.types";
 import { computeBill } from "@/lib/bill";
 import { formatINR } from "@/lib/format";
-import { Modal } from "@/components/overlay";
+import { Modal, StickyActions } from "@/components/overlay";
 import { Button, ErrorText, Field, Input, buttonClass } from "@/components/ui";
 import { WhatsAppButton } from "../bills/[id]/whatsapp-button";
 import { PaymentFields, type PaymentRow } from "./payment-fields";
 import { DiscountFields, discountReady } from "./discount-fields";
 import type { FloorPlan, FloorSettings, FloorStation, LiveSession } from "./types";
 import { SESSION_MODE_LABEL } from "@/lib/constants";
+import { friendlyError } from "@/lib/errors";
 
 const METHOD_NAME = { cash: "Cash", upi: "UPI", wallet: "Wallet" } as const;
 
@@ -92,10 +93,10 @@ export function CheckoutDialog({
       const res = await supabase.rpc("checkout", {
         p_session_ids: billable.map((s) => s.id),
         p_discount: bill.discount,
-        p_payments: payments,
+        p_payments: bill.total > 0 ? payments : [],
         p_discount_reason: bill.discount > 0 ? discountReason.trim() : null,
       });
-      if (res.error || !res.data) return setError(res.error?.message ?? "Couldn't create the bill.");
+      if (res.error || !res.data) return setError(friendlyError(res.error, "Couldn't create the bill."));
       const invoiceId = res.data;
       const { data: inv } = await supabase.from("invoices").select("number, total").eq("id", invoiceId).single();
       setPaid({ id: invoiceId, number: inv?.number ?? "", total: Number(inv?.total ?? bill.total) });
@@ -106,7 +107,7 @@ export function CheckoutDialog({
       setError(undefined);
       for (const s of billable) {
         const { error } = await supabase.rpc("write_off_session", { p_session_id: s.id, p_reason: writeOff ?? "" });
-        if (error) return setError(error.message);
+        if (error) return setError(friendlyError(error));
       }
       onDone();
     });
@@ -121,7 +122,7 @@ export function CheckoutDialog({
         </div>
         <div className="flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-2">
-            <Link href={`/bills/${paid.id}`} target="_blank" className={buttonClass("secondary")}>
+            <Link href={`/bills/${paid.id}?print=1&from=floor`} className={buttonClass("secondary")}>
               <Printer /> Print bill
             </Link>
             <WhatsAppButton
@@ -204,30 +205,16 @@ export function CheckoutDialog({
             </dd>
           </dl>
 
-          <PaymentFields
-            total={bill.total}
-            onChange={setPayments}
-            walletBalance={walletBalance}
-            playerName={primaryName ?? undefined}
-          />
-
-          <ErrorText>{error}</ErrorText>
-
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={pending}>
-              Not now
-            </Button>
-            <Button
-              onClick={confirm}
-              disabled={
-                pending ||
-                bill.total <= 0 ||
-                !discountReady(bill.subtotal, discount, discountReason, canWriteOff ? null : settings.staffMaxDiscountPct)
-              }
-            >
-              {pending ? "Saving…" : `Mark paid ${formatINR(bill.total)}`}
-            </Button>
-          </div>
+          {bill.total > 0 ? (
+            <PaymentFields
+              total={bill.total}
+              onChange={setPayments}
+              walletBalance={walletBalance}
+              playerName={primaryName ?? undefined}
+            />
+          ) : (
+            <p className="text-sm text-muted">Fully discounted: nothing to collect. The bill is still saved, with the reason.</p>
+          )}
 
           {canWriteOff &&
             (writeOff === null ? (
@@ -248,6 +235,26 @@ export function CheckoutDialog({
                 </Button>
               </div>
             ))}
+
+          <StickyActions>
+            <ErrorText>{error}</ErrorText>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" size="lg" onClick={() => onOpenChange(false)} disabled={pending}>
+                Not now
+              </Button>
+              <Button
+                size="lg"
+                onClick={confirm}
+                disabled={
+                  pending ||
+                  bill.subtotal <= 0 ||
+                  !discountReady(bill.subtotal, discount, discountReason, canWriteOff ? null : settings.staffMaxDiscountPct)
+                }
+              >
+                {pending ? "Saving…" : bill.total > 0 ? `Mark paid ${formatINR(bill.total)}` : "Close bill (free)"}
+              </Button>
+            </div>
+          </StickyActions>
         </div>
       )}
     </Modal>

@@ -1,19 +1,33 @@
 import { Suspense, type ReactNode } from "react";
+import { getAppContext } from "@/lib/dal";
 import { SettingsNav, SettingsNavFallback } from "./settings-nav";
 
-// Settings area: tab list on the left (top on phones), content on the right.
+// Settings area: title, tabs across the top, then the page's sections.
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   return (
     <div className="mx-auto max-w-5xl">
-      <h1 className="mb-5 text-xl font-semibold tracking-tight">Settings</h1>
-      <div className="flex flex-col gap-6 md:flex-row md:gap-10">
-        <aside className="md:w-44 md:shrink-0">
-          <Suspense fallback={<SettingsNavFallback />}>
-            <SettingsNav />
-          </Suspense>
-        </aside>
-        <div className="min-w-0 flex-1">{children}</div>
+      <div className="mb-4">
+        <h1 className="text-[22px] font-semibold leading-tight tracking-tight">Settings</h1>
+        <Suspense fallback={<p className="mt-1 h-5" />}>
+          <WhereAmI />
+        </Suspense>
       </div>
+      <div className="mb-6">
+        <Suspense fallback={<SettingsNavFallback />}>
+          <SettingsNav />
+        </Suspense>
+      </div>
+      {children}
     </div>
+  );
+}
+
+// Settings mostly apply to the branch you're in: say which.
+async function WhereAmI() {
+  const { org, branch } = await getAppContext();
+  return (
+    <p className="mt-1 text-sm text-muted">
+      {org.name} · {branch.name}
+    </p>
   );
 }

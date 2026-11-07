@@ -160,7 +160,30 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
         {list.length === 0 ? (
           <p className="px-4 py-6 text-sm text-muted">No sessions yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Phones: one card per visit. */}
+          <ul className="divide-y divide-line sm:hidden">
+            {list.map((s) => (
+              <li key={s.id} className="flex items-start gap-3 px-4 py-3 text-sm">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium">
+                    {s.stations?.name ?? "—"}
+                    <span className="font-normal text-muted"> · {SESSION_MODE_LABEL[s.mode]}</span>
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    {formatDateTime(s.started_at, branch.timezone)} · <span className="num">{formatMinutes(playedMinutes(s))}</span>
+                  </span>
+                </span>
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="num whitespace-nowrap font-medium">
+                    {s.charge_amount != null ? formatINR(s.charge_amount) : "—"}
+                  </span>
+                  <VisitBadge s={s} />
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[620px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
@@ -183,21 +206,14 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
                       {s.charge_amount != null ? formatINR(s.charge_amount) : "—"}
                     </td>
                     <td className="px-4 py-2.5">
-                      {s.status !== "ended" ? (
-                        <Badge tone="busy">Playing</Badge>
-                      ) : s.written_off ? (
-                        <Badge tone="danger">Written off</Badge>
-                      ) : Number(s.outstanding) > 0 ? (
-                        <Badge tone="over">Unpaid</Badge>
-                      ) : (
-                        <Badge tone="ok">Paid</Badge>
-                      )}
+                      <VisitBadge s={s} />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Panel>
 
@@ -205,7 +221,28 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
         {!rawTxns?.length ? (
           <p className="px-4 py-4 text-xs text-muted">No wallet transactions recorded yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Phones: one card per movement. */}
+          <ul className="divide-y divide-line sm:hidden">
+            {rawTxns.map((t) => (
+              <li key={t.id} className="flex items-start gap-3 px-4 py-3 text-sm">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium">{ledgerLabel(t)}</span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    {formatDateTime(t.created_at, branch.timezone)}
+                    {t.note ? ` · ${t.note}` : ""}
+                  </span>
+                </span>
+                <span className="flex shrink-0 flex-col items-end">
+                  <span className={`num whitespace-nowrap font-semibold ${Number(t.amount) >= 0 ? "text-ok" : "text-over"}`}>
+                    {signedINR(t.amount)}
+                  </span>
+                  <span className="num whitespace-nowrap text-xs text-muted">Balance {formatINR(t.balance_after)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[500px] text-xs">
               <thead>
                 <tr className="border-b border-line text-left text-muted">
@@ -220,23 +257,39 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
                 {rawTxns.map((t) => (
                   <tr key={t.id}>
                     <td className="px-4 py-2">{formatDateTime(t.created_at, branch.timezone)}</td>
-                    <td className={`num px-4 py-2 text-right font-semibold ${Number(t.amount) >= 0 ? "text-ok" : "text-over"}`}>
-                      {Number(t.amount) >= 0 ? `+${formatINR(t.amount)}` : formatINR(t.amount)}
+                    <td className={`num whitespace-nowrap px-4 py-2 text-right font-semibold ${Number(t.amount) >= 0 ? "text-ok" : "text-over"}`}>
+                      {signedINR(t.amount)}
                     </td>
                     <td className="num px-4 py-2 text-right font-medium">{formatINR(t.balance_after)}</td>
-                    <td className="px-4 py-2">
-                      {Number(t.amount) < 0 && (t.method === "cash" || t.method === "upi")
-                        ? `Refund · ${t.method === "upi" ? "UPI" : "cash"}`
-                        : (LEDGER_LABEL[t.method] ?? t.method)}
-                    </td>
+                    <td className="px-4 py-2">{ledgerLabel(t)}</td>
                     <td className="px-4 py-2 text-muted">{t.note ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Panel>
     </>
   );
+}
+
+function VisitBadge({ s }: { s: { status: string; written_off: boolean; outstanding: number | null } }) {
+  if (s.status !== "ended") return <Badge tone="busy">Playing</Badge>;
+  if (s.written_off) return <Badge tone="danger">Written off</Badge>;
+  if (Number(s.outstanding) > 0) return <Badge tone="over">Unpaid</Badge>;
+  return <Badge tone="ok">Paid</Badge>;
+}
+
+function ledgerLabel(t: { amount: number; method: string }) {
+  return Number(t.amount) < 0 && (t.method === "cash" || t.method === "upi")
+    ? `Refund · ${t.method === "upi" ? "UPI" : "cash"}`
+    : (LEDGER_LABEL[t.method] ?? t.method);
+}
+
+// "+₹500" / "−₹200", with a real minus sign, never split across lines.
+function signedINR(amount: number) {
+  const n = Number(amount);
+  return `${n >= 0 ? "+" : "−"}${formatINR(Math.abs(n))}`;
 }

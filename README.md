@@ -73,6 +73,13 @@ Each file in `supabase/migrations` runs once, in order. After pulling new code, 
 - `20261119000001_player_pc_login.sql`: players log in on a free PC with mobile + 4-digit PIN (set on the
   player's page), which starts open time in their name. 5 wrong PINs lock the number for 15 minutes. Apply after
   `20261118000001`.
+- `20261120000001_player_login_guards.sql`: PC login refuses a player who owes money from an earlier visit, or
+  who is already playing on another PC. Apply after `20261119000001`.
+- `20261120000002_wallet_branch.sql`: wallet top-ups and refunds record their branch, so each branch's Bills
+  "cash in drawer" and Reports count only their own counter.
+- `20261121000001_session_item_quantity.sql`: snacks on a session by quantity: the same menu item again
+  raises its count on one line, and "−" takes one off (stock goes back).
+- `20261121000002_layout_rotation.sql`: floor-map stations can face four ways (0, 90, 180, 270 degrees).
 - `20261111000001_memberships_no_direct_insert.sql`: people join a venue only by signing up as owner or with an
   invite code; owners can no longer add an account to their team directly through the API.
 - `20261112000001_no_card_payments.sql`: payments are cash or UPI only (old card payments stay on past bills).

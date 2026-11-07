@@ -48,7 +48,7 @@ export async function updatePlayer(_prev: ActionState, formData: FormData): Prom
 // Every balance change goes through the database ledger functions. If one fails, the
 // error is shown; nothing is written around it.
 export async function managePlayerWallet(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { role } = await getAppContext();
+  const { role, branch } = await getAppContext();
   const rawType = String(formData.get("actionType") || "add");
   const actionType = rawType === "deduct" ? "deduct" : rawType === "clear" ? "clear" : "add";
   if (actionType !== "add" && role !== "owner") {
@@ -76,6 +76,7 @@ export async function managePlayerWallet(_prev: ActionState, formData: FormData)
       p_method: method,
       p_note: note || "Deposit",
       p_bonus: bonus,
+      p_branch_id: branch.id,
     });
     if (error) return { error: error.message };
   } else {
@@ -90,6 +91,7 @@ export async function managePlayerWallet(_prev: ActionState, formData: FormData)
       p_amount: toDeduct,
       p_note: note || (actionType === "clear" ? "Balance cleared" : "Refund"),
       p_method: method,
+      p_branch_id: branch.id,
     });
     if (error) return { error: error.message };
   }

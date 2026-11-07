@@ -38,11 +38,14 @@ export function SubmitButton({
   );
 }
 
+// On phones: 44px tall, and 16px text so iPhone Safari doesn't zoom the page on focus.
 const FIELD =
-  "h-9 w-full rounded-lg border border-line-strong bg-panel px-3 text-sm shadow-xs outline-none transition-[border-color,box-shadow] placeholder:text-faint hover:border-faint/70 focus:border-accent focus:ring-3 focus:ring-accent/15 disabled:opacity-60 aria-invalid:border-danger";
+  "h-9 pointer-coarse:h-11 w-full rounded-lg border border-line-strong bg-panel px-3 text-sm pointer-coarse:text-base outline-none transition-[border-color,box-shadow] placeholder:text-faint hover:border-faint/70 focus:border-accent focus:ring-3 focus:ring-accent/15 disabled:opacity-60 aria-invalid:border-danger";
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cx(FIELD, className)} {...props} />;
+  // Amounts and counts: open the phone's number pad, not the full keyboard.
+  const inputMode = props.inputMode ?? (props.type === "number" ? "decimal" : undefined);
+  return <input className={cx(FIELD, className)} {...props} inputMode={inputMode} />;
 }
 
 export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -120,9 +123,9 @@ export function Segmented<T extends string>({
           disabled={o.disabled}
           onClick={() => onChange(o.value)}
           className={cx(
-            "flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-40 [&_svg]:size-4",
+            "flex-1 rounded-md px-3 py-1.5 pointer-coarse:py-2.5 text-[13px] font-medium transition-colors disabled:opacity-40 [&_svg]:size-4",
             value === o.value
-              ? "bg-panel text-fg shadow-[0_0_0_1px_var(--line),0_1px_2px_rgb(16_24_40/0.06)]"
+              ? "bg-panel text-fg shadow-[0_0_0_1px_var(--line)]"
               : "text-muted hover:text-fg",
           )}
         >
@@ -164,7 +167,7 @@ export function Toggle({
         <span
           className={cx(
             "absolute top-0.5 size-3.5 rounded-full transition-all",
-            checked ? "left-[18px] bg-white shadow-xs" : "left-0.5 bg-faint",
+            checked ? "left-[18px] bg-accent-fg" : "left-0.5 bg-faint",
           )}
         />
       </span>

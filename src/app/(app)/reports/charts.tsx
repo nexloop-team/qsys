@@ -181,7 +181,7 @@ export function Heatmap({ cells }: { cells: { dow: number; hour: number; session
   return (
     <div>
       <div className="overflow-x-auto pb-1">
-        <div className="grid min-w-[620px] grid-cols-[36px_repeat(24,minmax(0,1fr))] gap-[3px] text-[10px]">
+        <div className="grid grid-cols-[30px_repeat(24,minmax(0,1fr))] gap-[2px] text-[9px] sm:min-w-[620px] sm:grid-cols-[36px_repeat(24,minmax(0,1fr))] sm:gap-[3px] sm:text-[10px]">
           <span />
           {Array.from({ length: 24 }, (_, h) => (
             <span key={h} className="num text-center text-faint">
@@ -197,7 +197,7 @@ export function Heatmap({ cells }: { cells: { dow: number; hour: number; session
                   <span
                     key={h}
                     title={`${DAY_LABELS[dow]} ${hh(h)}:00–${hh((h + 1) % 24)}:00 · ${n} session${n === 1 ? "" : "s"}`}
-                    className="aspect-square rounded-[4px] bg-subtle transition-transform hover:scale-125 hover:ring-2 hover:ring-panel"
+                    className="aspect-square rounded-[2px] bg-subtle transition-transform hover:scale-125 hover:ring-2 hover:ring-panel sm:rounded-[4px]"
                     style={fill(n)}
                   />
                 );

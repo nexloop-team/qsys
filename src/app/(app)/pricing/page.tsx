@@ -108,7 +108,7 @@ async function Pricing() {
                           )}
                         </div>
                         {plan.rate_rules.length > 0 && (
-                          <ul className="mt-2.5 flex flex-col gap-1 border-l-2 border-accent/30 pl-3">
+                          <ul className="mt-2.5 flex flex-col gap-1 border-l border-line pl-3">
                             {plan.rate_rules.map((rule) => (
                               <li key={rule.id} className="flex flex-wrap items-center gap-x-2 text-[13px]">
                                 <span className="font-medium">{rule.name}</span>
@@ -143,30 +143,33 @@ async function Pricing() {
                   {typePackages.length === 0 ? (
                     <p className="text-[13px] text-muted">None. Staff can still book custom minutes at the hourly rate.</p>
                   ) : (
-                    <table className="w-full text-sm">
-                      <tbody>
-                        {typePackages.map((pkg) => (
-                          <tr key={pkg.id} className={pkg.is_active ? "" : "text-faint"}>
-                            <td className="py-1.5 pr-3 font-medium">{pkg.name}</td>
-                            <td className="num py-1.5 pr-3 text-muted">{formatMinutes(pkg.minutes)}</td>
-                            <td className="num py-1.5 pr-3">{formatINR(pkg.price)}</td>
-                            <td className="py-1.5 pr-3 text-muted">{pkg.tier ?? "All tiers"}</td>
-                            <td className="py-1.5 text-right">
-                              {editable && (
-                                <span className="inline-flex items-center gap-1">
-                                  <PackageDialogButton stationType={type} tiers={tiers} pkg={pkg} />
-                                  <PackageActiveToggle id={pkg.id} isActive={pkg.is_active} />
-                                  <DeleteButton
-                                    confirmText={`Delete "${pkg.name}"?`}
-                                    onDelete={deletePackage.bind(null, pkg.id)}
-                                  />
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    // A wrapping list, not a table: fits a phone without sideways scrolling.
+                    <ul className="divide-y divide-line text-sm">
+                      {typePackages.map((pkg) => (
+                        <li
+                          key={pkg.id}
+                          className={`flex flex-wrap items-center gap-x-3 gap-y-1 py-2 ${pkg.is_active ? "" : "text-faint"}`}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-medium">{pkg.name}</span>
+                            <span className="num block text-xs text-muted">
+                              {formatMinutes(pkg.minutes)} · {pkg.tier ?? "All tiers"}
+                            </span>
+                          </span>
+                          <span className="num font-medium">{formatINR(pkg.price)}</span>
+                          {editable && (
+                            <span className="inline-flex items-center gap-1">
+                              <PackageDialogButton stationType={type} tiers={tiers} pkg={pkg} />
+                              <PackageActiveToggle id={pkg.id} isActive={pkg.is_active} />
+                              <DeleteButton
+                                confirmText={`Delete "${pkg.name}"?`}
+                                onDelete={deletePackage.bind(null, pkg.id)}
+                              />
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </div>
               </Panel>

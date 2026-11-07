@@ -21,12 +21,18 @@ const FOOTPRINT: Record<StationType, [number, number]> = {
   other: [4, 4],
 };
 
-export type Placement = { x: number; y: number; rot: 0 | 90 };
+// Which way a station faces: 0 = monitor / TV at the top, then clockwise.
+export type Rotation = 0 | 90 | 180 | 270;
+export type Placement = { x: number; y: number; rot: Rotation };
 type Rect = { x: number; y: number; w: number; h: number };
 
-function size(type: StationType, rot: 0 | 90): [number, number] {
+function toRotation(n: number | null | undefined): Rotation {
+  return n === 90 || n === 180 || n === 270 ? n : 0;
+}
+
+function size(type: StationType, rot: Rotation): [number, number] {
   const [w, h] = FOOTPRINT[type];
-  return rot === 90 ? [h, w] : [w, h];
+  return rot === 90 || rot === 270 ? [h, w] : [w, h];
 }
 
 function overlaps(a: Rect, b: Rect) {
@@ -45,7 +51,7 @@ export function initialPlacements(stations: FloorStation[], arrangeAll = false):
   if (!arrangeAll) {
     for (const st of stations) {
       if (st.layout_x != null && st.layout_y != null) {
-        const p: Placement = { x: st.layout_x, y: st.layout_y, rot: st.layout_rot === 90 ? 90 : 0 };
+        const p: Placement = { x: st.layout_x, y: st.layout_y, rot: toRotation(st.layout_rot) };
         out[st.id] = p;
         taken.push(rectOf(st, p));
       }
@@ -76,7 +82,7 @@ export function initialPlacements(stations: FloorStation[], arrangeAll = false):
 }
 
 const RING: Record<TileState, string> = {
-  free: "ring-free/60",
+  free: "ring-line-strong",
   busy: "ring-busy",
   ending: "ring-ending",
   over: "ring-over",
@@ -93,7 +99,7 @@ const DOT: Record<TileState, string> = {
 };
 const TEXT: Record<TileState, string> = {
   free: "text-free",
-  busy: "text-busy",
+  busy: "text-fg",
   ending: "text-ending",
   over: "text-over",
   paused: "text-paused",
@@ -216,7 +222,7 @@ export function FloorMap({
             <StationShape
               station={st}
               info={info}
-              vertical={rot === 90}
+              rot={rot}
               highlight={selectedId === st.id && editing}
               invalid={bad}
             />
@@ -246,49 +252,62 @@ function Label({ station, info }: { station: FloorStation; info?: TileInfo }) {
 }
 
 // Top-down drawings. The status ring, dot and timer carry state; the shape says what it is.
+// Lays out [front, middle, back] so the front (monitor / TV) is on the side the station faces.
+const FACING: Record<Rotation, string> = {
+  0: "flex-col",
+  90: "flex-row-reverse",
+  180: "flex-col-reverse",
+  270: "flex-row",
+};
+
 function StationShape({
   station,
   info,
-  vertical,
+  rot,
   highlight,
   invalid,
 }: {
   station: FloorStation;
   info?: TileInfo;
-  vertical: boolean;
+  rot: Rotation;
   highlight: boolean;
   invalid: boolean;
 }) {
   const state = info?.state ?? "free";
+  const vertical = rot === 90 || rot === 270;
   const ring = cx(
-    "ring-2",
+    state === "free" && !highlight && !invalid ? "ring-1" : "ring-2",
     invalid ? "ring-danger" : highlight ? "ring-fg" : RING[state],
     state === "off" && "opacity-55",
   );
 
   if (station.type === "pool" || station.type === "snooker") {
-    // Wooden rail, felt bed, six pockets.
+    // Rail, bed, six pockets. Greys only: colour on the map means status, and green felt
+    // would read as "free".
     const pockets = vertical
-      ? ["left-0 top-0", "right-0 top-0", "left-0 top-1/2", "right-0 top-1/2", "left-0 bottom-0", "right-0 bottom-0"]
-      : ["left-0 top-0", "left-1/2 top-0", "right-0 top-0", "left-0 bottom-0", "left-1/2 bottom-0", "right-0 bottom-0"];
+      ? [
+          "left-[0.3em] top-[0.3em]",
+          "right-[0.3em] top-[0.3em]",
+          "left-[0.3em] top-1/2 -translate-y-1/2",
+          "right-[0.3em] top-1/2 -translate-y-1/2",
+          "left-[0.3em] bottom-[0.3em]",
+          "right-[0.3em] bottom-[0.3em]",
+        ]
+      : [
+          "left-[0.3em] top-[0.3em]",
+          "left-1/2 -translate-x-1/2 top-[0.3em]",
+          "right-[0.3em] top-[0.3em]",
+          "left-[0.3em] bottom-[0.3em]",
+          "left-1/2 -translate-x-1/2 bottom-[0.3em]",
+          "right-[0.3em] bottom-[0.3em]",
+        ];
     return (
-      <span className={cx("relative block size-full rounded-[0.6em] bg-[#5b3a24] p-[0.55em] dark:bg-[#4a2f1d]", ring)}>
-        <span
-          className={cx(
-            "relative flex size-full items-center justify-center rounded-[0.3em] text-white",
-            station.type === "snooker" ? "bg-[#245740] dark:bg-[#1d4433]" : "bg-[#2e6b52] dark:bg-[#24533f]",
-          )}
-        >
+      <span className={cx("relative block size-full rounded-[0.6em] bg-line-strong p-[0.45em]", ring)}>
+        <span className="relative flex size-full items-center justify-center rounded-[0.3em] bg-subtle">
           {pockets.map((p) => (
-            <span
-              key={p}
-              className={cx("absolute size-[0.85em] -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/80", p)}
-              style={{
-                transform: `translate(${p.includes("right-0") ? "50%" : "-50%"}, ${p.includes("bottom-0") ? "50%" : "-50%"})`,
-              }}
-            />
+            <span key={p} className={cx("absolute size-[0.7em] rounded-full bg-fg/70", p)} />
           ))}
-          <span className="rounded-[0.3em] bg-black/45 px-[0.5em] py-[0.2em] [&_.text-muted]:text-white/70 [&_.text-free]:text-[#7ee2a8]">
+          <span className="rounded-[0.3em] border border-line bg-panel px-[0.5em] py-[0.2em]">
             <Label station={station} info={info} />
           </span>
         </span>
@@ -299,12 +318,12 @@ function StationShape({
   if (station.type === "ps5" || station.type === "xbox") {
     // TV on the wall, couch in front.
     return (
-      <span className={cx("flex size-full flex-col rounded-[0.5em] bg-subtle p-[0.35em]", ring, vertical && "flex-row")}>
-        <span className={cx("shrink-0 rounded-[0.15em] bg-fg/80", vertical ? "mr-[0.4em] w-[0.45em]" : "mb-[0.4em] h-[0.45em]")} />
-        <span className="flex flex-1 items-center justify-center">
+      <span className={cx("flex size-full gap-[0.35em] rounded-[0.5em] bg-subtle p-[0.35em]", FACING[rot], ring)}>
+        <span className={cx("shrink-0 rounded-[0.15em] bg-fg/80", vertical ? "w-[0.45em]" : "h-[0.45em]")} />
+        <span className="flex min-h-0 min-w-0 flex-1 items-center justify-center">
           <Label station={station} info={info} />
         </span>
-        <span className={cx("shrink-0 rounded-[0.35em] border border-line-strong bg-hover", vertical ? "ml-[0.4em] w-[0.8em]" : "mt-[0.3em] h-[0.8em]")} />
+        <span className={cx("shrink-0 rounded-[0.35em] border border-line-strong bg-hover", vertical ? "w-[0.8em]" : "h-[0.8em]")} />
       </span>
     );
   }
@@ -312,12 +331,12 @@ function StationShape({
   if (station.type === "pc") {
     // Desk with a monitor; chair in front.
     return (
-      <span className={cx("flex size-full flex-col rounded-[0.4em] bg-subtle p-[0.3em]", ring)}>
-        <span className="mx-auto h-[0.35em] w-3/5 shrink-0 rounded-[0.1em] bg-fg/80" />
-        <span className="flex flex-1 items-center justify-center">
+      <span className={cx("flex size-full items-center rounded-[0.4em] bg-subtle p-[0.3em]", FACING[rot], ring)}>
+        <span className={cx("shrink-0 rounded-[0.1em] bg-fg/80", vertical ? "h-3/5 w-[0.35em]" : "h-[0.35em] w-3/5")} />
+        <span className="flex min-h-0 min-w-0 flex-1 items-center justify-center self-stretch">
           <Label station={station} info={info} />
         </span>
-        <span className="mx-auto size-[0.7em] shrink-0 rounded-full border border-line-strong bg-hover" />
+        <span className="size-[0.7em] shrink-0 rounded-full border border-line-strong bg-hover" />
       </span>
     );
   }
@@ -347,12 +366,14 @@ export function LayoutEditor({
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const selectedName = stations.find((s) => s.id === selected)?.name;
 
   const rotate = () => {
     if (!selected) return;
     const st = stations.find((s) => s.id === selected)!;
     const cur = placements[selected];
-    const next: Placement = { ...cur, rot: cur.rot === 0 ? 90 : 0 };
+    // A quarter turn clockwise each tap.
+    const next: Placement = { ...cur, rot: ((cur.rot + 90) % 360) as Rotation };
     const r = rectOf(st, next);
     const clash =
       r.x + r.w > COLS ||
@@ -366,7 +387,11 @@ export function LayoutEditor({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line-strong bg-subtle px-3.5 py-2.5 text-sm">
         <span className="font-medium">Editing layout</span>
-        <span className="text-muted">Drag stations to match your venue.</span>
+        <span className="text-muted">
+          {selectedName
+            ? `${selectedName} selected. Drag to move it, or Rotate to turn it.`
+            : "Drag stations to match your venue. Tap one to rotate it."}
+        </span>
         <span className="ml-auto flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" disabled={!selected} onClick={rotate}>
             <RotateCw /> Rotate

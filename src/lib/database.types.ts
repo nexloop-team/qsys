@@ -222,6 +222,7 @@ export type Database = {
       wallet_transactions: Table<{
         id: string;
         org_id: string;
+        branch_id: string | null;
         customer_id: string;
         amount: number;
         balance_after: number;
@@ -482,6 +483,8 @@ export type Database = {
         Returns: string;
       };
       remove_session_item: { Args: { p_item_id: string }; Returns: undefined };
+      /** Take some off a line (default 1); down to zero removes it. */
+      reduce_session_item: { Args: { p_item_id: string; p_quantity?: number }; Returns: undefined };
       topup_wallet: {
         Args: {
           p_customer_id: string;
@@ -490,6 +493,8 @@ export type Database = {
           p_note?: string | null;
           /** Owner only: a hand-picked bonus instead of the venue's offers. */
           p_bonus?: number | null;
+          /** Branch whose counter took the money (for that branch's cash in drawer). */
+          p_branch_id?: string | null;
         };
         Returns: number;
       };
@@ -499,6 +504,7 @@ export type Database = {
           p_amount: number;
           p_note?: string | null;
           p_method?: "cash" | "upi";
+          p_branch_id?: string | null;
         };
         Returns: number;
       };

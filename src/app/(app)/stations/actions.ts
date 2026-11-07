@@ -14,7 +14,8 @@ const bulkSchema = z.object({
   prefix: z.string().trim().min(1, "Enter a name prefix.").max(20),
   count: z.coerce.number().int().min(1, "Add at least 1.").max(200, "Max 200 at once."),
   start: z.coerce.number().int().min(0).default(1),
-  tier: z.string().trim().max(30).default("standard"),
+  // Lowercase, so "VIP" and "vip" are one tier (prices match tiers by name).
+  tier: z.string().trim().toLowerCase().max(30).default("standard"),
   zone: z.string().trim().max(40).optional(),
 });
 
@@ -45,7 +46,7 @@ export async function bulkCreateStations(
 const updateSchema = z.object({
   id: z.uuid(),
   name: z.string().trim().min(1, "Name can't be empty.").max(40),
-  tier: z.string().trim().min(1, "Tier can't be empty.").max(30),
+  tier: z.string().trim().toLowerCase().min(1, "Tier can't be empty.").max(30),
   zone: z.string().trim().max(40),
   status: z.enum(STATION_STATUSES),
 });

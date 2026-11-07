@@ -33,11 +33,7 @@ const STEPS = [
 
 export default function Home() {
   return (
-    <div className="relative isolate flex flex-1 flex-col overflow-hidden">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-48 left-1/2 -z-10 h-[420px] w-[900px] -translate-x-1/2 rounded-full bg-accent/12 blur-3xl"
-      />
+    <div className="flex flex-1 flex-col">
       <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
         <Logo />
         <div className="flex items-center gap-1.5">
@@ -53,13 +49,12 @@ export default function Home() {
 
       <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-12 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_1.1fr] lg:py-20">
         <section>
-          <p className="inline-flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1 text-xs font-medium text-muted shadow-xs">
+          <p className="inline-flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1 text-xs font-medium text-muted">
             <span className="size-1.5 rounded-full bg-free" aria-hidden />
             Gaming lounges · Pool &amp; snooker halls
           </p>
           <h1 className="mt-4 text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl">
-            Every station, every minute,{" "}
-            <span className="bg-gradient-to-r from-accent-ink to-busy bg-clip-text text-transparent">one screen.</span>
+            Every station, every minute, <span className="text-muted">one screen.</span>
           </h1>
           <p className="mt-5 max-w-md text-[17px] leading-relaxed text-muted">
             Stop walking to each PC and writing times on paper. QueSys times every PC, console and table, bills to the
@@ -91,7 +86,7 @@ export default function Home() {
 
         <section
           aria-label="Preview of the floor screen"
-          className="rounded-2xl border border-line bg-panel p-3 shadow-pop sm:p-4"
+          className="rounded-xl border border-line bg-panel p-3 sm:p-4"
         >
           <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs">
             {(

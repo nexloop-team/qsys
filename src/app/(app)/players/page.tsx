@@ -78,7 +78,37 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
             {!q && "Players are added automatically when you start a session with their mobile number."}
           </Empty>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Phones: one card per player, the whole row taps through; wallet top-up stays one tap. */}
+          <ul className="divide-y divide-line sm:hidden">
+            {players.map((p) => (
+              <li key={p.id} className="flex items-center gap-3 px-4 py-3">
+                <Link href={`/players/${p.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold">
+                    {p.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{p.name}</span>
+                    <span className="num block text-xs text-muted">
+                      {formatPhone(p.phone)} · {p.visits} visit{p.visits === 1 ? "" : "s"}
+                    </span>
+                  </span>
+                </Link>
+                <span className={`num shrink-0 text-sm font-semibold ${(walletMap[p.id] ?? 0) > 0 ? "text-ok" : "text-muted"}`}>
+                  {formatINR(walletMap[p.id] ?? 0)}
+                </span>
+                <TopupWalletButton
+                  customerId={p.id}
+                  playerName={p.name}
+                  currentBalance={walletMap[p.id] ?? 0}
+                  canRefund={editable}
+                  offers={offers}
+                  compact
+                />
+              </li>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[600px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
@@ -131,6 +161,7 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
               </tbody>
             </table>
           </div>
+          </>
         )}
         {total > 0 && (
           <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5 text-xs text-muted">

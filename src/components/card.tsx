@@ -48,7 +48,7 @@ export function PageHeader({
         <h1 className="text-[22px] font-semibold leading-tight tracking-tight">{title}</h1>
         {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

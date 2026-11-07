@@ -45,6 +45,8 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
       .from("wallet_transactions")
       .select("amount, method")
       .eq("org_id", org.id)
+      // This branch's counter; rows from before branches were recorded count everywhere.
+      .or(`branch_id.eq.${branch.id},branch_id.is.null`)
       .in("method", ["cash", "upi"])
       .gte("created_at", dayStart)
       .lt("created_at", dayEnd),
@@ -120,7 +122,36 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
         {list.length === 0 ? (
           <Empty icon={<ReceiptText />} title="No bills on this day" />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Phones: one card per bill; the whole card opens it. */}
+          <ul className="divide-y divide-line sm:hidden">
+            {list.map((inv) => (
+              <li key={inv.id}>
+                <Link
+                  href={`/bills/${inv.id}`}
+                  className={`flex items-start gap-3 px-4 py-3 active:bg-subtle ${inv.voided_at ? "text-muted line-through" : ""}`}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline gap-2">
+                      <span className="num text-sm font-medium">{inv.number}</span>
+                      <span className="num text-xs text-muted">{formatTime(inv.created_at, branch.timezone)}</span>
+                    </span>
+                    <span className="mt-0.5 block truncate text-[13px] text-muted">
+                      {inv.invoice_lines.map((l) => l.description).join(", ")}
+                      {inv.customer_name && ` · ${inv.customer_name}`}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="num block text-sm font-semibold">{formatINR(inv.total)}</span>
+                    <span className="block text-xs text-muted">
+                      {inv.voided_at ? "Cancelled" : [...new Set(inv.payments.map((p) => METHOD_LABEL[p.method]))].join(" + ")}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[620px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
@@ -156,6 +187,7 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Panel>
     </>

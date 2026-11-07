@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(20);
 
 -- Fixture: one venue, staff, two paired PCs (device keys 'key-1' / 'key-2'), PC price ₹60/hr,
 -- and a player with mobile 9876500001.
@@ -81,6 +81,25 @@ update public.branch_settings set pc_player_login = false where branch_id = '200
 select pg_temp.as_pc();
 select is(public.agent_sync('key-2') -> 'player_login', 'false'::jsonb, 'login hidden when turned off');
 select is(public.agent_player_login('key-2', '9876500001', '4826') ->> 'ok', 'false', 'and refused');
+reset role;
+
+-- Real-world guards (20261120000001) ------------------------------------------
+update public.branch_settings set pc_player_login = true where branch_id = '20000000-0000-0000-0000-0000000000e0';
+select pg_temp.as_pc();
+select ok(public.agent_player_login('key-2', '9876500001', '4826') ->> 'error' like 'You''re already playing on PC-01%',
+  'one player can''t play on two PCs at once');
+reset role;
+
+-- Asha plays an hour on PC-01, it is ended, and she leaves without paying.
+update public.sessions set started_at = now() - interval '1 hour'
+ where station_id = '30000000-0000-0000-0000-0000000000e1' and status <> 'ended';
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000e2');
+select public.end_session((select id from public.sessions
+                            where station_id = '30000000-0000-0000-0000-0000000000e1' and status <> 'ended'));
+reset role;
+select pg_temp.as_pc();
+select ok(public.agent_player_login('key-2', '9876500001', '4826') ->> 'error' like 'You have ₹%unpaid%',
+  'a player who owes money pays at the counter first');
 reset role;
 
 select * from finish();

@@ -22,6 +22,7 @@ import {
   type LiveSession,
   type TileState,
 } from "./types";
+import { friendlyError } from "@/lib/errors";
 
 export type TileInfo = {
   state: TileState;
@@ -79,19 +80,19 @@ export function deriveTile(
   };
 }
 
+// White tiles; colour lives only in the dot, the top edge and (when it matters) the clock.
 const TILE_STYLE: Record<TileState, string> = {
-  free: "border-line hover:border-free/50",
-  busy: "border-busy/35 bg-[linear-gradient(180deg,color-mix(in_oklab,var(--busy)_7%,var(--panel)),var(--panel)_70%)]",
-  ending:
-    "border-ending/50 bg-[linear-gradient(180deg,color-mix(in_oklab,var(--ending)_10%,var(--panel)),var(--panel)_70%)]",
-  over: "border-over/60 bg-[linear-gradient(180deg,color-mix(in_oklab,var(--over)_11%,var(--panel)),var(--panel)_70%)] ring-1 ring-over/20",
+  free: "border-line hover:border-line-strong",
+  busy: "border-line hover:border-line-strong",
+  ending: "border-ending/40",
+  over: "border-over/45",
   paused: "border-dashed border-line-strong",
   off: "border-dashed border-line opacity-55",
 };
 
 // Top edge colour per state, so a glance across the floor reads at once.
 const EDGE: Record<TileState, string> = {
-  free: "bg-free/60",
+  free: "bg-transparent",
   busy: "bg-busy",
   ending: "bg-ending",
   over: "bg-over",
@@ -110,7 +111,7 @@ const DOT: Record<TileState, string> = {
 
 const STATE_TEXT: Record<TileState, string> = {
   free: "text-free",
-  busy: "text-busy",
+  busy: "text-fg",
   ending: "text-ending",
   over: "text-over",
   paused: "text-paused",
@@ -120,8 +121,13 @@ const STATE_TEXT: Record<TileState, string> = {
 export function FloorBoard({ initial }: { initial: FloorData }) {
   const { branch, stations, plans, settings } = initial;
   const { sessions, connected, refetch, supabase } = useFloorSessions(branch.id, initial.sessions);
-  const now = useServerClock(initial.serverNow);
-  const { devices, refetchDevices } = useDevices(supabase, branch.id, initial.devices);
+  const now = useServerClock(initial.serverNow, supabase);
+  const { devices, refetchDevices } = useDevices(
+    supabase,
+    branch.id,
+    initial.devices,
+    stations.some((s) => s.type === "pc"),
+  );
   const deviceByStation = useMemo(() => new Map(devices.map((d) => [d.station_id, d])), [devices]);
 
   const [filter, setFilter] = useState<StationType | "all">("all");
@@ -138,21 +144,29 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
   const runningSessions = sessions.filter((s) => s.status === "running");
   const pausedSessions = sessions.filter((s) => s.status === "paused");
 
-  const pauseAll = async () => {
-    if (!runningSessions.length || batchPending) return;
-    setBatchPending(true);
-    await Promise.all(runningSessions.map((s) => supabase.rpc("pause_session", { p_session_id: s.id })));
-    await refetch();
-    setBatchPending(false);
-  };
+  const [batchError, setBatchError] = useState<string | null>(null);
 
-  const resumeAll = async () => {
-    if (!pausedSessions.length || batchPending) return;
+  // Pause / resume every session at once (e.g. a power cut). Each call stands alone, so one
+  // failure doesn't stop the rest; failures are counted and shown.
+  const runBatch = async (list: LiveSession[], fn: "pause_session" | "resume_session") => {
+    if (!list.length || batchPending) return;
     setBatchPending(true);
-    await Promise.all(pausedSessions.map((s) => supabase.rpc("resume_session", { p_session_id: s.id })));
-    await refetch();
-    setBatchPending(false);
+    setBatchError(null);
+    try {
+      const results = await Promise.allSettled(list.map((s) => supabase.rpc(fn, { p_session_id: s.id })));
+      const failed = results.filter((r) => r.status === "rejected" || r.value.error).length;
+      if (failed) {
+        setBatchError(
+          `${failed} of ${list.length} couldn't be ${fn === "pause_session" ? "paused" : "resumed"}. Check the internet and try again.`,
+        );
+      }
+    } finally {
+      await refetch();
+      setBatchPending(false);
+    }
   };
+  const pauseAll = () => runBatch(runningSessions, "pause_session");
+  const resumeAll = () => runBatch(pausedSessions, "resume_session");
 
   const planById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
   // Rate lookups per plan per minute never change, so cache them across ticks.
@@ -231,11 +245,11 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
           <>
             <span
               className={cx(
-                "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium",
-                connected ? "border-free/30 bg-free/8 text-free" : "border-ending/40 bg-ending/10 text-ending",
+                "inline-flex h-8 items-center gap-1.5 px-1.5 text-xs font-medium",
+                connected ? "text-muted" : "text-ending",
               )}
             >
-              <span className={cx("size-1.5 rounded-full", connected ? "bg-free blink" : "bg-ending")} />
+              <span className={cx("size-1.5 rounded-full", connected ? "bg-free" : "bg-ending blink")} />
               {connected ? "Live" : "Reconnecting"}
             </span>
             <Button
@@ -270,10 +284,14 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
               </Button>
             )}
             {view === "map" && canEditLayout && !editingLayout && (
-              <Button size="sm" variant="secondary" onClick={() => setEditingLayout(true)}>
-                <PencilRuler /> Edit layout
-              </Button>
+              <span className="hidden sm:contents">
+                <Button size="sm" variant="secondary" onClick={() => setEditingLayout(true)}>
+                  <PencilRuler /> Edit layout
+                </Button>
+              </span>
             )}
+            {/* The map needs width: phones always get the grid. */}
+            <span className="hidden sm:contents">
             <Segmented
               value={view}
               onChange={(v) => {
@@ -285,6 +303,7 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
                 { value: "map", label: <><MapIcon /> Map</> },
               ]}
             />
+            </span>
             <Button
               variant="secondary"
               size="sm"
@@ -302,6 +321,15 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
         <div className="flex items-center gap-2 rounded-xl border border-ending/40 bg-ending/10 px-3.5 py-2.5 text-sm text-ending">
           <WifiOff className="size-4 shrink-0" />
           Internet down. Reconnecting… Timers keep running; changes sync when you&apos;re back.
+        </div>
+      )}
+      {batchError && (
+        <div className="flex items-center gap-2 rounded-xl border border-over/30 bg-over/8 px-3.5 py-2.5 text-sm text-over">
+          <AlertTriangle className="size-4 shrink-0" />
+          {batchError}
+          <button type="button" className="ml-auto text-xs font-medium underline" onClick={() => setBatchError(null)}>
+            Dismiss
+          </button>
         </div>
       )}
       {typesWithoutPrice.length > 0 && (
@@ -328,8 +356,8 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
         )}
       </div>
 
-      {view === "grid" && typesPresent.length > 1 && (
-        <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0">
+      {typesPresent.length > 1 && (
+        <div className={cx("-mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0", view !== "grid" && "sm:hidden")}>
           {(["all", ...typesPresent] as const).map((t) => {
             const n = t === "all" ? tiles.length : tiles.filter((x) => x.station.type === t).length;
             return (
@@ -339,14 +367,14 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
                 onClick={() => setFilter(t)}
                 aria-pressed={filter === t}
                 className={cx(
-                  "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+                  "inline-flex h-8 pointer-coarse:h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 pointer-coarse:px-3.5 text-xs pointer-coarse:text-[13px] font-medium transition-colors",
                   filter === t
-                    ? "border-accent bg-accent-soft text-fg"
+                    ? "border-accent bg-accent text-accent-fg"
                     : "border-line bg-panel text-muted hover:border-line-strong hover:text-fg",
                 )}
               >
                 {t === "all" ? "All" : STATION_TYPE_LABEL[t]}
-                <span className={cx("num text-[11px]", filter === t ? "text-accent-ink" : "text-faint")}>{n}</span>
+                <span className="num text-[11px] opacity-70">{n}</span>
               </button>
             );
           })}
@@ -388,8 +416,9 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
         </Panel>
       )}
 
-      {view === "map" &&
-        (editingLayout ? (
+      {view === "map" && (
+        <div className="hidden sm:block">
+        {editingLayout ? (
           <LayoutEditor
             stations={stations}
             infos={infos}
@@ -400,7 +429,7 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
                 p_branch_id: branch.id,
                 p_layout: Object.entries(next).map(([id, p]) => ({ id, x: p.x, y: p.y, rot: p.rot })),
               });
-              if (error) return error.message;
+              if (error) return friendlyError(error);
               setPlacements(next);
               setEditingLayout(false);
               return null;
@@ -414,11 +443,13 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
             editing={false}
             onSelect={setSelectedId}
           />
-        ))}
+        )}
+        </div>
+      )}
 
       {/* Station grid */}
-      {view === "grid" && visibleTypes.map((type) => (
-        <section key={type}>
+      {visibleTypes.map((type) => (
+        <section key={type} className={cx(view !== "grid" && "sm:hidden")}>
           {filter === "all" && (
             <h2 className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
               {STATION_TYPE_LABEL[type]}
@@ -434,7 +465,7 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
                   type="button"
                   onClick={() => setSelectedId(station.id)}
                   className={cx(
-                    "group relative flex min-h-[116px] flex-col overflow-hidden rounded-xl border bg-panel p-3 pt-3.5 text-left shadow-xs transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-card active:translate-y-0",
+                    "group relative flex min-h-[116px] flex-col overflow-hidden rounded-xl border bg-panel p-3 pt-3.5 text-left transition-colors active:bg-subtle",
                     TILE_STYLE[info.state],
                   )}
                 >
@@ -456,8 +487,9 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
                     <span className={cx("mt-auto flex items-center justify-between text-[13px] font-medium capitalize", STATE_TEXT[info.state])}>
                       {info.clockLabel}
                       {info.state === "free" && (
-                        <span className="text-xs font-medium normal-case text-faint opacity-0 transition-opacity group-hover:opacity-100">
-                          Start →
+                        // Always visible on touch screens; fades in on hover with a mouse.
+                        <span className="text-xs font-medium normal-case text-muted [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:group-hover:opacity-100">
+                          Start
                         </span>
                       )}
                     </span>

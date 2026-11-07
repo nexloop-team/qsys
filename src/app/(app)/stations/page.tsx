@@ -70,7 +70,32 @@ async function Stations() {
         </Panel>
       ) : (
         <Panel flush>
-          <div className="overflow-x-auto">
+          {/* Phones: cards grouped by type, no sideways scrolling. */}
+          <div className="sm:hidden">
+            {STATION_TYPES.filter((t) => list.some((s) => s.type === t)).map((type) => {
+              const group = list.filter((s) => s.type === type);
+              return (
+                <section key={type} className="border-b border-line last:border-b-0">
+                  <h2 className="bg-subtle px-4 py-1.5 text-xs font-medium text-muted">
+                    {STATION_TYPE_LABEL[type]} · {group.length}
+                  </h2>
+                  <ul className="divide-y divide-line text-sm">
+                    {group.map((s) => (
+                      <StationRow
+                        key={s.id}
+                        station={s}
+                        editable={editable}
+                        pcColumn={hasPcs}
+                        device={deviceByStation.get(s.id)}
+                        card
+                      />
+                    ))}
+                  </ul>
+                </section>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">

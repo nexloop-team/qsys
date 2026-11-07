@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatINR } from "@/lib/format";
 import { Modal } from "@/components/overlay";
 import { Button, ErrorText, Field, Input } from "@/components/ui";
+import { friendlyError } from "@/lib/errors";
 
 type Result = { cash: number; upi: number; wallet: number; sessions: number };
 
@@ -39,7 +40,7 @@ export function CancelBillButton({
         p_reason: reason.trim(),
         p_restock: restock,
       });
-      if (error) return setError(error.message);
+      if (error) return setError(friendlyError(error));
       setDone(data as Result);
       router.refresh();
     });

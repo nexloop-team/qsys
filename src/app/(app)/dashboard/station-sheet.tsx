@@ -5,11 +5,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ArrowRightLeft, Coffee, Pause, Play, Plus, Square, Users } from "lucide-react";
 import type { Database } from "@/lib/database.types";
 import { SESSION_MODE_HINT, SESSION_MODE_LABEL, STATION_TYPE_LABEL, type SessionMode } from "@/lib/constants";
-import { formatClock, formatINR, formatMinutes, formatTime } from "@/lib/format";
+import { formatINR, formatMinutes, formatTime } from "@/lib/format";
 import { computeBill } from "@/lib/bill";
-import { Sheet } from "@/components/overlay";
+import { Sheet, StickyActions } from "@/components/overlay";
 import { Badge } from "@/components/card";
-import { Button, ErrorText, Field, Input, Segmented, Select } from "@/components/ui";
+import { Button, ErrorText, Field, Input, Segmented, Select, cx } from "@/components/ui";
 import { PaymentFields, type PaymentRow } from "./payment-fields";
 import { PlayerField, type PlayerValue } from "./player-field";
 import { SessionSnacksForm } from "./session-snacks";
@@ -17,6 +17,7 @@ import { PcControls } from "./pc-controls";
 import type { DeviceStatus } from "@/lib/devices";
 import type { TileInfo } from "./floor-board";
 import type { FloorData, FloorPackage, FloorPlan, FloorStation, LiveSession } from "./types";
+import { friendlyError } from "@/lib/errors";
 
 type Supa = SupabaseClient<Database>;
 
@@ -62,6 +63,21 @@ export function StationSheet({
   const packages = data.packages.filter(
     (p) => p.station_type === station.type && (p.tier === null || p.tier === station.tier),
   );
+  // Shown above the main button, so the button can stay pinned at the bottom.
+  const pc =
+    station.type === "pc" ? (
+      <PcControls
+        stationId={station.id}
+        stationName={station.name}
+        device={device}
+        online={deviceOnline}
+        nowMs={nowMs}
+        sessionLive={Boolean(session && session.status !== "ended")}
+        isOwner={data.role === "owner"}
+        supabase={supabase}
+        onSent={onDeviceCommand}
+      />
+    ) : null;
 
   return (
     <Sheet
@@ -80,11 +96,17 @@ export function StationSheet({
     >
       <>
         {station.status !== "active" && !session ? (
-          <p className="text-sm text-muted">
-            This station is in <strong className="text-fg">{station.status}</strong>. Change it under Stations to use it.
-          </p>
+          <>
+            <p className="text-sm text-muted">
+              This station is in <strong className="text-fg">{station.status}</strong>. Change it under Stations to use it.
+            </p>
+            {pc}
+          </>
         ) : !plan ? (
-          <p className="text-sm text-muted">Set a price for {STATION_TYPE_LABEL[station.type]} under Pricing first.</p>
+          <>
+            <p className="text-sm text-muted">Set a price for {STATION_TYPE_LABEL[station.type]} under Pricing first.</p>
+            {pc}
+          </>
         ) : session ? (
           <LiveView
             station={station}
@@ -100,6 +122,7 @@ export function StationSheet({
             onCheckout={onCheckout}
             onMoved={onMoved}
             onClose={() => onOpenChange(false)}
+            extra={pc}
           />
         ) : (
           <StartForm
@@ -112,19 +135,7 @@ export function StationSheet({
               await onChanged();
               onOpenChange(false);
             }}
-          />
-        )}
-        {station.type === "pc" && (
-          <PcControls
-            stationId={station.id}
-            stationName={station.name}
-            device={device}
-            online={deviceOnline}
-            nowMs={nowMs}
-            sessionLive={Boolean(session && session.status !== "ended")}
-            isOwner={data.role === "owner"}
-            supabase={supabase}
-            onSent={onDeviceCommand}
+            extra={pc}
           />
         )}
       </>
@@ -154,6 +165,7 @@ function StartForm({
   data,
   supabase,
   onStarted,
+  extra,
 }: {
   station: FloorStation;
   plan: FloorPlan;
@@ -161,6 +173,7 @@ function StartForm({
   data: FloorData;
   supabase: Supa;
   onStarted: () => Promise<void>;
+  extra?: React.ReactNode;
 }) {
   const allowed = data.settings.allowed[station.type] ?? ["open", "prepaid"];
   const [mode, setMode] = useState<SessionMode>(
@@ -200,7 +213,7 @@ function StartForm({
             }
           : {}),
       });
-      if (error) return setError(error.message);
+      if (error) return setError(friendlyError(error));
       await onStarted();
     });
 
@@ -309,26 +322,29 @@ function StartForm({
         </div>
       )}
 
-      <ErrorText>{error}</ErrorText>
+      {extra}
 
-      <Button
-        size="lg"
-        onClick={submit}
-        disabled={pending || !player.ready || (mode === "prepaid" && minutes <= 0)}
-        className="w-full"
-      >
-        <Play />
-        {pending
-          ? "Starting…"
-          : mode === "prepaid" && collectNow
-            ? `Collect ${formatINR(bill.total)} & start`
-            : mode === "prepaid"
-              ? `Start ${formatMinutes(minutes)}`
-              : `Start ${station.name}`}
-      </Button>
-      {!player.ready && (
-        <p className="-mt-3 text-center text-xs text-muted">Pick a player, or add a new one with their mobile number.</p>
-      )}
+      <StickyActions>
+        <ErrorText>{error}</ErrorText>
+        <Button
+          size="lg"
+          onClick={submit}
+          disabled={pending || !player.ready || (mode === "prepaid" && minutes <= 0)}
+          className="w-full"
+        >
+          <Play />
+          {pending
+            ? "Starting…"
+            : mode === "prepaid" && collectNow
+              ? `Collect ${formatINR(bill.total)} & start`
+              : mode === "prepaid"
+                ? `Start ${formatMinutes(minutes)}`
+                : `Start ${station.name}`}
+        </Button>
+        {!player.ready && (
+          <p className="mt-2 text-center text-xs text-muted">Pick a player, or add a new one with their mobile number.</p>
+        )}
+      </StickyActions>
     </div>
   );
 }
@@ -350,6 +366,7 @@ function LiveView({
   onCheckout,
   onMoved,
   onClose,
+  extra,
 }: {
   station: FloorStation;
   session: LiveSession;
@@ -364,6 +381,7 @@ function LiveView({
   onCheckout: (ids: string[]) => void;
   onMoved: (stationId: string) => void;
   onClose: () => void;
+  extra?: React.ReactNode;
 }) {
   const [panel, setPanel] = useState<"none" | "extend" | "transfer" | "snack">("none");
   const [error, setError] = useState<string>();
@@ -374,7 +392,7 @@ function LiveView({
     startTransition(async () => {
       setError(undefined);
       const { error } = await fn();
-      if (error) return setError(error.message);
+      if (error) return setError(friendlyError(error));
       await onChanged();
     });
 
@@ -392,7 +410,7 @@ function LiveView({
     startTransition(async () => {
       setError(undefined);
       const { data: charge, error } = await supabase.rpc("end_session", { p_session_id: session.id });
-      if (error) return setError(error.message);
+      if (error) return setError(friendlyError(error));
       await onChanged();
       const outstanding = Number((charge as { outstanding?: number } | null)?.outstanding ?? 0);
       // Something left to pay: go to checkout. Fully paid up front: nothing more to do here.
@@ -401,21 +419,41 @@ function LiveView({
     });
   };
 
-  const elapsed = formatClock(info.charge?.activeSeconds ?? 0);
   void nowMs; // re-render each tick via parent
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-line bg-subtle/40">
-        <Cell label={info.clockLabel} value={info.clock ?? "—"} strong />
-        <Cell label="Charge so far" value={formatINR(info.charge?.total ?? 0)} strong />
-        <Cell label="Started" value={formatTime(session.started_at, tz)} />
-        {session.mode === "prepaid" ? (
-          <Cell label="Ends" value={session.planned_end_at ? formatTime(session.planned_end_at, tz) : elapsed} />
-        ) : (
-          // Elapsed is already shown above; this is what the rounding rules bill for.
-          <Cell label="Billed as" value={formatMinutes(info.charge?.billableMinutes ?? 0)} />
+      {/* The clock is the point of this panel: big, in the station's status colour. */}
+      <div className={cx("flex flex-col gap-3 rounded-xl border p-4", CLOCK_BOX[info.state])}>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <span className={cx("num text-[40px] font-semibold leading-none tracking-tight", CLOCK_TEXT[info.state])}>
+            {info.clock ?? "—"}
+          </span>
+          <span className={cx("text-[13px] font-medium", CLOCK_TEXT[info.state])}>
+            {info.clockLabel}
+            {session.mode === "prepaid" && session.planned_end_at && session.status === "running"
+              ? ` · ends ${formatTime(session.planned_end_at, tz)}`
+              : ""}
+          </span>
+        </div>
+        {session.mode === "prepaid" && session.prepaid_minutes > 0 && info.remaining !== null && (
+          <div className="h-1 overflow-hidden rounded-full bg-subtle" aria-hidden>
+            <div
+              className={cx("h-full rounded-full", BAR[info.state])}
+              style={{ width: `${Math.min(100, Math.max(0, 100 - (info.remaining / (session.prepaid_minutes * 60)) * 100))}%` }}
+            />
+          </div>
         )}
+        <div className="grid grid-cols-3 gap-2">
+          <Cell label="Started" value={formatTime(session.started_at, tz)} />
+          {session.mode === "prepaid" ? (
+            <Cell label="Booked" value={formatMinutes(session.prepaid_minutes)} />
+          ) : (
+            // Elapsed is the big clock; this is what the rounding rules bill for.
+            <Cell label="Billed as" value={formatMinutes(info.charge?.billableMinutes ?? 0)} />
+          )}
+          <Cell label="Charge so far" value={formatINR(info.charge?.total ?? 0)} />
+        </div>
       </div>
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
@@ -563,31 +601,60 @@ function LiveView({
         />
       )}
 
-      <Button size="lg" variant={armed ? "danger" : "primary"} className="w-full" disabled={pending} onClick={end}>
-        <Square />
-        {pending
-          ? "Working…"
-          : armed
-            ? `Tap again to end & bill ${formatINR(info.charge?.total ?? 0)}`
-            : `End & bill ${formatINR(info.charge?.total ?? 0)}`}
-      </Button>
-      {session.mode === "prepaid" && Number(session.billed_amount) > 0 && (
-        <p className="-mt-3 text-center text-xs text-muted">
-          {formatINR(session.billed_amount)} already collected. Only the rest gets billed.
-        </p>
-      )}
+      {extra}
+
+      <StickyActions>
+        <Button size="lg" variant={armed ? "danger" : "primary"} className="w-full" disabled={pending} onClick={end}>
+          <Square />
+          {pending
+            ? "Working…"
+            : armed
+              ? `Tap again to end & bill ${formatINR(info.charge?.total ?? 0)}`
+              : `End & bill ${formatINR(info.charge?.total ?? 0)}`}
+        </Button>
+        {session.mode === "prepaid" && Number(session.billed_amount) > 0 && (
+          <p className="mt-2 text-center text-xs text-muted">
+            {formatINR(session.billed_amount)} already collected. Only the rest gets billed.
+          </p>
+        )}
+      </StickyActions>
     </div>
   );
 }
 
-function Cell({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+function Cell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border-b border-r border-line px-3 py-2.5 [&:nth-child(2n)]:border-r-0 [&:nth-last-child(-n+2)]:border-b-0">
+    <div>
       <p className="text-xs text-muted">{label}</p>
-      <p className={`num mt-0.5 ${strong ? "text-xl font-semibold" : "text-sm"}`}>{value}</p>
+      <p className="num mt-0.5 text-sm font-medium">{value}</p>
     </div>
   );
 }
+
+const CLOCK_BOX: Record<TileInfo["state"], string> = {
+  free: "border-line",
+  busy: "border-line",
+  ending: "border-ending/40",
+  over: "border-over/45",
+  paused: "border-dashed border-line-strong",
+  off: "border-line",
+};
+const CLOCK_TEXT: Record<TileInfo["state"], string> = {
+  free: "text-fg",
+  busy: "text-fg",
+  ending: "text-ending",
+  over: "text-over",
+  paused: "text-paused",
+  off: "text-muted",
+};
+const BAR: Record<TileInfo["state"], string> = {
+  free: "bg-free",
+  busy: "bg-busy",
+  ending: "bg-ending",
+  over: "bg-over",
+  paused: "bg-paused",
+  off: "bg-faint",
+};
 
 function ExtendForm({
   session,
@@ -664,7 +731,7 @@ function ExtendForm({
               p_minutes: pkg ? undefined : minutes,
               p_payments: collectNow ? payments : [],
             });
-            if (error) return setError(error.message);
+            if (error) return setError(friendlyError(error));
             await onDone();
           })
         }
@@ -713,7 +780,7 @@ function TransferForm({
           startTransition(async () => {
             setError(undefined);
             const { error } = await supabase.rpc("transfer_session", { p_session_id: session.id, p_to_station_id: to });
-            if (error) return setError(error.message);
+            if (error) return setError(friendlyError(error));
             await onDone(to);
           })
         }
