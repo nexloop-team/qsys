@@ -1,25 +1,54 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, Bell, BellOff, LayoutGrid, Map as MapIcon, MonitorOff, Pause, PencilRuler, Play, ShoppingBag, WifiOff } from "lucide-react";
+import {
+  AlertTriangle,
+  Bell,
+  BellOff,
+  CalendarClock,
+  Check,
+  Coffee,
+  Hand,
+  LayoutGrid,
+  Map as MapIcon,
+  MonitorOff,
+  Pause,
+  PencilRuler,
+  Play,
+  Plus,
+  ShoppingBag,
+  WifiOff,
+  X,
+} from "lucide-react";
 import { isOnline } from "@/lib/devices";
 import { estimateCharge, prepaidRemainingSeconds, type Charge } from "@/lib/pricing";
 import { STATION_TYPE_LABEL, STATION_TYPES, type StationType } from "@/lib/constants";
-import { formatClock, formatINR } from "@/lib/format";
+import { formatClock, formatINR, formatTime } from "@/lib/format";
 import { Empty, PageHeader, Panel } from "@/components/card";
 import { Button, Segmented, buttonClass, cx } from "@/components/ui";
-import { useDevices, useFloorSessions, useLocalPref, useMuted, useServerClock } from "./use-floor";
+import {
+  beep,
+  useDevices,
+  useFloorBookings,
+  useFloorSessions,
+  useLocalPref,
+  useMuted,
+  useServerClock,
+  useStationRequests,
+} from "./use-floor";
 import { FloorMap, LayoutEditor, initialPlacements } from "./floor-map";
 import { StationSheet } from "./station-sheet";
 import { CheckoutDialog } from "./checkout-dialog";
 import { QuickSaleDialog } from "./quick-sale-dialog";
 import {
   ENDING_SOON_SECONDS,
+  type FloorBooking,
   type FloorData,
   type FloorPlan,
   type FloorStation,
   type LiveSession,
+  type StationRequest,
   type TileState,
 } from "./types";
 import { friendlyError } from "@/lib/errors";
@@ -129,6 +158,8 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
     stations.some((s) => s.type === "pc"),
   );
   const deviceByStation = useMemo(() => new Map(devices.map((d) => [d.station_id, d])), [devices]);
+  const [requests, refetchRequests] = useStationRequests(supabase, branch.id, initial.requests);
+  const [bookings] = useFloorBookings(supabase, branch.id, initial.bookings);
 
   const [filter, setFilter] = useState<StationType | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -183,6 +214,29 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
     return m;
   }, [sessions]);
   const unpaid = sessions.filter((s) => s.status === "ended" && Number(s.outstanding) > 0);
+
+  // Requests whose session is still live (a session that ended closes its requests anyway).
+  const liveSessionIds = new Set([...liveByStation.values()].map((s) => s.id));
+  const openRequests = requests.filter((r) => liveSessionIds.has(r.session_id));
+  // A new request makes the same sound as time's up (unless muted).
+  const seenRequests = useRef(new Set(initial.requests.map((r) => r.id)));
+  useEffect(() => {
+    const fresh = requests.filter((r) => !seenRequests.current.has(r.id));
+    fresh.forEach((r) => seenRequests.current.add(r.id));
+    if (fresh.length && !muted) beep();
+  }, [requests, muted]);
+
+  // Next confirmed booking per station within the hour (shown on free tiles).
+  const soonByStation = new Map<string, FloorBooking>();
+  for (const b of bookings) {
+    const t = Date.parse(b.starts_at);
+    if (b.status === "confirmed" && b.station_id && t > now - 15 * 60_000 && t < now + 60 * 60_000) {
+      if (!soonByStation.has(b.station_id)) soonByStation.set(b.station_id, b);
+    }
+  }
+  const upcoming = bookings.filter((b) => Date.parse(b.starts_at) + b.minutes * 60_000 > now);
+  const bookingRequests = upcoming.filter((b) => b.status === "requested").length;
+  const nextBookings = upcoming.filter((b) => Date.parse(b.starts_at) < now + 3 * 3_600_000);
 
   const tiles = stations.map((st) => {
     const session = liveByStation.get(st.id);
@@ -256,10 +310,10 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
               size="sm"
               variant="secondary"
               onClick={() => setQuickSaleOpen(true)}
-              title="Sell snacks & drinks to walk-in or waiting customers"
+              title="Sell snacks and drinks without a station"
               className="gap-1.5"
             >
-              <ShoppingBag className="size-3.5" /> Quick Sale
+              <ShoppingBag className="size-3.5" /> Counter sale
             </Button>
             {pausedSessions.length > 0 && (
               <Button
@@ -278,7 +332,7 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
                 variant="secondary"
                 onClick={pauseAll}
                 disabled={batchPending}
-                title="Pause all running sessions (e.g. power cut)"
+                title="Pause all running sessions, for example in a power cut"
               >
                 <Pause /> Pause all ({runningSessions.length})
               </Button>
@@ -320,7 +374,7 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
       {!connected && (
         <div className="flex items-center gap-2 rounded-xl border border-ending/40 bg-ending/10 px-3.5 py-2.5 text-sm text-ending">
           <WifiOff className="size-4 shrink-0" />
-          Internet down. Reconnecting… Timers keep running; changes sync when you&apos;re back.
+          Internet down. Reconnecting… Timers keep running, and changes sync when you&apos;re back.
         </div>
       )}
       {batchError && (
@@ -356,28 +410,45 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
         )}
       </div>
 
-      {typesPresent.length > 1 && (
-        <div className={cx("swipe-row -mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0", view !== "grid" && "sm:hidden")}>
-          {(["all", ...typesPresent] as const).map((t) => {
-            const n = t === "all" ? tiles.length : tiles.filter((x) => x.station.type === t).length;
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setFilter(t)}
-                aria-pressed={filter === t}
-                className={cx(
-                  "inline-flex h-8 pointer-coarse:h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 pointer-coarse:px-3.5 text-xs pointer-coarse:text-[13px] font-medium transition-colors",
-                  filter === t
-                    ? "border-accent bg-accent text-accent-fg"
-                    : "border-line bg-panel text-muted hover:border-line-strong hover:text-fg",
-                )}
-              >
-                {t === "all" ? "All" : STATION_TYPE_LABEL[t]}
-                <span className="num text-[11px] opacity-70">{n}</span>
-              </button>
-            );
-          })}
+      {openRequests.length > 0 && (
+        <RequestsPanel
+          requests={openRequests}
+          stations={stations}
+          supabase={supabase}
+          onHandled={async () => {
+            await Promise.all([refetchRequests(), refetch()]);
+          }}
+        />
+      )}
+
+      {(nextBookings.length > 0 || bookingRequests > 0) && (
+        <div className="flex items-center gap-2 rounded-xl border border-line bg-panel py-2 pl-3.5 pr-2 text-sm">
+          <CalendarClock className="size-4 shrink-0 text-muted" />
+          {/* One chip per booking, scrolling sideways on a phone. */}
+          <ul className="swipe-row flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
+            {nextBookings.length === 0 && <li className="py-1 text-muted">No bookings in the next 3 hours.</li>}
+            {nextBookings.slice(0, 8).map((b) => {
+              const st = b.station_id ? stations.find((s) => s.id === b.station_id) : undefined;
+              return (
+                <li
+                  key={b.id}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-subtle/60 px-2.5 py-1 text-xs"
+                >
+                  <span className="num font-semibold">{formatTime(b.starts_at, branch.timezone)}</span>
+                  <span className="max-w-28 truncate">{b.name}</span>
+                  <span className="text-muted">{st?.name ?? STATION_TYPE_LABEL[b.station_type]}</span>
+                </li>
+              );
+            })}
+          </ul>
+          {bookingRequests > 0 && (
+            <span className="num shrink-0 rounded-full bg-ending/10 px-2 py-0.5 text-xs font-medium text-ending">
+              {bookingRequests} to confirm
+            </span>
+          )}
+          <Link href="/bookings" className={buttonClass("ghost", "sm", "shrink-0")}>
+            Bookings
+          </Link>
         </div>
       )}
 
@@ -414,6 +485,31 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
             </div>
           )}
         </Panel>
+      )}
+
+      {typesPresent.length > 1 && (
+        <div className={cx("swipe-row -mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0", view !== "grid" && "sm:hidden")}>
+          {(["all", ...typesPresent] as const).map((t) => {
+            const n = t === "all" ? tiles.length : tiles.filter((x) => x.station.type === t).length;
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setFilter(t)}
+                aria-pressed={filter === t}
+                className={cx(
+                  "inline-flex h-8 pointer-coarse:h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 pointer-coarse:px-3.5 text-xs pointer-coarse:text-[13px] font-medium transition-colors",
+                  filter === t
+                    ? "border-accent bg-accent text-accent-fg"
+                    : "border-line bg-panel text-muted hover:border-line-strong hover:text-fg",
+                )}
+              >
+                {t === "all" ? "All" : STATION_TYPE_LABEL[t]}
+                <span className="num text-[11px] opacity-70">{n}</span>
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {view === "map" && (
@@ -486,11 +582,17 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
                   {info.state === "free" || info.state === "off" ? (
                     <span className={cx("mt-auto flex items-center justify-between text-[13px] font-medium capitalize", STATE_TEXT[info.state])}>
                       {info.clockLabel}
-                      {info.state === "free" && (
-                        // Always visible on touch screens; fades in on hover with a mouse.
-                        <span className="text-xs font-medium normal-case text-muted [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:group-hover:opacity-100">
-                          Start
+                      {info.state === "free" && soonByStation.has(station.id) ? (
+                        <span className="truncate text-xs font-medium normal-case text-ending">
+                          Booked {formatTime(soonByStation.get(station.id)!.starts_at, branch.timezone)}
                         </span>
+                      ) : (
+                        info.state === "free" && (
+                          // Always visible on touch screens; fades in on hover with a mouse.
+                          <span className="text-xs font-medium normal-case text-muted [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:group-hover:opacity-100">
+                            Start
+                          </span>
+                        )
                       )}
                     </span>
                   ) : (
@@ -513,7 +615,9 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
                       )}
                       <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-muted">
                         <span className="truncate">
-                          {session?.customer_name || (session?.mode === "prepaid" ? info.clockLabel : "Open time")}
+                          {session?.mode === "frames" && `Frame ${session.frames}${session.customer_name ? " · " : ""}`}
+                          {session?.customer_name ||
+                            (session?.mode === "prepaid" ? info.clockLabel : session?.mode === "frames" ? "" : "Open time")}
                         </span>
                         <span className="num shrink-0 font-medium text-fg">{formatINR(info.charge?.total ?? 0)}</span>
                       </div>
@@ -560,7 +664,10 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
           settings={settings}
           canWriteOff={initial.role === "owner"}
           venueName={initial.orgName}
+          orgId={initial.orgId}
+          creditLimit={settings.creditLimit}
           supabase={supabase}
+          onRefresh={refetch}
           onDone={() => {
             setCheckoutIds(null);
             void refetch();
@@ -579,6 +686,68 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
         onDone={() => void refetch()}
       />
     </div>
+  );
+}
+
+const REQUEST_ICON = { snack: Coffee, extend: Plus, call: Hand } as const;
+
+// Players' requests from the station QR pages. Accepting adds the item / time like staff would.
+function RequestsPanel({
+  requests,
+  stations,
+  supabase,
+  onHandled,
+}: {
+  requests: StationRequest[];
+  stations: FloorStation[];
+  supabase: ReturnType<typeof useFloorSessions>["supabase"];
+  onHandled: () => Promise<void>;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const handle = (id: string, accept: boolean) =>
+    startTransition(async () => {
+      setError(null);
+      const { error } = await supabase.rpc("handle_station_request", { p_request_id: id, p_accept: accept });
+      if (error) setError(friendlyError(error));
+      await onHandled();
+    });
+
+  return (
+    <Panel
+      title={
+        <span className="flex items-center gap-2">
+          <span className="size-2 rounded-full bg-ending blink" /> Player requests
+          <span className="num rounded-full bg-ending/10 px-1.5 text-xs text-ending">{requests.length}</span>
+        </span>
+      }
+      flush
+    >
+      <ul className="divide-y divide-line">
+        {requests.map((r) => {
+          const Icon = REQUEST_ICON[r.kind];
+          return (
+            <li key={r.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+              <Icon className="size-4 shrink-0 text-muted" />
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">{stations.find((s) => s.id === r.station_id)?.name ?? "Station"}</span>
+                <span className="text-muted"> · {r.label}</span>
+              </span>
+              <span className="flex shrink-0 gap-1.5">
+                <Button size="sm" variant="secondary" aria-label="Decline" disabled={pending} onClick={() => handle(r.id, false)}>
+                  <X />
+                </Button>
+                <Button size="sm" disabled={pending} onClick={() => handle(r.id, true)}>
+                  <Check /> {r.kind === "call" ? "Done" : "Add"}
+                </Button>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {error && <p className="border-t border-line px-4 py-2 text-sm text-danger">{error}</p>}
+    </Panel>
   );
 }
 

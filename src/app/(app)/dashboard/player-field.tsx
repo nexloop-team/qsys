@@ -158,7 +158,7 @@ export function PlayerField({
       )}
 
       {failed && (
-        <p className="text-xs text-ending">Couldn&apos;t search players. Check the internet; a full mobile number still works.</p>
+        <p className="text-xs text-ending">Couldn&apos;t search players. Check the internet. A full mobile number still works.</p>
       )}
 
       {searchable && !loading && !failed && matches.length === 0 && !offerNew && (

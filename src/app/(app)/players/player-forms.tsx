@@ -160,7 +160,7 @@ export function TopupWalletButton({
 
           {/* Current balance display */}
           <div className="flex items-center justify-between rounded-xl border border-line bg-subtle/50 px-3.5 py-2.5">
-            <span className="text-xs text-muted">Current Balance</span>
+            <span className="text-xs text-muted">Balance</span>
             <span className="num text-base font-semibold text-fg">{formatINR(currentBalance)}</span>
           </div>
 
@@ -174,7 +174,7 @@ export function TopupWalletButton({
             }}
             className="w-full"
             options={[
-              { value: "add", label: "+ Add money" },
+              { value: "add", label: "Add money" },
               ...(canRefund
                 ? [
                     { value: "deduct" as const, label: "− Refund" },
@@ -252,7 +252,7 @@ export function TopupWalletButton({
                 </Field>
               )}
 
-              <Field label="Payment received via">
+              <Field label="Paid by">
                 <Segmented
                   value={method}
                   onChange={setMethod}
@@ -264,7 +264,7 @@ export function TopupWalletButton({
                 />
               </Field>
 
-              <Field label="Note (optional)" hint="e.g. Advance deposit, Festival promo">
+              <Field label="Note (optional)" hint="Such as an advance or a festival offer">
                 <Input name="note" placeholder="Deposit" maxLength={100} />
               </Field>
             </>
@@ -272,7 +272,7 @@ export function TopupWalletButton({
 
           {actionType === "deduct" && (
             <>
-              <Field label="Amount to deduct / refund (₹)">
+              <Field label="Amount to take out (₹)">
                 <Input
                   name="amount"
                   type="number"
@@ -315,7 +315,7 @@ export function TopupWalletButton({
                 </div>
               )}
 
-              <Field label="Refund given via">
+              <Field label="Refunded by">
                 <Segmented
                   value={method}
                   onChange={setMethod}
@@ -327,7 +327,7 @@ export function TopupWalletButton({
                 />
               </Field>
 
-              <Field label="Reason / Note (optional)" hint="e.g. Customer refund, balance adjustment">
+              <Field label="Reason (optional)" hint="Such as a refund or a correction">
                 <Input name="note" placeholder="Refund" maxLength={100} />
               </Field>
             </>
@@ -337,14 +337,14 @@ export function TopupWalletButton({
             <div className="flex flex-col gap-3 rounded-xl border border-danger/30 bg-danger/10 p-3.5 text-xs">
               <div className="flex items-center gap-2 font-semibold text-danger">
                 <AlertTriangle className="size-4 shrink-0" />
-                <span>Delete / Reset balance to ₹0</span>
+                <span>Clear the wallet to ₹0</span>
               </div>
               <p className="text-muted leading-relaxed">
-                This will delete and clear the entire current balance of{" "}
-                <span className="font-semibold text-fg">{formatINR(currentBalance)}</span> for {playerName}.
+                {playerName}&apos;s balance of <span className="font-semibold text-fg">{formatINR(currentBalance)}</span>{" "}
+                goes to ₹0. Give back any money first, if they paid it.
               </p>
               <Field label="Reason (optional)">
-                <Input name="note" placeholder="Test balance cleanup / reset" maxLength={100} />
+                <Input name="note" placeholder="Test entry" maxLength={100} />
               </Field>
             </div>
           )}

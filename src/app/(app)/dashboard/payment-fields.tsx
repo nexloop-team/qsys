@@ -99,19 +99,19 @@ export function PaymentFields({
           {method === "wallet" && (
             <div className="rounded-xl border border-ok/30 bg-ok/8 p-3 text-xs flex flex-col gap-1.5">
               <div className="flex items-center justify-between font-semibold text-ok">
-                <span>{playerName ? `${playerName}'s ` : ""}Prepaid Wallet</span>
+                <span>{playerName ? `${playerName}'s wallet` : "Wallet"}</span>
                 <span>{formatINR(Math.min(walletBalance, total))}</span>
               </div>
               {walletBalance >= total ? (
                 <p className="text-muted">
-                  Full bill will be deducted from wallet. Balance after payment:{" "}
+                  The whole bill comes out of the wallet. Left after:{" "}
                   <span className="font-semibold text-fg">{formatINR(walletBalance - total)}</span>
                 </p>
               ) : (
                 <div className="mt-1 flex flex-col gap-2">
                   <p className="text-muted">
-                    Wallet covers {formatINR(walletBalance)}. Pay remaining{" "}
-                    <span className="font-semibold text-fg">{formatINR(total - walletBalance)}</span> via:
+                    The wallet covers {formatINR(walletBalance)}. Pay the other{" "}
+                    <span className="font-semibold text-fg">{formatINR(total - walletBalance)}</span> by:
                   </p>
                   <Segmented
                     value={remainderMethod}
@@ -177,7 +177,7 @@ export function PaymentFields({
           <Input
             value={reference}
             onChange={(e) => setReference(e.target.value)}
-            placeholder="12-digit UTR or txn ID"
+            placeholder="12-digit UTR"
             className="num"
           />
         </Field>

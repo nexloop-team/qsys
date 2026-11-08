@@ -79,7 +79,7 @@ export function ReportView({
     x.heatmap.filter((c) => c.hour === h).reduce((s, c) => s + c.sessions, 0),
   );
 
-  // Floor utilisation across every active station (each station has the same open hours).
+  // Floor in use across every active station (each station has the same open hours).
   const stationCount = x.utilisation_by_type.reduce((s, u) => s + u.stations, 0);
   const utilisation = stationCount
     ? x.utilisation_by_type.reduce((s, u) => s + Number(u.pct) * u.stations, 0) / stationCount
@@ -124,7 +124,7 @@ export function ReportView({
             trend={single ? undefined : dayTotals.map((d) => d.total)}
           />
           <Kpi
-            label="Floor utilisation"
+            label="Floor in use"
             value={`${round1(utilisation)}%`}
             delta={<span>{formatHours(Number(x.played_minutes))} played on {stationCount} stations</span>}
             footer={<Meter pct={utilisation} className="mt-3" />}

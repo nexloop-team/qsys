@@ -10,6 +10,7 @@ import { formatDateTime, formatINR, formatMinutes } from "@/lib/format";
 import { Badge, PageHeader, PageSkeleton, Panel } from "@/components/card";
 import { buttonClass } from "@/components/styles";
 import { PcPinButton, TopupWalletButton } from "../player-forms";
+import { DuesReminderButton, KhataLimitButton } from "../khata-controls";
 
 export const metadata: Metadata = { title: "Player" };
 
@@ -49,11 +50,25 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
   const { branch, org, role } = await getAppContext();
   const supabase = await createClient();
 
-  let player: { id: string; name: string; phone: string; created_at: string; wallet_balance?: number; pin_set?: boolean } | null = null;
+  let player: {
+    id: string;
+    name: string;
+    phone: string;
+    created_at: string;
+    wallet_balance?: number;
+    pin_set?: boolean;
+    credit_limit?: number | null;
+  } | null = null;
 
-  const [{ data: rawPlayer, error: playerErr }, { data: sessions }, { data: summary }, { data: orgRow }, { data: rawTxns }] =
-    await Promise.all([
-    supabase.from("customers").select("id, name, phone, wallet_balance, pin_set, created_at").eq("id", id).maybeSingle(),
+  const [
+    { data: rawPlayer, error: playerErr },
+    { data: sessions },
+    { data: summary },
+    { data: orgRow },
+    { data: rawTxns },
+    { data: branchSettings },
+  ] = await Promise.all([
+    supabase.from("customers").select("id, name, phone, wallet_balance, pin_set, credit_limit, created_at").eq("id", id).maybeSingle(),
     supabase
       .from("sessions")
       .select(
@@ -71,6 +86,7 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
       .eq("customer_id", id)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase.from("branch_settings").select("credit_limit").eq("branch_id", branch.id).maybeSingle(),
   ]);
 
   if (rawPlayer && !playerErr) {
@@ -105,6 +121,9 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
   const favourite = totals.favourite_type ?? undefined;
   // The balance column is the source of truth; the ledger below explains it.
   const wallet = Number(player.wallet_balance ?? 0);
+  const venueLimit = branchSettings?.credit_limit != null ? Number(branchSettings.credit_limit) : null;
+  const ownLimit = player.credit_limit != null ? Number(player.credit_limit) : null;
+  const limit = ownLimit ?? venueLimit;
 
   return (
     <>
@@ -135,11 +154,25 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
           <p className={`num text-xl font-semibold ${wallet > 0 ? "text-ok" : ""}`}>{formatINR(wallet)}</p>
         </div>
         {owed > 0 && (
-          <div>
-            <p className="text-xs text-muted">Owes</p>
-            <p className="num text-xl font-semibold text-over">{formatINR(owed)}</p>
+          <div className="flex items-end gap-2">
+            <div>
+              <p className="text-xs text-muted">Owes</p>
+              <p className="num text-xl font-semibold text-over">{formatINR(owed)}</p>
+            </div>
+            <DuesReminderButton phone={player.phone} name={player.name} owed={owed} venueName={org.name} />
           </div>
         )}
+        <div>
+          <p className="text-xs text-muted">Can owe up to{ownLimit == null && limit != null ? " (venue)" : ""}</p>
+          <p className="flex items-center text-sm font-medium">
+            <span className={limit != null && owed > limit ? "text-over" : ""}>
+              {limit != null ? formatINR(limit) : "No limit"}
+            </span>
+            {role === "owner" && (
+              <KhataLimitButton customerId={player.id} playerName={player.name} own={ownLimit} venueLimit={venueLimit} />
+            )}
+          </p>
+        </div>
         <div>
           <p className="text-xs text-muted">PC login</p>
           <p className="text-sm font-medium">{player.pin_set ? "PIN set" : "No PIN"}</p>
@@ -167,7 +200,7 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
               <li key={s.id} className="flex items-start gap-3 px-4 py-3 text-sm">
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">
-                    {s.stations?.name ?? "—"}
+                    {s.stations?.name ?? "Removed station"}
                     <span className="font-normal text-muted"> · {SESSION_MODE_LABEL[s.mode]}</span>
                   </span>
                   <span className="mt-0.5 block text-xs text-muted">
@@ -176,7 +209,7 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
                 </span>
                 <span className="flex shrink-0 flex-col items-end gap-1">
                   <span className="num whitespace-nowrap font-medium">
-                    {s.charge_amount != null ? formatINR(s.charge_amount) : "—"}
+                    {s.charge_amount != null ? formatINR(s.charge_amount) : ""}
                   </span>
                   <VisitBadge s={s} />
                 </span>
@@ -199,11 +232,11 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
                 {list.map((s) => (
                   <tr key={s.id} className="border-b border-line last:border-0">
                     <td className="px-4 py-2.5">{formatDateTime(s.started_at, branch.timezone)}</td>
-                    <td className="px-4 py-2.5 font-medium">{s.stations?.name ?? "—"}</td>
+                    <td className="px-4 py-2.5 font-medium">{s.stations?.name ?? "Removed station"}</td>
                     <td className="px-4 py-2.5 text-muted">{SESSION_MODE_LABEL[s.mode]}</td>
                     <td className="num px-4 py-2.5 text-right">{formatMinutes(playedMinutes(s))}</td>
                     <td className="num px-4 py-2.5 text-right">
-                      {s.charge_amount != null ? formatINR(s.charge_amount) : "—"}
+                      {s.charge_amount != null ? formatINR(s.charge_amount) : ""}
                     </td>
                     <td className="px-4 py-2.5">
                       <VisitBadge s={s} />
@@ -219,7 +252,7 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
 
       <Panel title="Wallet activity" flush className="mt-4">
         {!rawTxns?.length ? (
-          <p className="px-4 py-4 text-xs text-muted">No wallet transactions recorded yet.</p>
+          <p className="px-4 py-4 text-xs text-muted">No wallet activity yet.</p>
         ) : (
           <>
           {/* Phones: one card per movement. */}
@@ -248,7 +281,7 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
                 <tr className="border-b border-line text-left text-muted">
                   <th className="px-4 py-2 font-medium">Date</th>
                   <th className="px-4 py-2 text-right font-medium">Amount</th>
-                  <th className="px-4 py-2 text-right font-medium">Balance After</th>
+                  <th className="px-4 py-2 text-right font-medium">Balance after</th>
                   <th className="px-4 py-2 font-medium">Mode</th>
                   <th className="px-4 py-2 font-medium">Note</th>
                 </tr>
@@ -262,7 +295,7 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
                     </td>
                     <td className="num px-4 py-2 text-right font-medium">{formatINR(t.balance_after)}</td>
                     <td className="px-4 py-2">{ledgerLabel(t)}</td>
-                    <td className="px-4 py-2 text-muted">{t.note ?? "—"}</td>
+                    <td className="px-4 py-2 text-muted">{t.note ?? ""}</td>
                   </tr>
                 ))}
               </tbody>

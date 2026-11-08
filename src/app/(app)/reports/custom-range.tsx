@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarRange } from "lucide-react";
-import { Modal } from "@/components/overlay";
+import { Modal, afterOverlayClose } from "@/components/overlay";
 import { Button, Field, Input, cx } from "@/components/ui";
 
 // "Custom" period: pick any from–to dates up to today (max one year).
@@ -35,7 +35,7 @@ export function CustomRange({ from, to, max, active }: { from: string; to: strin
             e.preventDefault();
             if (!valid) return;
             setOpen(false);
-            router.push(`/reports?range=custom&from=${a}&to=${b}`);
+            afterOverlayClose(() => router.push(`/reports?range=custom&from=${a}&to=${b}`));
           }}
         >
           <div className="grid grid-cols-2 gap-3">

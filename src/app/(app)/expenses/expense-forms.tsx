@@ -169,7 +169,7 @@ function ExpenseForm({
       {category === "salary" &&
         (team.length === 0 ? (
           <p className="rounded-lg border border-line bg-subtle px-3 py-2 text-[13px] text-muted">
-            Add staff in Settings → Team first, then log their salary here.
+            Add staff in Settings › Team first, then log their salary here.
           </p>
         ) : (
           <Field label="Paid to">
@@ -214,7 +214,7 @@ function ExpenseForm({
           name="description"
           maxLength={80}
           defaultValue={expense?.name ?? preset?.description}
-          placeholder={category === "salary" ? "e.g. November salary" : "e.g. October bill"}
+          placeholder={category === "salary" ? "November salary" : "October bill"}
         />
       </Field>
 

@@ -13,6 +13,57 @@ import { cx } from "./ui";
 
 // Back button closes the overlay: opening adds a history entry for the same address; Back
 // (or a swipe-back) pops it and closes. Closing any other way removes that entry again.
+//
+// One overlay often closes as the next opens (End & bill closes the station panel and opens the
+// bill). The closing one's history.back() lands a moment later, and must not be taken for the
+// player pressing Back, or it would shut the overlay that just opened. So our own backs are
+// counted, their popstate events are ignored, and a new overlay waits for them before it pushes.
+let ownBacks = 0;
+let lastPopWasOurs = false;
+let waiting: (() => void)[] = [];
+let safety: number | undefined;
+
+function flushWaiting() {
+  const run = waiting;
+  waiting = [];
+  run.forEach((fn) => fn());
+}
+
+if (typeof window !== "undefined") {
+  // Registered before any overlay's own listener, so it runs first on every popstate.
+  window.addEventListener("popstate", () => {
+    lastPopWasOurs = ownBacks > 0;
+    if (ownBacks > 0 && --ownBacks === 0) {
+      window.clearTimeout(safety);
+      flushWaiting();
+    }
+  });
+}
+
+function ourBack() {
+  ownBacks += 1;
+  window.history.back();
+  // If the browser never answers (no entry to go back to), don't keep new overlays waiting.
+  window.clearTimeout(safety);
+  safety = window.setTimeout(() => {
+    ownBacks = 0;
+    flushWaiting();
+  }, 600);
+}
+
+function whenHistorySettled(fn: () => void) {
+  if (ownBacks === 0) fn();
+  else waiting.push(fn);
+}
+
+/**
+ * Go to another address right after closing an overlay. Closing steps Back in history a moment
+ * later; navigating before that lands would be undone by it.
+ */
+export function afterOverlayClose(fn: () => void) {
+  window.setTimeout(() => whenHistorySettled(fn), 50);
+}
+
 function useBackToClose(open: boolean, onOpenChange: (open: boolean) => void) {
   const close = useRef(onOpenChange);
   useEffect(() => {
@@ -22,14 +73,20 @@ function useBackToClose(open: boolean, onOpenChange: (open: boolean) => void) {
   useEffect(() => {
     if (!open) return;
     const key = Math.random().toString(36).slice(2);
+    const openedAt = window.location.href;
     let pushed = false;
+    let cancelled = false;
     let poppedByBack = false;
-    // Deferred, so React's development double-mount doesn't push twice.
-    const timer = window.setTimeout(() => {
+    const push = () => {
+      if (cancelled) return;
       window.history.pushState({ ...window.history.state, qsOverlay: key }, "");
       pushed = true;
-    }, 0);
+    };
+    // Deferred, so React's development double-mount doesn't push twice.
+    const timer = window.setTimeout(() => whenHistorySettled(push), 0);
     const onPop = () => {
+      // Another overlay tidying its own entry away, not the Back button.
+      if (lastPopWasOurs || !pushed) return;
       // Still on (or above) our entry: a sheet opened on top of this one went back, not us.
       if (window.history.state?.qsOverlay === key) return;
       poppedByBack = true;
@@ -37,10 +94,12 @@ function useBackToClose(open: boolean, onOpenChange: (open: boolean) => void) {
     };
     window.addEventListener("popstate", onPop);
     return () => {
+      cancelled = true;
       window.clearTimeout(timer);
       window.removeEventListener("popstate", onPop);
       // Closed with the X, Escape or a button: take our entry back off the history.
-      if (pushed && !poppedByBack && window.history.state?.qsOverlay === key) window.history.back();
+      // Not after moving to another page, or Back would undo that move.
+      if (pushed && !poppedByBack && window.history.state?.qsOverlay === key && window.location.href === openedAt) ourBack();
     };
   }, [open]);
 }

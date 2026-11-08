@@ -5,6 +5,7 @@ import { MessageCircle } from "lucide-react";
 import { buttonClass } from "@/components/styles";
 import { Modal } from "@/components/overlay";
 import { Button, Field, Input } from "@/components/ui";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 export function formatWhatsAppMessage({
   venueName,
@@ -32,17 +33,12 @@ export function formatWhatsAppMessage({
     `──────────────`,
     `*Total: ${total}* (Paid by ${paidBy})`,
     ``,
-    `Thank you for playing with us! See you again soon.`,
+    `Thanks for playing. See you again soon.`,
   ];
   return lines.join("\n");
 }
 
-export function openWhatsApp(phone: string, text: string) {
-  const digits = phone.replace(/\D/g, "");
-  const normalized = digits.length === 10 ? `91${digits}` : digits;
-  const url = `https://wa.me/${normalized}?text=${encodeURIComponent(text)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
-}
+export { openWhatsApp };
 
 export function WhatsAppButton({
   phone,
@@ -107,9 +103,9 @@ export function WhatsAppButton({
         <MessageCircle className="size-4" /> WhatsApp
       </button>
 
-      <Modal open={askPhone} onOpenChange={setAskPhone} title="Share via WhatsApp">
+      <Modal open={askPhone} onOpenChange={setAskPhone} title="Send on WhatsApp">
         <form onSubmit={handleConfirmPrompt} className="flex flex-col gap-3">
-          <Field label="Customer's Mobile Number" hint="10-digit Indian mobile number for WhatsApp">
+          <Field label="Player's mobile number" hint="10 digits, the number they use on WhatsApp.">
             <Input
               type="tel"
               inputMode="numeric"
@@ -125,7 +121,7 @@ export function WhatsAppButton({
               Cancel
             </Button>
             <Button type="submit">
-              <MessageCircle className="size-4" /> Send WhatsApp
+              <MessageCircle className="size-4" /> Open WhatsApp
             </Button>
           </div>
         </form>

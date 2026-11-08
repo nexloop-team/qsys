@@ -79,7 +79,7 @@ async function Reports({ searchParams }: { searchParams: PageProps<"/reports">["
         <PageHeader title="Reports" />
         <Panel>
           <Empty icon={<Lock />} title="Reports are for the owner">
-            Ask the venue owner if you need takings or utilisation numbers.
+            Ask the owner if you need takings or how busy the floor has been.
           </Empty>
         </Panel>
       </>

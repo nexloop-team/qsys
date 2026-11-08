@@ -89,7 +89,7 @@ function BulkAddForm({
           <Input name="tier" defaultValue="standard" />
         </Field>
         <Field label="Zone (optional)" className="col-span-2">
-          <Input name="zone" placeholder="e.g. Ground floor, VIP room" />
+          <Input name="zone" placeholder="Ground floor, VIP room" />
         </Field>
       </div>
       <input type="hidden" name="start" value={start} />

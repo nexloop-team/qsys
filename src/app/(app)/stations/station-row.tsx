@@ -157,11 +157,11 @@ export function StationRow({
     <tr className="border-t border-line hover:bg-subtle/60">
       <td className="px-4 py-2.5 font-medium">{station.name}</td>
       <td className="px-4 py-2.5 text-muted">{station.tier}</td>
-      <td className="px-4 py-2.5 text-muted">{station.zone ?? "—"}</td>
+      <td className="px-4 py-2.5 text-muted">{station.zone ?? ""}</td>
       <td className="px-4 py-2.5">
         <Badge tone={STATUS_TONE[station.status]}>{STATION_STATUS_LABEL[station.status]}</Badge>
       </td>
-      {pcColumn && <td className="px-4 py-2.5">{pcApp ?? <span className="text-faint">—</span>}</td>}
+      {pcColumn && <td className="px-4 py-2.5">{pcApp ?? <span className="text-xs text-faint">Not set up</span>}</td>}
       <td className="px-4 py-2.5 text-right">
         {actions}
         {deleteError && <p className="mt-1 text-xs text-danger">{deleteError}</p>}

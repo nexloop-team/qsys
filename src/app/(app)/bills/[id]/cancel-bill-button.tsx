@@ -79,7 +79,7 @@ export function CancelBillButton({
               cancelled. {hasSessions && "Its sessions go back to “Ended, not paid” so you can bill them correctly."}
             </p>
             <Field label="Why are you cancelling it?">
-              <Input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="e.g. Billed the wrong PC" />
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="Billed the wrong PC" />
             </Field>
             {hasCounterItems && (
               <label className="flex items-center gap-2 text-sm">

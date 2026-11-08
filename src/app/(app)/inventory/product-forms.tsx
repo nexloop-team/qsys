@@ -22,10 +22,10 @@ export type Product = {
 };
 
 const CATEGORIES = [
-  { value: "beverage", label: "Beverage (Cold drinks, Red Bull, Water)" },
-  { value: "snack", label: "Snack (Chips, Kurkure, Chocolates)" },
-  { value: "food", label: "Food (Maggi, Sandwiches, Fries)" },
-  { value: "accessory", label: "Accessory / Gaming" },
+  { value: "beverage", label: "Drink (cold drinks, Red Bull, water)" },
+  { value: "snack", label: "Snack (chips, Kurkure, chocolates)" },
+  { value: "food", label: "Food (Maggi, sandwiches, fries)" },
+  { value: "accessory", label: "Accessory (gloves, chalk, controllers)" },
   { value: "other", label: "Other" },
 ];
 
@@ -56,7 +56,7 @@ export function ProductDialogButton({
       <Modal open={open} onOpenChange={setOpen} title={product ? "Edit item" : "Add snack or drink"}>
         <form action={action} className="flex flex-col gap-3">
           {product && <input type="hidden" name="id" value={product.id} />}
-          <Field label="Item name" hint="e.g. Red Bull 250ml, Maggi, Lays">
+          <Field label="Item name" hint="Such as Red Bull 250ml, Maggi or Lays">
             <Input name="name" defaultValue={product?.name ?? ""} placeholder="Monster Energy" required />
           </Field>
 
@@ -86,7 +86,7 @@ export function ProductDialogButton({
           <div className="grid grid-cols-2 gap-3">
             {!product && (
               <Field label="Count on hand" hint="Leave empty to not track stock.">
-                <Input name="stock" type="number" inputMode="numeric" min={0} placeholder="e.g. 24" />
+                <Input name="stock" type="number" inputMode="numeric" min={0} placeholder="24" />
               </Field>
             )}
             <Field label="Warn when down to" hint="Low-stock badge at this count.">
@@ -170,7 +170,7 @@ export function QuickSalePOSButton({
   return (
     <>
       <Button variant="secondary" onClick={() => setOpen(true)} className="gap-1.5">
-        <ShoppingBag className="size-3.5" /> Sell Snacks (Quick Sale)
+        <ShoppingBag className="size-3.5" /> Counter sale
       </Button>
       <QuickSaleDialog
         open={open}
@@ -254,7 +254,7 @@ export function StockButton({ product }: { product: Product }) {
             </p>
           )}
           <Field label="Note (optional)">
-            <Input value={note} onChange={(e) => setNote(e.target.value)} maxLength={120} placeholder="e.g. Supplier invoice 1024" />
+            <Input value={note} onChange={(e) => setNote(e.target.value)} maxLength={120} placeholder="Supplier invoice 1024" />
           </Field>
           <ErrorText>{error}</ErrorText>
           <div className="flex items-center justify-between gap-2">

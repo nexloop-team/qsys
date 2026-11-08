@@ -3,9 +3,17 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DEVICE_SELECT, type DeviceStatus } from "@/lib/devices";
+import { hoursFromNow } from "@/lib/format";
 import type { Database } from "@/lib/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SESSION_SELECT, type LiveSession } from "./types";
+import {
+  BOOKING_SELECT,
+  REQUEST_SELECT,
+  SESSION_SELECT,
+  type FloorBooking,
+  type LiveSession,
+  type StationRequest,
+} from "./types";
 
 // Live sessions for a branch: initial server data, then Supabase Realtime.
 // Any change to the branch's sessions triggers a refetch (cheap: only live + unpaid rows).
@@ -15,21 +23,29 @@ export function useFloorSessions(branchId: string, initial: LiveSession[]) {
   const [supabase] = useState(createClient);
   // Replies can arrive out of order (a burst of changes, a slow network): only the newest wins.
   const latest = useRef(0);
+  const newest = useRef<Promise<void>>(Promise.resolve());
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback((): Promise<void> => {
     const ticket = ++latest.current;
-    const [live, unpaid] = await Promise.all([
-      supabase.from("sessions").select(SESSION_SELECT).eq("branch_id", branchId).neq("status", "ended"),
-      supabase
-        .from("sessions")
-        .select(SESSION_SELECT)
-        .eq("branch_id", branchId)
-        .eq("status", "ended")
-        .eq("written_off", false)
-        .gt("outstanding", 0),
-    ]);
-    if (live.error || unpaid.error || ticket !== latest.current) return;
-    setSessions([...(live.data ?? []), ...(unpaid.data ?? [])] as LiveSession[]);
+    const run = (async () => {
+      const [live, unpaid] = await Promise.all([
+        supabase.from("sessions").select(SESSION_SELECT).eq("branch_id", branchId).neq("status", "ended"),
+        supabase
+          .from("sessions")
+          .select(SESSION_SELECT)
+          .eq("branch_id", branchId)
+          .eq("status", "ended")
+          .eq("written_off", false)
+          .gt("outstanding", 0),
+      ]);
+      // A newer refresh started meanwhile: let that one set the list, and wait for it, so
+      // whoever awaited this call (e.g. End & bill) carries on with the latest data.
+      if (ticket !== latest.current) return newest.current;
+      if (live.error || unpaid.error) return;
+      setSessions([...(live.data ?? []), ...(unpaid.data ?? [])] as LiveSession[]);
+    })();
+    newest.current = run;
+    return run;
   }, [branchId, supabase]);
 
   useEffect(() => {
@@ -75,6 +91,80 @@ export function useFloorSessions(branchId: string, initial: LiveSession[]) {
   }, [branchId, refetch, supabase]);
 
   return { sessions, connected, refetch, supabase };
+}
+
+// Rows of a small branch table kept live: the first list from the server, then a refetch on every
+// Realtime change (and when the screen wakes up). Used for QR requests and bookings.
+function useLiveList<T>(
+  supabase: SupabaseClient<Database>,
+  branchId: string,
+  table: "station_requests" | "bookings",
+  initial: T[],
+  load: () => PromiseLike<{ data: unknown; error: unknown }>,
+) {
+  const [rows, setRows] = useState(initial);
+  const latest = useRef(0);
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+  });
+
+  const refetch = useCallback(async () => {
+    const ticket = ++latest.current;
+    const { data, error } = await loadRef.current();
+    if (!error && ticket === latest.current) setRows((data ?? []) as T[]);
+  }, []);
+
+  useEffect(() => {
+    let timer: number | undefined;
+    const soon = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void refetch(), 150);
+    };
+    const channel = supabase
+      .channel(`${table}:${branchId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table, filter: `branch_id=eq.${branchId}` }, soon)
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void refetch();
+      });
+    const onVisible = () => {
+      if (!document.hidden) void refetch();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      void supabase.removeChannel(channel);
+    };
+  }, [supabase, branchId, table, refetch]);
+
+  return [rows, refetch] as const;
+}
+
+// Players' requests from the station QR pages, oldest first.
+export function useStationRequests(supabase: SupabaseClient<Database>, branchId: string, initial: StationRequest[]) {
+  return useLiveList<StationRequest>(supabase, branchId, "station_requests", initial, () =>
+    supabase
+      .from("station_requests")
+      .select(REQUEST_SELECT)
+      .eq("branch_id", branchId)
+      .eq("status", "pending")
+      .order("created_at"),
+  );
+}
+
+// Upcoming bookings (from 2 hours ago to 36 hours ahead).
+export function useFloorBookings(supabase: SupabaseClient<Database>, branchId: string, initial: FloorBooking[]) {
+  return useLiveList<FloorBooking>(supabase, branchId, "bookings", initial, () =>
+    supabase
+      .from("bookings")
+      .select(BOOKING_SELECT)
+      .eq("branch_id", branchId)
+      .in("status", ["requested", "confirmed"])
+      .gte("starts_at", hoursFromNow(-2))
+      .lte("starts_at", hoursFromNow(36))
+      .order("starts_at"),
+  );
 }
 
 // PC apps in the branch: online status, hostname, lock state. They check in every 15 s, so a

@@ -145,7 +145,7 @@ export function SiteFooter() {
         <div className="max-w-[340px]">
           <Wordmark />
           <p className="mt-3 text-sm leading-relaxed text-muted">
-            Timers, PC control and billing for gaming lounges and pool &amp; snooker halls. Made for Indian venues.
+            Timers, PC control, billing and bookings for gaming lounges and pool &amp; snooker halls. Made for Indian venues.
           </p>
         </div>
         <nav aria-label="Footer" className="grid w-full grid-cols-3 gap-x-4 sm:w-auto sm:gap-x-12">

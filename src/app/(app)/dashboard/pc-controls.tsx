@@ -115,7 +115,7 @@ export function PcControls({
             value={text}
             maxLength={140}
             onChange={(e) => setText(e.target.value)}
-            placeholder="e.g. 10 minutes left, please save your game"
+            placeholder="10 minutes left, please save your game"
             aria-label="Message to show on the PC"
           />
           <Button type="submit" size="sm" disabled={pending || !text.trim()}>

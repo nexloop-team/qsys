@@ -7,7 +7,7 @@ Stack: Next.js 16 (App Router) + Supabase (Postgres, Auth, RLS, Realtime). India
 
 Sessions store timestamps. Clients show remaining or elapsed time from `planned_end_at` and the server clock. Pricing is one Postgres function (`private.session_charge`). Dashboard, bills, and (later) the PC agent all use it.
 
-## Phase 1 — Foundation (done)
+## Phase 1: Foundation (done)
 
 - Sign up, log in, password reset.
 - Create a cafe and the first branch, or join with an invite code.
@@ -16,7 +16,7 @@ Sessions store timestamps. Clients show remaining or elapsed time from `planned_
 - Roles: owner and staff. Row-level security on every table. A cafe always keeps one owner.
 - Light and dark theme.
 
-## Phase 2 — Timers and billing (done)
+## Phase 2: Timers and billing (done)
 
 This replaces paper timing for every station type. Payments are cash, UPI (paid on the venue's own counter QR; staff mark it paid) or a player's wallet. There is no payment gateway.
 
@@ -41,7 +41,7 @@ This replaces paper timing for every station type. Payments are cash, UPI (paid 
 
 **Settings.** Branch details and which station types the venue offers. Billing (bill prefix, overtime grace, GST, timer modes, early-end rule). PC app (blocked apps, lock-screen message). Team invites. Extra branches. Activity log. Account and password.
 
-## Phase 3 — PC agent
+## Phase 3: PC agent
 
 **Status (2026-11-06):** built. Migration `20261118000001_pc_agent.sql`, test `07_pc_agent`, dashboard pairing / status / commands, and the Tauri app in `pc-agent/` (not compiled yet: needs Rust + MSVC build tools). Built differently from the first draft: device keys instead of a Supabase login per PC, and a watchdog process instead of a Windows service. Player mobile + PIN login on the lock screen: migration `20261119000001_player_pc_login.sql`, test `08_player_pc_login` (starts open time, pay at the counter; time packs dropped since the wallet covers prepaid money). Still to do: auto-update.
 
@@ -56,18 +56,30 @@ A Tauri app on each gaming PC: full-screen lock, timer widget, and remote start 
 - MSI installer (Windows service plus the lock UI) and auto-update while the PC is locked or idle.
 - While a game is running: under 60 MB RAM, under 1% CPU, keyboard hook installed only while locked.
 
-## Phase 4 — Hardware hub
+## Phase 4: Hardware hub
 
 A small service on a Raspberry Pi or the counter PC, paired to the branch. Timers and billing keep working if it is offline; staff switch hardware by hand.
 
 - PS5 wake and rest over the LAN (`playactor`). Each PS5 stays connected in rest mode, with network power-on enabled and HDMI device link off.
 - TV and table lights through Shelly relays: one channel per table, on at start and off at end. Address stored on the station.
 
-## Phase 5 — Growth
+## Phase 5: Growth
 
-- Bookings with a deposit.
-- Snacks on the same bill (invoice lines are already generic).
-- Loyalty, and WhatsApp or SMS (“10 minutes left”, send the bill).
+**Built (2026-11-08):** migrations `20261123000001` to `20261126000001`, tests `09` to `12`.
+
+- Player choices on a rate (2 / 4 players or controllers, each with its own price) or one price for any number. Happy hour moves the smallest choice; the others keep their gap.
+- Frames timer mode for tables (+ Frame / − Frame), per-frame price per choice.
+- Who pays: a bill (or its khata) moves to another player at checkout, e.g. the losing side.
+- Khata limit, venue-wide and per player; over it, staff can't start that player (the owner can). WhatsApp dues reminders (click-to-chat) on Players.
+- Player QR page per station (`/s/<code>`): timer, bill, snack orders, 30 more minutes, call staff. Staff accept each request on the Floor. No payment on the page.
+- Bookings: public page per branch (`/book/<address>`, no payment), phone bookings, confirm / station / arrived / no-show; upcoming bookings on the Floor.
+- Knockout tournaments: singles or teams (captain pays one fee per team), on tables, PCs or consoles with a station per match (time not billed). Entry fee as a bill, random draw with byes, results by tap. Staff only. Migration `20261127000001`, test `13`.
+
+Still to do:
+
+- Snacks on the same bill: done earlier (session items).
+- Loyalty; automatic WhatsApp or SMS ("10 minutes left", bills) through a Business API.
+- Booking deposits (needs Razorpay), tournament leagues and a public bracket page.
 - Multi-branch analytics.
 - SaaS subscription billing for cafe owners, with plan limits by station count.
 

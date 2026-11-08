@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { Monitor } from "lucide-react";
+import Link from "next/link";
+import { Monitor, QrCode } from "lucide-react";
+import { buttonClass } from "@/components/styles";
 import { getAppContext, isOwner } from "@/lib/dal";
 import { DEVICE_SELECT, type DeviceStatus } from "@/lib/devices";
 import { createClient } from "@/lib/supabase/server";
@@ -53,13 +55,22 @@ async function Stations() {
       <PageHeader
         title="Stations"
         description={`${list.length} at ${branch.name}`}
-        actions={editable && <AddStationsButton nextNumber={nextNumber} branchName={branch.name} types={types} />}
+        actions={
+          <>
+            {list.length > 0 && (
+              <Link href="/stations/qr" className={buttonClass("secondary", "sm")}>
+                <QrCode /> QR codes
+              </Link>
+            )}
+            {editable && <AddStationsButton nextNumber={nextNumber} branchName={branch.name} types={types} />}
+          </>
+        }
       />
 
       {list.length === 0 ? (
         <Panel>
           <Empty icon={<Monitor />} title="No stations yet">
-            Add your {types.map((t) => STATION_TYPE_LABEL[t]).join(", ")} stations. You can add many at once, e.g.{" "}
+            Add your {types.map((t) => STATION_TYPE_LABEL[t]).join(", ")} stations. You can add many at once, like{" "}
             {STATION_TYPE_PREFIX[types[0] ?? "pc"]}01 to {STATION_TYPE_PREFIX[types[0] ?? "pc"]}10.
             {editable && (
               <div className="mt-4 flex justify-center">

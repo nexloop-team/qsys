@@ -76,3 +76,8 @@ export function zonedStart(date: string, timeZone: string) {
 export function toTimeInput(value: string | null | undefined) {
   return value ? value.slice(0, 5) : "";
 }
+
+// An instant some hours from now, as ISO (negative = in the past). For query windows.
+export function hoursFromNow(hours: number) {
+  return new Date(Date.now() + hours * 3_600_000).toISOString();
+}

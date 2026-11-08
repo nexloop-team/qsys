@@ -9,7 +9,7 @@ const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
   title: { default: "QueSys", template: "%s · QueSys" },
-  description: "Timers, billing and PC control for gaming lounges and snooker / pool halls.",
+  description: "Timers, billing, bookings and PC control for gaming lounges and snooker and pool halls.",
 };
 
 export const viewport: Viewport = {

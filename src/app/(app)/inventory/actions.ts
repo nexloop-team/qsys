@@ -10,7 +10,7 @@ const productSchema = z.object({
   id: z.string().uuid().optional().or(z.literal("").transform(() => undefined)),
   name: z.string().trim().min(1, "Enter a product name.").max(80),
   category: z.enum(["beverage", "snack", "food", "accessory", "other"]),
-  price: z.coerce.number().min(0, "Price cannot be negative.").max(50000),
+  price: z.coerce.number().min(0, "Price can't be negative.").max(50000),
   is_active: z.boolean().default(true),
   low_stock_at: z.coerce.number().int().min(0).max(10000).default(5),
   // Only on create: the starting count. Later changes go through adjustStock (logged).
@@ -58,7 +58,7 @@ export async function toggleProduct(id: string, is_active: boolean): Promise<Act
   const { error } = await supabase.from("products").update({ is_active }).eq("id", id);
   if (error) return { error: friendlyDbError(error) };
   refresh();
-  return { ok: is_active ? "Item enabled." : "Item hidden." };
+  return { ok: is_active ? "Item is on sale again." : "Item hidden." };
 }
 
 

@@ -56,7 +56,7 @@ export async function managePlayerWallet(_prev: ActionState, formData: FormData)
   }
 
   const customerId = z.uuid().safeParse(formData.get("customerId"));
-  if (!customerId.success) return { error: "Player missing." };
+  if (!customerId.success) return { error: "Couldn't find that player." };
 
   const amount = Number(formData.get("amount"));
   if (actionType !== "clear" && !(amount >= 1)) return { error: "Amount must be at least ₹1." };
@@ -105,7 +105,7 @@ export async function managePlayerWallet(_prev: ActionState, formData: FormData)
         ? "Wallet balance cleared to ₹0."
         : actionType === "deduct"
           ? `Deducted ₹${amount} from wallet.`
-          : "Wallet topped up successfully.",
+          : "Wallet topped up.",
   };
 }
 
@@ -137,7 +137,7 @@ export async function setPlayerPin(_prev: ActionState, formData: FormData): Prom
 export async function clearPlayerPin(customerId: string): Promise<{ error?: string }> {
   await getAppContext();
   const id = z.uuid().safeParse(customerId);
-  if (!id.success) return { error: "Player missing." };
+  if (!id.success) return { error: "Couldn't find that player." };
   const supabase = await createClient();
   const { error } = await supabase.rpc("clear_player_pin", { p_customer_id: id.data });
   if (error) return { error: friendlyDbError(error) };

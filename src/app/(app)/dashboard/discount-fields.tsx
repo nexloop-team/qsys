@@ -75,7 +75,7 @@ export function DiscountFields({
       {over && <p className="text-xs text-danger">That&apos;s more than staff can give. Ask the owner.</p>}
       {amount > 0 && (
         <Field label="Reason for the discount" hint="Shows on the bill and in Activity.">
-          <Input value={reason} onChange={(e) => onReasonChange(e.target.value)} maxLength={120} placeholder="e.g. Regular player" />
+          <Input value={reason} onChange={(e) => onReasonChange(e.target.value)} maxLength={120} placeholder="Regular player" />
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {REASONS.map((r) => (
               <button

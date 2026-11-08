@@ -57,7 +57,7 @@ export type Database = {
         closing_time: string | null;
         created_at: Ts;
         updated_at: Ts;
-      }>;
+      }, [Rel<"branches_org_id_fkey", ["org_id"], "orgs", ["id"]>]>;
       branch_settings: Table<{
         branch_id: string;
         org_id: string;
@@ -79,6 +79,16 @@ export type Database = {
         blocked_apps: string[];
         lock_message: string | null;
         pc_player_login: boolean;
+        /** Most a player may owe (khata). null = no limit. */
+        credit_limit: number | null;
+        /** Player QR page on each station. */
+        qr_enabled: boolean;
+        qr_orders: boolean;
+        /** Public booking page at /book/<booking_slug>. */
+        booking_enabled: boolean;
+        booking_slug: string | null;
+        booking_days: number;
+        booking_note: string | null;
         updated_at: Ts;
       }>;
       stations: Table<{
@@ -95,6 +105,8 @@ export type Database = {
         layout_x: number | null;
         layout_y: number | null;
         layout_rot: number;
+        /** The code in the station's player QR (/s/<code>). */
+        public_code: string;
         created_at: Ts;
         updated_at: Ts;
       }>;
@@ -110,6 +122,10 @@ export type Database = {
         rounding_minutes: number;
         included_players: number;
         extra_player_per_hour: number;
+        /** [] = one price for any number of players; else [{ players, per_hour, per_frame? }]. */
+        player_choices: Json;
+        /** Price per frame; null = this rate can't bill by frame. */
+        per_frame: number | null;
         gst_rate_override: number | null;
         is_active: boolean;
         created_at: Ts;
@@ -179,6 +195,8 @@ export type Database = {
         wallet_balance: number;
         /** Read-only: true when the player has a PC login PIN (the hash itself is never readable). */
         pin_set: boolean;
+        /** This player's khata limit; null = the venue's. */
+        credit_limit: number | null;
         created_by: string | null;
         created_at: Ts;
         updated_at: Ts;
@@ -249,6 +267,7 @@ export type Database = {
           planned_end_at: Ts | null;
           prepaid_minutes: number;
           prepaid_amount: number;
+          frames: number;
           paused_at: Ts | null;
           ended_at: Ts | null;
           charge_amount: number | null;
@@ -355,6 +374,88 @@ export type Database = {
         delivered_at: Ts | null;
         done_at: Ts | null;
         result: string | null;
+      }>;
+      station_requests: Table<{
+        id: string;
+        org_id: string;
+        branch_id: string;
+        station_id: string;
+        session_id: string;
+        kind: "snack" | "extend" | "call";
+        product_id: string | null;
+        label: string;
+        quantity: number | null;
+        minutes: number | null;
+        status: "pending" | "accepted" | "declined";
+        handled_by: string | null;
+        handled_at: Ts | null;
+        created_at: Ts;
+      }>;
+      bookings: Table<{
+        id: string;
+        org_id: string;
+        branch_id: string;
+        station_type: E["station_type"];
+        station_id: string | null;
+        customer_id: string | null;
+        name: string;
+        phone: string;
+        starts_at: Ts;
+        minutes: number;
+        players: number;
+        note: string | null;
+        status: "requested" | "confirmed" | "arrived" | "cancelled" | "no_show";
+        source: "online" | "staff";
+        created_by: string | null;
+        handled_by: string | null;
+        created_at: Ts;
+        updated_at: Ts;
+      }>;
+      tournaments: Table<{
+        id: string;
+        org_id: string;
+        branch_id: string;
+        name: string;
+        game: string;
+        entry_fee: number;
+        prize: string | null;
+        starts_at: Ts | null;
+        status: "open" | "running" | "finished";
+        winner_id: string | null;
+        created_by: string | null;
+        created_at: Ts;
+        /** 1 = singles; more = teams of this size (captain + others). */
+        team_size: number;
+        /** Which stations matches are played on; null = not linked. */
+        station_type: E["station_type"] | null;
+      }>;
+      tournament_players: Table<
+        {
+          id: string;
+          org_id: string;
+          tournament_id: string;
+          customer_id: string;
+          name: string;
+          phone: string;
+          invoice_id: string | null;
+          created_at: Ts;
+          /** Team entries: the team's name. name / phone are the captain's. */
+          team_name: string | null;
+          members: string[];
+        },
+        [Rel<"tournament_players_invoice_id_fkey", ["invoice_id"], "invoices", ["id"]>]
+      >;
+      tournament_matches: Table<{
+        id: string;
+        org_id: string;
+        tournament_id: string;
+        round: number;
+        slot: number;
+        player1_id: string | null;
+        player2_id: string | null;
+        winner_id: string | null;
+        decided_at: Ts | null;
+        station_id: string | null;
       }>;
       team_invites: Table<{
         id: string;
@@ -472,6 +573,90 @@ export type Database = {
       save_station_layout: { Args: { p_branch_id: string; p_layout: Json }; Returns: undefined };
       player_summary: { Args: { p_customer_id: string }; Returns: Json };
       set_session_players: { Args: { p_session_id: string; p_players: number }; Returns: undefined };
+      /** +1 / -1 frame on a frames session; returns the new count. */
+      change_session_frames: { Args: { p_session_id: string; p_delta: number }; Returns: number };
+      /** Who pays: moves unpaid (or live) sessions to another player. Returns their id. */
+      set_session_payer: { Args: { p_session_ids: string[]; p_phone: string; p_name?: string | null }; Returns: string };
+      set_player_credit_limit: { Args: { p_customer_id: string; p_limit: number | null }; Returns: undefined };
+      public_station: { Args: { p_code: string }; Returns: Json };
+      public_station_request: {
+        Args: { p_code: string; p_kind: "snack" | "extend" | "call"; p_product_id?: string | null; p_quantity?: number };
+        Returns: string;
+      };
+      handle_station_request: { Args: { p_request_id: string; p_accept: boolean }; Returns: undefined };
+      reset_station_code: { Args: { p_station_id: string }; Returns: string };
+      public_booking_info: { Args: { p_slug: string }; Returns: Json };
+      public_booking_slots: {
+        Args: { p_slug: string; p_type: E["station_type"]; p_date: string; p_minutes: number };
+        Returns: Json;
+      };
+      public_create_booking: {
+        Args: {
+          p_slug: string;
+          p_type: E["station_type"];
+          p_starts_at: string;
+          p_minutes: number;
+          p_players: number;
+          p_name: string;
+          p_phone: string;
+          p_note?: string | null;
+        };
+        Returns: string;
+      };
+      save_booking: {
+        Args: {
+          p_booking_id: string | null;
+          p_branch_id: string;
+          p_type: E["station_type"];
+          p_starts_at: string;
+          p_minutes: number;
+          p_players: number;
+          p_phone: string;
+          p_name?: string | null;
+          p_note?: string | null;
+          p_station_id?: string | null;
+        };
+        Returns: string;
+      };
+      set_booking_status: {
+        Args: {
+          p_booking_id: string;
+          p_status: "confirmed" | "arrived" | "cancelled" | "no_show";
+          p_station_id?: string | null;
+        };
+        Returns: undefined;
+      };
+      create_tournament: {
+        Args: {
+          p_branch_id: string;
+          p_name: string;
+          p_game: string;
+          p_entry_fee?: number;
+          p_prize?: string | null;
+          p_starts_at?: string | null;
+          p_team_size?: number;
+          p_station_type?: E["station_type"] | null;
+        };
+        Returns: string;
+      };
+      delete_tournament: { Args: { p_tournament_id: string }; Returns: undefined };
+      add_tournament_player: {
+        Args: {
+          p_tournament_id: string;
+          p_phone: string;
+          p_name?: string | null;
+          p_team_name?: string | null;
+          p_members?: string[];
+        };
+        Returns: string;
+      };
+      /** p_station_id null clears it. */
+      set_match_station: { Args: { p_match_id: string; p_station_id: string | null }; Returns: undefined };
+      remove_tournament_player: { Args: { p_player_id: string }; Returns: undefined };
+      pay_tournament_entry: { Args: { p_player_id: string; p_payments?: Json }; Returns: string };
+      start_tournament: { Args: { p_tournament_id: string }; Returns: undefined };
+      /** p_winner_id null undoes the result. */
+      set_match_winner: { Args: { p_match_id: string; p_winner_id: string | null }; Returns: undefined };
       add_session_item: {
         Args: {
           p_session_id: string;
@@ -526,7 +711,7 @@ export type Database = {
       member_role: "owner" | "manager" | "staff";
       station_type: "pc" | "ps5" | "xbox" | "snooker" | "pool" | "other";
       station_status: "active" | "maintenance" | "disabled";
-      session_mode: "open" | "prepaid";
+      session_mode: "open" | "prepaid" | "frames";
       session_status: "running" | "paused" | "ended";
       payment_method: "cash" | "upi" | "card" | "wallet";
       expense_category:

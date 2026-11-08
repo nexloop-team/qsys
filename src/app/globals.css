@@ -253,16 +253,19 @@ progress {
 }
 
 /* Headings come into focus as they scroll into view: up, unblurred, opaque. Browsers without
-   scroll-driven animations just show them. */
+   scroll-driven animations just show them. Tablets and up only: a scroll-linked blur on big text
+   is costly on phones and stutters while flicking. */
 @keyframes reveal {
   from { opacity: 0; filter: blur(10px); translate: 0 18px; }
   to { opacity: 1; filter: blur(0); translate: 0 0; }
 }
 @supports (animation-timeline: view()) {
+  @media (min-width: 768px) {
   .reveal {
     animation: reveal linear both;
     animation-timeline: view();
     animation-range: entry 5% cover 28%;
+  }
   }
 }
 

@@ -1,19 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cx } from "@/components/styles";
 
 // Features as one open list, no cards: big names on the left, and on wide screens one picture
 // on the right that changes with the name you point at (or moves on by itself every few seconds,
-// pausing while you're over it). Phones: tap a name to open it, with its picture underneath.
+// pausing while you're over it). Phones: a row of cards to swipe through (13 stacked rows were a
+// long scroll), with a counter and previous / next buttons.
 // Colour still only means station status.
 
-type Viz = "timers" | "lock" | "pricing" | "bill" | "pay" | "players" | "snacks" | "reports" | "team" | "branches";
+type Viz =
+  | "timers"
+  | "lock"
+  | "pricing"
+  | "bill"
+  | "pay"
+  | "players"
+  | "qr"
+  | "bookings"
+  | "cups"
+  | "snacks"
+  | "reports"
+  | "team"
+  | "branches";
 
 const FEATURES: { k: string; v: string; viz: Viz }[] = [
   {
     k: "Timers",
-    v: "Open time that counts up, fixed time that counts down. Pause, move, extend.",
+    v: "Open time that counts up, fixed time that counts down, or by the frame on tables. Pause, move, extend.",
     viz: "timers",
   },
   {
@@ -23,12 +38,12 @@ const FEATURES: { k: string; v: string; viz: Viz }[] = [
   },
   {
     k: "Pricing",
-    v: "Per hour by station type and tier, evening and weekend rates, packages, extra controllers.",
+    v: "Per hour or per frame, by station type and tier. 2 or 4 players or controllers at their own price, evening and weekend rates, packages.",
     viz: "pricing",
   },
   {
     k: "Billing",
-    v: "Bills to the minute, discounts with reasons, cancel with refund, 80 mm print, WhatsApp.",
+    v: "Bills to the minute or by the frame, the bill to the losing side, discounts with reasons, cancel with refund, 80 mm print, WhatsApp.",
     viz: "bill",
   },
   {
@@ -38,8 +53,23 @@ const FEATURES: { k: string; v: string; viz: Viz }[] = [
   },
   {
     k: "Players",
-    v: "One account per mobile number, visit history, wallets with top-up offers.",
+    v: "One account per mobile number, visit history, wallets with top-up offers, pay later with a limit and WhatsApp reminders.",
     viz: "players",
+  },
+  {
+    k: "At the table",
+    v: "A QR code on each station: players see their timer and bill, order snacks, ask for 30 more minutes or call staff.",
+    viz: "qr",
+  },
+  {
+    k: "Bookings",
+    v: "A booking page for each branch. Players pick a game, day and time. You confirm, assign a station and see who's coming up.",
+    viz: "bookings",
+  },
+  {
+    k: "Tournaments",
+    v: "Knockouts for singles or teams, on tables, PCs or consoles. Entry fees as bills, a random draw, a station per match.",
+    viz: "cups",
   },
   {
     k: "Snacks",
@@ -83,8 +113,10 @@ export function FeatureGrid() {
   }, []);
 
   return (
+    <>
+      <PhoneCards t={t} />
     <div
-      className="grid gap-x-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start"
+      className="grid gap-x-16 max-lg:hidden lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start"
       onPointerEnter={() => setHold(true)}
       onPointerLeave={() => setHold(false)}
       onFocus={() => setHold(true)}
@@ -130,9 +162,6 @@ export function FeatureGrid() {
               >
                 <div className="overflow-hidden">
                   <p className="pb-4 text-[15px] text-muted sm:text-base">{f.v}</p>
-                  <div aria-hidden className="mb-4 h-36 lg:hidden">
-                    {on && <Picture viz={f.viz} t={t} />}
-                  </div>
                   {/* Wide screens: the list moves on by itself; this fills until the next one */}
                   {on && (
                     <span aria-hidden className="mb-4 block h-px bg-line max-lg:hidden">
@@ -169,6 +198,76 @@ export function FeatureGrid() {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+    </>
+  );
+}
+
+// Phones and small tablets: one card per feature, side by side, snapping as you swipe.
+function PhoneCards({ t }: { t: number }) {
+  const rail = useRef<HTMLOListElement>(null);
+  const [at, setAt] = useState(0);
+
+  const cardStep = () => {
+    const first = rail.current?.firstElementChild as HTMLElement | null;
+    return first ? first.offsetWidth + 12 : 1; // card + gap-3
+  };
+  const go = (i: number) => {
+    const next = Math.max(0, Math.min(FEATURES.length - 1, i));
+    rail.current?.scrollTo({ left: next * cardStep(), behavior: "smooth" });
+  };
+
+  return (
+    <div className="lg:hidden">
+      <ol
+        ref={rail}
+        onScroll={(e) => setAt(Math.round(e.currentTarget.scrollLeft / cardStep()))}
+        aria-label="Features"
+        className="swipe-row -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 sm:-mx-8 sm:scroll-px-8 sm:px-8"
+      >
+        {FEATURES.map((f, i) => (
+          <li
+            key={f.k}
+            aria-label={`${i + 1} of ${FEATURES.length}: ${f.k}`}
+            className="flex w-[84%] max-w-[380px] shrink-0 snap-start flex-col rounded-2xl border border-line bg-subtle/40 p-4"
+          >
+            <span className="font-plexmono text-[12px] text-muted">
+              {String(i + 1).padStart(2, "0")} / {FEATURES.length}
+            </span>
+            <h3 className="mt-1 text-[22px] leading-tight font-semibold tracking-[-0.025em]">{f.k}</h3>
+            <p className="mt-1.5 text-[15px] leading-snug text-muted">{f.v}</p>
+            {/* Only the cards near the one in view draw their picture. */}
+            <div aria-hidden className="mt-auto pt-4">
+              <div className="h-36">{Math.abs(i - at) <= 1 && <Picture viz={f.viz} t={t} />}</div>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-3 flex items-center justify-between">
+        <span className="font-plexmono text-[13px] text-muted">
+          {String(at + 1).padStart(2, "0")} / {FEATURES.length} · {FEATURES[at]?.k}
+        </span>
+        <span className="flex gap-2">
+          <button
+            type="button"
+            aria-label="Previous feature"
+            disabled={at === 0}
+            onClick={() => go(at - 1)}
+            className="grid size-11 place-items-center rounded-full border border-line text-fg transition-opacity disabled:opacity-30"
+          >
+            <ChevronLeft className="size-5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Next feature"
+            disabled={at === FEATURES.length - 1}
+            onClick={() => go(at + 1)}
+            className="grid size-11 place-items-center rounded-full border border-line text-fg transition-opacity disabled:opacity-30"
+          >
+            <ChevronRight className="size-5" />
+          </button>
+        </span>
       </div>
     </div>
   );
@@ -214,9 +313,9 @@ function Picture({ viz, t }: { viz: Viz; t: number }) {
       return (
         <div className="flex h-full flex-col justify-center gap-1.5 text-[13px]">
           {[
-            ["Standard PC", "₹60/h", false],
-            ["Evening, after 6 pm", "₹80/h", true],
-            ["Extra controller", "+₹20/h", false],
+            ["Snooker · 2 players", "₹200/h", false],
+            ["Snooker · 4 players", "₹300/h", true],
+            ["Per frame", "₹60", false],
           ].map(([a, b, on]) => (
             <div key={String(a)} className={cx(ROW, "h-8", on && "border-line-strong bg-panel")}>
               <span className={on ? "font-medium" : "text-muted"}>{a}</span>
@@ -287,6 +386,61 @@ function Picture({ viz, t }: { viz: Viz; t: number }) {
             <span className="block text-[11px] text-muted">Wallet</span>
             <b className="font-plexmono text-[15px]">₹250</b>
           </span>
+        </div>
+      );
+    case "qr":
+      return (
+        <div className="flex h-full items-center justify-center">
+          <div className="w-[min(220px,80%)] rounded-2xl border border-line bg-subtle p-3">
+            <span className="block text-[10px] font-semibold tracking-[0.08em] text-muted">POOL-02 · FRAME 3</span>
+            <b className="block font-plexmono text-2xl leading-tight">{hms(1730 + t)}</b>
+            <span className="mt-1 flex justify-between text-[12px] text-muted">
+              <span>Total so far</span>
+              <b className="font-plexmono text-fg">₹240</b>
+            </span>
+            <span className="mt-2 grid grid-cols-2 gap-1.5 text-[11px] font-medium">
+              <span className="rounded-md border border-line bg-panel py-1 text-center">Order snacks</span>
+              <span className="rounded-md border border-line bg-panel py-1 text-center">Call staff</span>
+            </span>
+          </div>
+        </div>
+      );
+    case "bookings":
+      return (
+        <div className="flex h-full flex-col justify-center gap-1.5 text-[13px]">
+          {[
+            ["6:30 pm", "Rohan · Snooker", "Confirmed", false],
+            ["7:00 pm", "Sneha · PS5", "To confirm", true],
+            ["8:00 pm", "Arjun · PC-04", "Confirmed", false],
+          ].map(([at, who, st, ask]) => (
+            <div key={String(at)} className={cx(ROW, "h-8 gap-2")}>
+              <b className="w-14 shrink-0 font-plexmono text-[12px]">{at}</b>
+              <span className="min-w-0 flex-1 truncate">{who}</span>
+              <span className={cx("text-[11px]", ask ? "font-semibold text-ending" : "text-muted")}>{st}</span>
+            </div>
+          ))}
+        </div>
+      );
+    case "cups":
+      return (
+        <div className="grid h-full grid-cols-[1fr_auto_1fr] items-center gap-2 text-[12px]">
+          <div className="flex flex-col gap-2">
+            {[
+              ["Night Owls", "Late Shift"],
+              ["Cue Kings", "Break Point"],
+            ].map(([a, b]) => (
+              <div key={a} className="flex flex-col gap-0.5">
+                <span className="rounded-md border border-line-strong bg-panel px-2 py-1 font-semibold">{a}</span>
+                <span className="rounded-md border border-line px-2 py-1 text-muted line-through">{b}</span>
+              </div>
+            ))}
+          </div>
+          <span className="text-muted">→</span>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-semibold tracking-[0.08em] text-muted">FINAL · PC-03</span>
+            <span className="rounded-md border border-line px-2 py-1">Night Owls</span>
+            <span className="rounded-md border border-line px-2 py-1">Cue Kings</span>
+          </div>
         </div>
       );
     case "snacks":

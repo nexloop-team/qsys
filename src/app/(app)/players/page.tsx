@@ -8,6 +8,7 @@ import { formatDateTime, formatINR } from "@/lib/format";
 import { Empty, PageHeader, PageSkeleton, Panel } from "@/components/card";
 import { buttonClass } from "@/components/styles";
 import { AddPlayerButton, EditPlayerButton, PlayerSearch, TopupWalletButton } from "./player-forms";
+import { DuesReminderButton } from "./khata-controls";
 
 export const metadata: Metadata = { title: "Players" };
 
@@ -32,7 +33,7 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
   const page = Math.max(1, Math.floor(Number(sp.page) || 1));
 
   const supabase = await createClient();
-  const [res, { data: orgRow }] = await Promise.all([
+  const [res, { data: orgRow }, { data: owing }] = await Promise.all([
     supabase.rpc("list_customers", {
       p_org_id: org.id,
       p_search: q || undefined,
@@ -40,7 +41,32 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
       p_offset: (page - 1) * PAGE_SIZE,
     }),
     supabase.from("orgs").select("wallet_offers").eq("id", org.id).single(),
+    // Money owed: unpaid sessions across the venue, summed per player below.
+    supabase
+      .from("sessions")
+      .select("customer_id, customer_name, customer_phone, outstanding")
+      .eq("org_id", org.id)
+      .eq("status", "ended")
+      .eq("written_off", false)
+      .gt("outstanding", 0)
+      .not("customer_id", "is", null)
+      .limit(1000),
   ]);
+  const dues = [
+    ...(owing ?? [])
+      .reduce((m, s) => {
+        const prev = m.get(s.customer_id!);
+        m.set(s.customer_id!, {
+          id: s.customer_id!,
+          name: s.customer_name ?? "Player",
+          phone: s.customer_phone ?? "",
+          owed: (prev?.owed ?? 0) + Number(s.outstanding),
+        });
+        return m;
+      }, new Map<string, { id: string; name: string; phone: string; owed: number }>())
+      .values(),
+  ].sort((a, b) => b.owed - a.owed);
+  const duesTotal = dues.reduce((t, d) => t + d.owed, 0);
   const { data: players, error } = res;
   const offers = (orgRow?.wallet_offers ?? []) as { pay: number; bonus: number }[];
 
@@ -65,6 +91,33 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
         description="One account per mobile number, for open and fixed time alike. Created the first time someone plays."
         actions={<AddPlayerButton />}
       />
+
+      {!q && page === 1 && dues.length > 0 && (
+        <Panel
+          title="Money owed"
+          description={`${dues.length} ${dues.length === 1 ? "player owes" : "players owe"} ${formatINR(duesTotal)} in all`}
+          className="mb-5"
+          flush
+        >
+          <ul className="divide-y divide-line">
+            {dues.slice(0, 10).map((d) => (
+              <li key={d.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                <Link href={`/players/${d.id}`} className="min-w-0 flex-1 hover:underline">
+                  <span className="block truncate font-medium">{d.name}</span>
+                  <span className="num block text-xs text-muted">{d.phone && formatPhone(d.phone)}</span>
+                </Link>
+                <span className="num shrink-0 font-semibold text-over">{formatINR(d.owed)}</span>
+                {d.phone && <DuesReminderButton phone={d.phone} name={d.name} owed={d.owed} venueName={org.name} />}
+              </li>
+            ))}
+          </ul>
+          {dues.length > 10 && (
+            <p className="border-t border-line px-4 py-2 text-xs text-muted">
+              And {dues.length - 10} more. Open a player to see their visits.
+            </p>
+          )}
+        </Panel>
+      )}
 
       <div className="mb-3">
         <PlayerSearch initial={q} />
@@ -141,7 +194,7 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
                     <td className="num px-4 py-2.5 text-right">{p.visits}</td>
                     <td className="num px-4 py-2.5 text-right">{formatINR(p.total_spent)}</td>
                     <td className="px-4 py-2.5 text-muted">
-                      {p.last_visit ? formatDateTime(p.last_visit, branch.timezone) : "—"}
+                      {p.last_visit ? formatDateTime(p.last_visit, branch.timezone) : "Never"}
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <div className="flex items-center justify-end gap-1.5">

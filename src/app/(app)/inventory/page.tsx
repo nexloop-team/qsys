@@ -15,14 +15,14 @@ import {
   type Product,
 } from "./product-forms";
 
-export const metadata: Metadata = { title: "Snacks & Drinks" };
+export const metadata: Metadata = { title: "Snacks & drinks" };
 
 const CATEGORY_LABEL: Record<string, string> = {
-  beverage: "Cold Drinks & Beverages",
-  snack: "Chips & Snacks",
-  food: "Food & Instant Meals",
-  accessory: "Accessories & Others",
-  other: "Other Items",
+  beverage: "Cold drinks",
+  snack: "Snacks",
+  food: "Food",
+  accessory: "Accessories",
+  other: "Other",
 };
 
 export default function InventoryPage() {
@@ -74,8 +74,8 @@ async function InventoryList() {
   return (
     <>
       <PageHeader
-        title="Snacks & Drinks"
-        description={`${branch.name} · Beverages, food and snacks sold at the counter`}
+        title="Snacks & drinks"
+        description={`${branch.name} · what you sell at the counter and at the stations`}
         actions={
           <div className="flex items-center gap-2">
             <QuickSalePOSButton
@@ -110,7 +110,7 @@ async function InventoryList() {
         <Panel>
           <Empty icon={<Coffee />} title="No items added yet">
             {owner
-              ? "Add cold drinks, Maggi, Red Bull, and snacks to sell and bill them to gaming stations."
+              ? "Add drinks, Maggi and snacks. Sell them at the counter or add them to a station's bill."
               : "The owner adds the items and prices sold at the counter."}
             {owner && (
               <div className="mt-4 flex justify-center">
@@ -199,7 +199,7 @@ async function InventoryList() {
                           </td>
                           <td className="num px-4 py-2.5 text-right">
                             {it.stock === null ? (
-                              <span className="text-faint">—</span>
+                              <span className="text-xs text-faint">Not counted</span>
                             ) : (
                               <span
                                 className={

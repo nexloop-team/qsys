@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { saveBillingSettings } from "./actions";
 import type { Tables } from "@/lib/database.types";
 import {
+  FRAME_TYPES,
   SESSION_MODE_LABEL,
   SESSION_MODES,
   STATION_TYPE_LABEL,
@@ -51,6 +52,23 @@ export function BillingForm({ settings, disabled }: { settings: Settings; disabl
           </div>
         </SettingsSection>
 
+        <SettingsSection
+          title="Pay later"
+          description="When a player leaves without paying (Pay later at checkout), it stays in their name. Above this amount, staff can't start them a new session until they pay. You can always start them, and set a different limit for one player on their page."
+        >
+          <Field label="Most a player can owe (₹)" hint="Leave empty for no limit. 0 = no new session while anything is owed.">
+            <Input
+              name="credit_limit"
+              type="number"
+              min={0}
+              step="1"
+              defaultValue={settings.credit_limit ?? ""}
+              placeholder="No limit"
+              className="sm:max-w-48"
+            />
+          </Field>
+        </SettingsSection>
+
         <SettingsSection title="GST" description="Off: bills are plain receipts. On: tax invoices with CGST and SGST.">
           <div className="flex flex-col gap-4">
             <Toggle name="gst_enabled" checked={gstOn} onChange={setGstOn} label="Charge GST" />
@@ -70,7 +88,7 @@ export function BillingForm({ settings, disabled }: { settings: Settings; disabl
                 label="Prices include GST"
                 description={
                   inclusive
-                    ? "₹100/hr means the player pays ₹100; the tax is inside it."
+                    ? "₹100/hr means the player pays ₹100, with the tax inside it."
                     : "₹100/hr means the player pays ₹100 + GST."
                 }
               />
@@ -80,7 +98,7 @@ export function BillingForm({ settings, disabled }: { settings: Settings; disabl
 
         <SettingsSection
           title="Timer modes"
-          description="Open time counts up. Fixed time counts down from the time booked. Both are paid at the end."
+          description="Open time counts up. Fixed time counts down from the time booked. Frames bill per frame (tables, when the rate has a frame price). All are paid at the end."
           flush
         >
           <div className="overflow-x-auto">
@@ -103,18 +121,24 @@ export function BillingForm({ settings, disabled }: { settings: Settings; disabl
                     <td className="px-3 py-2 font-medium sm:px-4">{STATION_TYPE_LABEL[type]}</td>
                     {SESSION_MODES.map((mode) => (
                       <td key={mode} className="px-1.5 py-2 text-center sm:px-3">
-                        <input
-                          type="checkbox"
-                          name={`allow_${type}_${mode}`}
-                          defaultChecked={allowed?.[type]?.includes(mode) ?? true}
-                          aria-label={`${STATION_TYPE_LABEL[type]}: ${SESSION_MODE_LABEL[mode]}`}
-                          className="size-4 pointer-coarse:size-5"
-                        />
+                        {mode === "frames" && !FRAME_TYPES.has(type) ? (
+                          <span className="text-faint" aria-label="Not for this station type">
+                            –
+                          </span>
+                        ) : (
+                          <input
+                            type="checkbox"
+                            name={`allow_${type}_${mode}`}
+                            defaultChecked={allowed?.[type]?.includes(mode) ?? mode !== "frames"}
+                            aria-label={`${STATION_TYPE_LABEL[type]}: ${SESSION_MODE_LABEL[mode]}`}
+                            className="size-4 pointer-coarse:size-5"
+                          />
+                        )}
                       </td>
                     ))}
                     <td className="px-3 py-2 sm:px-4">
                       <Select name={`default_${type}`} defaultValue={defaults?.[type] ?? "open"} className="h-8 w-28 sm:w-32">
-                        {SESSION_MODES.map((mode) => (
+                        {SESSION_MODES.filter((mode) => mode !== "frames" || FRAME_TYPES.has(type)).map((mode) => (
                           <option key={mode} value={mode}>
                             {SESSION_MODE_LABEL[mode]}
                           </option>

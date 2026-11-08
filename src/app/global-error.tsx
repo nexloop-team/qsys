@@ -13,7 +13,7 @@ export default function GlobalError({ error, retry }: { error: unknown; retry: (
       <body className="flex min-h-dvh items-center justify-center bg-bg p-6 font-sans text-fg antialiased">
         <div className="max-w-sm text-center">
           <h1 className="text-lg font-semibold">QueSys couldn&apos;t start</h1>
-          <p className="mt-1.5 text-sm text-muted">Something went wrong loading the app. Please try again.</p>
+          <p className="mt-1.5 text-sm text-muted">Something went wrong loading the app. Try again in a moment.</p>
           <button
             type="button"
             onClick={() => retry()}

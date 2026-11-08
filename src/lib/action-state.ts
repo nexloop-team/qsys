@@ -4,7 +4,7 @@ import type { z } from "zod";
 export type ActionState = { error?: string; ok?: string } | null;
 
 export function firstIssue(error: z.ZodError) {
-  return error.issues[0]?.message ?? "Please check the form and try again.";
+  return error.issues[0]?.message ?? "Check the form and try again.";
 }
 
 // Turns Postgres / PostgREST errors into something staff can act on.

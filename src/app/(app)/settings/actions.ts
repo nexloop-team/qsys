@@ -62,17 +62,22 @@ const billingSchema = z
       .trim()
       .toUpperCase()
       .transform((v) => v || null)
-      .pipe(z.string().regex(/^[0-9]{2}[A-Z0-9]{13}$/, "GSTIN must be 15 characters, e.g. 27ABCDE1234F1Z5.").nullable()),
+      .pipe(z.string().regex(/^[0-9]{2}[A-Z0-9]{13}$/, "GSTIN must be 15 characters, like 27ABCDE1234F1Z5.").nullable()),
     gst_rate: z.coerce.number().min(0).max(28),
     prices_include_tax: z.boolean(),
     invoice_prefix: z
       .string()
       .trim()
       .toUpperCase()
-      .regex(/^[A-Z0-9-]{1,10}$/, "Bill prefix: up to 10 letters, numbers or dashes."),
+      .regex(/^[A-Z0-9-]{1,10}$/, "The bill prefix can have up to 10 letters, numbers or dashes."),
     overtime_grace_minutes: z.coerce.number().int().min(0).max(30),
     early_end_policy: z.enum(["full", "played"]),
     staff_max_discount_pct: z.coerce.number().int().min(0, "0% or more.").max(100, "100% at most."),
+    credit_limit: z
+      .string()
+      .trim()
+      .transform((v) => (v === "" ? null : Number(v)))
+      .pipe(z.number().min(0, "The pay-later limit can't be negative.").max(1000000).nullable()),
   })
   .refine((v) => !v.gst_enabled || v.gstin, {
     message: "Enter your GSTIN to turn GST on.",
@@ -84,6 +89,7 @@ export async function saveBillingSettings(_prev: ActionState, formData: FormData
     ...Object.fromEntries(formData),
     gst_enabled: formData.get("gst_enabled") === "on",
     prices_include_tax: formData.get("prices_include_tax") === "on",
+    credit_limit: String(formData.get("credit_limit") ?? ""),
   });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
 
@@ -236,4 +242,48 @@ export async function savePcSettings(_prev: ActionState, formData: FormData): Pr
   if (error) return { error: friendlyDbError(error) };
   refresh();
   return { ok: "Saved. PCs pick it up within a few seconds." };
+}
+
+// Online: the player QR page on each station, and the public booking page.
+const onlineSchema = z
+  .object({
+    qr_enabled: z.boolean(),
+    qr_orders: z.boolean(),
+    booking_enabled: z.boolean(),
+    booking_slug: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .transform((v) => v || null)
+      .pipe(
+        z
+          .string()
+          .regex(/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/, "The page address needs 3 to 40 letters, numbers or dashes, like cue-club-nashik.")
+          .nullable(),
+      ),
+    booking_days: z.coerce.number().int().min(1, "At least 1 day ahead.").max(30, "Up to 30 days ahead."),
+    booking_note: z
+      .string()
+      .trim()
+      .max(300, "Keep the note under 300 characters.")
+      .transform((v) => v || null),
+  })
+  .refine((v) => !v.booking_enabled || v.booking_slug, { message: "Choose a page address to turn bookings on." });
+
+export async function saveOnlineSettings(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { branch } = await requireRole(["owner"]);
+  const parsed = onlineSchema.safeParse({
+    ...Object.fromEntries(formData),
+    qr_enabled: formData.get("qr_enabled") === "on",
+    qr_orders: formData.get("qr_orders") === "on",
+    booking_enabled: formData.get("booking_enabled") === "on",
+  });
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("branch_settings").update(parsed.data).eq("branch_id", branch.id);
+  if (error?.code === "23505") return { error: "That page address is taken. Try adding your area to it." };
+  if (error) return { error: friendlyDbError(error) };
+  refresh();
+  return { ok: "Saved." };
 }

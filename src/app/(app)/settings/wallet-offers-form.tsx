@@ -20,7 +20,7 @@ export function WalletOffersForm({ offers, disabled }: { offers: { pay: number; 
     <form action={action}>
       <SettingsSection
         title="Wallet top-up offers"
-        description="Extra credit for paying in advance, e.g. pay ₹500, get ₹50 more. The biggest offer the top-up qualifies for is added automatically. Bonus credit isn't money received, so it doesn't count as takings."
+        description="Extra credit for paying in advance, such as pay ₹500, get ₹50 more. The biggest offer the top-up qualifies for is added automatically. Bonus credit isn't money received, so it doesn't count as takings."
       >
         <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-2">
           {rows.length === 0 && <p className="text-sm text-muted">No offers. Top-ups add exactly what is paid.</p>}

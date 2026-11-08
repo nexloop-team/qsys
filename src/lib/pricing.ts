@@ -2,6 +2,8 @@
 // Mirrors private.session_charge in supabase/migrations; the database value is
 // always the one that gets billed.
 
+export type PlayerChoice = { players: number; per_hour: number; per_frame?: number | null };
+
 export type PricingPlan = {
   id: string;
   per_hour: number;
@@ -9,6 +11,10 @@ export type PricingPlan = {
   rounding_minutes: number;
   included_players: number;
   extra_player_per_hour: number;
+  /** [] = one price for any number of players. */
+  player_choices: PlayerChoice[] | unknown;
+  /** null = can't bill by frame. */
+  per_frame: number | null;
 };
 
 export type PricingRule = {
@@ -20,7 +26,8 @@ export type PricingRule = {
 };
 
 export type PricingSession = {
-  mode: "open" | "prepaid";
+  mode: "open" | "prepaid" | "frames";
+  frames?: number;
   started_at: string;
   ended_at: string | null;
   players: number;
@@ -37,6 +44,35 @@ export type Charge = {
 };
 
 const MINUTE = 60_000;
+
+// The plan's choices, sorted by players (the database keeps them sorted too).
+export function planChoices(plan: Pick<PricingPlan, "player_choices">): PlayerChoice[] {
+  const raw = Array.isArray(plan.player_choices) ? (plan.player_choices as PlayerChoice[]) : [];
+  return [...raw].sort((a, b) => a.players - b.players);
+}
+
+// Same as private.player_choice: the largest choice at or below the count, else the smallest.
+export function choiceFor(plan: Pick<PricingPlan, "player_choices">, players: number) {
+  const choices = planChoices(plan);
+  return [...choices].reverse().find((c) => c.players <= players) ?? choices[0];
+}
+
+// Same as private.player_extra: what a player count adds per hour / per frame over the base price.
+export function playerExtra(plan: PricingPlan, players: number, unit: "hour" | "frame") {
+  const choice = choiceFor(plan, players);
+  if (!choice) {
+    if (unit === "frame") return 0;
+    return Math.max(players - plan.included_players, 0) * Number(plan.extra_player_per_hour);
+  }
+  if (unit === "frame") return Number(choice.per_frame ?? plan.per_frame ?? 0) - Number(plan.per_frame ?? 0);
+  return Number(choice.per_hour) - Number(plan.per_hour);
+}
+
+/** Price per hour (or per frame) for a player count, before happy-hour rules. */
+export function priceFor(plan: PricingPlan, players: number, unit: "hour" | "frame") {
+  const base = unit === "frame" ? Number(plan.per_frame ?? 0) : Number(plan.per_hour);
+  return Math.max(base + playerExtra(plan, players, unit), 0);
+}
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
@@ -113,6 +149,15 @@ export function estimateCharge(
   );
   const activeSeconds = Math.max(0, (end - start - pausedMs) / 1000);
 
+  // Billed by frame: the clock is only for information.
+  if (session.mode === "frames") {
+    return {
+      activeSeconds: Math.floor(activeSeconds),
+      billableMinutes: 0,
+      total: Math.round((session.frames ?? 0) * priceFor(plan, session.players, "frame")),
+    };
+  }
+
   // Rate at each active wall-clock minute.
   const cache = opts.cache ?? new Map<number, number>();
   const rates: number[] = [];
@@ -126,8 +171,7 @@ export function estimateCharge(
   let skip = 0;
   let billable = 0;
   let playerMinutes = 0;
-  const extraPerMinute =
-    (Math.max(session.players - plan.included_players, 0) * Number(plan.extra_player_per_hour)) / 60;
+  const extraPerMinute = playerExtra(plan, session.players, "hour") / 60;
 
   // Fixed time stopped (or stopping) early under the "charge time played" rule:
   // played minutes like open time, capped at the booking. Not when paid up front.
@@ -144,8 +188,8 @@ export function estimateCharge(
       if (i <= rates.length) r = rates[i - 1];
       t += r / 60;
     }
-    const playedTotal = t + extraPerMinute * played;
-    const bookedTotal = Number(session.prepaid_amount) + extraPerMinute * session.prepaid_minutes;
+    const playedTotal = Math.max(t + extraPerMinute * played, 0);
+    const bookedTotal = Math.max(Number(session.prepaid_amount) + extraPerMinute * session.prepaid_minutes, 0);
     return {
       activeSeconds: Math.floor(activeSeconds),
       billableMinutes: played,
@@ -178,7 +222,7 @@ export function estimateCharge(
   return {
     activeSeconds: Math.floor(activeSeconds),
     billableMinutes: billable,
-    total: Math.round(base + time + extra),
+    total: Math.max(Math.round(base + time + extra), 0),
   };
 }
 

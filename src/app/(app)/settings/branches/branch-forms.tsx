@@ -20,7 +20,7 @@ export function AddBranchForm() {
     <form action={action} className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-[1fr_200px]">
         <Field label="Branch name">
-          <Input name="name" placeholder="e.g. Koramangala" required />
+          <Input name="name" placeholder="Koramangala" required />
         </Field>
         <Field label="Time zone">
           <Select name="timezone" defaultValue="Asia/Kolkata">

@@ -68,7 +68,7 @@ export function AuthBoard() {
           return (
             <div key={r.station} className="flex items-center gap-4 border-t border-[#19191c] px-5 py-2.5 first-of-type:border-t-0">
               <span className="w-[76px] shrink-0 text-[15px] font-semibold text-[#f2f2f3]">{r.station}</span>
-              <span className="min-w-0 flex-1 truncate text-xs tracking-wide text-[#8a8c92]">{r.player || "—"}</span>
+              <span className="min-w-0 flex-1 truncate text-xs tracking-wide text-[#8a8c92]">{r.player || "Walk-in"}</span>
               <Flaps text={time.padStart(7, " ")} color={timeColor} />
               <span
                 className="flex w-[78px] shrink-0 items-center gap-1.5 text-[10px] font-semibold tracking-[0.12em]"

@@ -135,7 +135,7 @@ export function QuickSaleDialog({
     const trimmed = customName.trim();
     const price = Number(customPrice);
     if (!trimmed) return setError("Enter an item name.");
-    if (isNaN(price) || price <= 0) return setError("Enter a valid price.");
+    if (isNaN(price) || price <= 0) return setError("Enter a price above ₹0.");
     setCart((prev) => [...prev, { name: trimmed, price, quantity: 1 }]);
     setCustomName("");
     setCustomPrice("");
@@ -195,11 +195,11 @@ export function QuickSaleDialog({
 
   const handleCheckout = () => {
     if (cart.length === 0) {
-      setError("Please add at least one item to cart.");
+      setError("Add at least one item.");
       return;
     }
     if (finalTotal > 0 && payments.length === 0) {
-      setError("Payment details missing.");
+      setError("Choose how they paid.");
       return;
     }
 
@@ -256,11 +256,11 @@ export function QuickSaleDialog({
 
   if (paid) {
     return (
-      <Modal open={open} onOpenChange={(o: boolean) => !o && handleClose()} title="Sale Completed">
+      <Modal open={open} onOpenChange={(o: boolean) => !o && handleClose()} title="Sale done">
         <div className="flex flex-col items-center gap-2 py-4 text-center">
           <CheckCircle2 className="size-10 text-ok" />
           <p className="num text-3xl font-semibold">{formatINR(paid.total)}</p>
-          <p className="text-sm text-muted">Bill #{paid.number} · Paid & Recorded</p>
+          <p className="text-sm text-muted">Bill #{paid.number} · Paid</p>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -278,7 +278,7 @@ export function QuickSaleDialog({
                 amount: formatINR(i.price * i.quantity),
               }))}
               total={formatINR(paid.total)}
-              paidBy={payments.map((p) => p.method.toUpperCase()).join(" + ") || "CASH"}
+              paidBy={payments.map((p) => (p.method === "upi" ? "UPI" : p.method === "wallet" ? "Wallet" : "Cash")).join(" + ") || "Cash"}
               size="md"
             />
           </div>
@@ -294,8 +294,8 @@ export function QuickSaleDialog({
     <Modal
       open={open}
       onOpenChange={(o: boolean) => (!o ? handleClose() : onOpenChange(o))}
-      title="Quick Counter Sale"
-      description="Sell snacks, drinks & accessories to walk-in or waiting customers (no station required)"
+      title="Counter sale"
+      description="Sell snacks and drinks to anyone, without a station."
     >
       <div className="flex flex-col gap-4">
         {/* Customer Info (Optional) */}
@@ -331,7 +331,7 @@ export function QuickSaleDialog({
         {/* Menu Selection */}
         <div>
           <div className="flex items-center justify-between pb-1.5">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Select Items</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Items</h3>
             <span className="text-[11px] text-faint">{filteredProducts.length} items available</span>
           </div>
 
@@ -339,7 +339,7 @@ export function QuickSaleDialog({
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2 size-3.5 text-muted" />
               <Input
-                placeholder="Search snacks, drinks..."
+                placeholder="Search snacks and drinks"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 h-8 text-xs"
@@ -350,7 +350,7 @@ export function QuickSaleDialog({
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="h-8 rounded-lg border border-line bg-panel px-2 text-xs text-fg"
             >
-              <option value="all">All Categories</option>
+              <option value="all">All</option>
               <option value="beverage">Beverages</option>
               <option value="snack">Snacks</option>
               <option value="food">Food</option>
@@ -362,9 +362,9 @@ export function QuickSaleDialog({
           {/* Product Chips */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-36 overflow-y-auto p-1 border border-line/60 rounded-xl bg-panel">
             {loadingProducts ? (
-              <p className="col-span-full py-4 text-center text-xs text-muted">Loading menu...</p>
+              <p className="col-span-full py-4 text-center text-xs text-muted">Loading menu…</p>
             ) : filteredProducts.length === 0 ? (
-              <p className="col-span-full py-4 text-center text-xs text-muted">No matching items found</p>
+              <p className="col-span-full py-4 text-center text-xs text-muted">Nothing matches</p>
             ) : (
               filteredProducts.map((p) => {
                 const inCart = cart.find((i) => i.productId === p.id);
@@ -411,7 +411,7 @@ export function QuickSaleDialog({
           {/* Quick Custom Item */}
           <div className="mt-2 flex items-center gap-1.5">
             <Input
-              placeholder="Or custom item (e.g. Samosa)"
+              placeholder="Or type an item, like Samosa"
               value={customName}
               onChange={(e) => setCustomName(e.target.value)}
               className="h-8 text-xs flex-1"
@@ -432,14 +432,14 @@ export function QuickSaleDialog({
         {/* Current Cart */}
         <div>
           <div className="flex items-center justify-between pb-1.5">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Order Cart</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Order</h3>
             <span className="num text-xs font-semibold">{cart.length} items</span>
           </div>
 
           {cart.length === 0 ? (
             <div className="rounded-xl border border-dashed border-line p-4 text-center text-xs text-muted">
               <ShoppingBag className="mx-auto size-5 mb-1 text-faint" />
-              Click any item above to add it to the order
+              Tap an item above to add it.
             </div>
           ) : (
             <div className="divide-y divide-line rounded-xl border border-line bg-panel overflow-hidden">
@@ -499,7 +499,7 @@ export function QuickSaleDialog({
             />
 
             <div className="border-t border-line pt-2 flex items-center justify-between text-base font-semibold">
-              <span>Total to Pay</span>
+              <span>Total</span>
               <span className="num text-xl text-accent-ink">{formatINR(finalTotal)}</span>
             </div>
           </div>
@@ -508,7 +508,7 @@ export function QuickSaleDialog({
         {/* Payment Methods */}
         {cart.length > 0 && finalTotal > 0 && (
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">Collect Payment</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">Payment</h3>
             <PaymentFields
               total={finalTotal}
               onChange={setPayments}

@@ -28,6 +28,7 @@ export type LiveSession = {
   planned_end_at: string | null;
   prepaid_minutes: number;
   prepaid_amount: number;
+  frames: number;
   paused_at: string | null;
   ended_at: string | null;
   charge_amount: number | null;
@@ -63,6 +64,31 @@ export type FloorSettings = {
   pricesIncludeTax: boolean;
   /** Most a staff member may discount, as % of the bill. The owner has no limit. */
   staffMaxDiscountPct: number;
+  /** Venue-wide khata limit per player; null = none. */
+  creditLimit: number | null;
+};
+
+/** A player's request from the station QR page, waiting for staff. */
+export type StationRequest = {
+  id: string;
+  station_id: string;
+  session_id: string;
+  kind: "snack" | "extend" | "call";
+  label: string;
+  created_at: string;
+};
+
+/** Upcoming bookings shown on the floor (requested or confirmed, from now to the end of tomorrow). */
+export type FloorBooking = {
+  id: string;
+  station_type: StationType;
+  station_id: string | null;
+  name: string;
+  phone: string;
+  starts_at: string;
+  minutes: number;
+  players: number;
+  status: "requested" | "confirmed";
 };
 
 export type FloorData = {
@@ -78,12 +104,17 @@ export type FloorData = {
   settings: FloorSettings;
   /** PC apps paired in this branch (one per PC station at most). */
   devices: DeviceStatus[];
+  requests: StationRequest[];
+  bookings: FloorBooking[];
 };
 
 export const SESSION_SELECT =
-  "id, station_id, rate_plan_id, mode, status, customer_id, customer_name, customer_phone, players, started_at, planned_end_at, prepaid_minutes, prepaid_amount, paused_at, ended_at, charge_amount, billed_amount, outstanding, session_pauses(started_at, ended_at)";
+  "id, station_id, rate_plan_id, mode, status, customer_id, customer_name, customer_phone, players, started_at, planned_end_at, prepaid_minutes, prepaid_amount, frames, paused_at, ended_at, charge_amount, billed_amount, outstanding, session_pauses(started_at, ended_at)";
 
 // Live state of a station tile, derived each tick.
 export type TileState = "free" | "busy" | "ending" | "over" | "paused" | "off";
 
 export const ENDING_SOON_SECONDS = 5 * 60;
+
+export const REQUEST_SELECT = "id, station_id, session_id, kind, label, created_at";
+export const BOOKING_SELECT = "id, station_type, station_id, name, phone, starts_at, minutes, players, status";

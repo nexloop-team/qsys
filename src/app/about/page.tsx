@@ -20,13 +20,13 @@ import {
 
 export const metadata: Metadata = {
   title: "About",
-  description: "QueSys is timers, PC control and billing for gaming lounges and pool & snooker halls in India.",
+  description: "QueSys is timers, PC control, billing and bookings for gaming lounges and pool & snooker halls in India.",
 };
 
 const FOR = [
   ["Gaming lounges", "PCs, PS5 and Xbox, timed by the minute, with PCs that lock and unlock themselves."],
-  ["Pool and snooker halls", "Every table on one board, open or fixed time, extra players, a clear bill."],
-  ["One branch or several", "Each branch has its own floor, prices and bills; players and team are shared."],
+  ["Pool and snooker halls", "Every table on one board, by the minute or by the frame, 2 or 4 players at your price, and the bill to the losing side."],
+  ["One branch or several", "Each branch has its own floor, prices, bills and booking page. Players and team are shared."],
 ] as const;
 
 const PRINCIPLES = [
@@ -43,7 +43,7 @@ const PRINCIPLES = [
     "Discounts need a reason, staff have limits, and every change lands in an activity log only the owner sees.",
   ],
   ["Nothing that slows a game", "The PC app has no game hooks and no screen capture. Its key blocking only runs while the PC is locked."],
-  ["Made for Indian venues", "Rupees, UPI and cash, GST on or off, bills on WhatsApp and on an 80 mm printer."],
+  ["Made for Indian venues", "Rupees, UPI and cash, GST on or off, pay later with a limit, and bills and reminders on WhatsApp or an 80 mm printer."],
 ] as const;
 
 export default function AboutPage() {
@@ -63,7 +63,8 @@ export default function AboutPage() {
             </p>
             <p>
               QueSys puts every PC, console and table on one board, keeps the time on the server, locks PCs when time is up,
-              and turns every minute into a bill that is paid by cash, UPI or wallet.
+              and turns every minute into a bill that is paid by cash, UPI or wallet. Players can book a time online, and
+              order snacks or ask for more time from a QR code on their station.
             </p>
           </div>
         </section>

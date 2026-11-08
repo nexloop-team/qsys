@@ -1,7 +1,8 @@
 # QueSys
 
-Management system for gaming cafes (PC, PS5) and snooker / 8-ball pool halls:
-one live floor, timers, billing, and automatic PC lock/unlock (the PC app in `pc-agent/`).
+Management system for gaming venues (PC, PS5, Xbox) and snooker / 8-ball pool halls: one live floor,
+timers (open, fixed or per frame), billing, pay later with limits, online bookings, a QR page on each
+station, knockout tournaments, and automatic PC lock/unlock (the PC app in `pc-agent/`).
 
 Stack: Next.js 16 (App Router, Cache Components) + Supabase (Postgres, Auth, RLS, Realtime).
 
@@ -82,6 +83,24 @@ Each file in `supabase/migrations` runs once, in order. After pulling new code, 
 - `20261121000002_layout_rotation.sql`: floor-map stations can face four ways (0, 90, 180, 270 degrees).
 - `20261122000001_contact_messages.sql`: the website contact form. Messages are read in the Supabase dashboard
   (Table Editor › contact_messages); nobody can read them through the app.
+- `20261123000001_frames_mode.sql`: adds the **Frames** timer mode. Its own file on purpose (a new enum value
+  must be committed before it is used); apply it before the next one.
+- `20261123000002_choices_frames_khata.sql`: rates priced **per player choice** (e.g. 2 players ₹200/hr,
+  4 players ₹300/hr; older "extra player" rates are converted with the same prices), **per-frame** billing,
+  **who pays** (move a bill or khata to another player), and the **khata limit** (venue-wide and per player).
+- `20261124000001_station_qr.sql`: the **player QR page** on each station (`/s/<code>`): live timer and bill,
+  snack orders, "30 more minutes" and "call staff" requests that staff accept on the Floor. Off by default
+  (Settings › Online).
+- `20261125000001_bookings.sql`: **bookings**: a public page per branch (`/book/<address>`, off by default) and
+  bookings taken by phone. Staff confirm, assign a station, and mark arrived / no-show.
+- `20261126000001_tournaments.sql`: **knockout tournaments**: players by mobile, entry fees as normal bills,
+  a random draw with byes, and results tapped in by staff.
+- `20261127000001_tournament_teams_stations.sql`: **team tournaments** (doubles, 5v5…: a team name, a captain by
+  mobile who pays one entry fee for the team, and the other members' names) and tournaments **played on stations**
+  (PC, PS5, tables): each match can be sent to a station. The match time isn't billed.
+
+Station QR codes, the booking link and sign-up / reset emails use the address the app is opened at, so print
+QR codes (Stations › QR codes) from your real web address. A non-localhost `NEXT_PUBLIC_SITE_URL` overrides this.
 - `20261111000001_memberships_no_direct_insert.sql`: people join a venue only by signing up as owner or with an
   invite code; owners can no longer add an account to their team directly through the API.
 - `20261112000001_no_card_payments.sql`: payments are cash or UPI only (old card payments stay on past bills).
@@ -112,7 +131,10 @@ npx supabase test db --linked
 ```
 src/app/(auth)        login, signup
 src/app/onboarding    create cafe + first branch
-src/app/(app)         dashboard (floor), bills, players, reports, expenses, stations, pricing, settings
+src/app/(app)         dashboard (floor), bills, players, bookings, tournaments, reports, expenses, stations,
+                      pricing, settings
+src/app/s/[code]      player QR page (public, no login)
+src/app/book/[slug]   booking page (public, no login)
 src/lib/dal.ts        current user / org / role / branch (data access layer)
 src/lib/supabase      server + browser clients
 src/proxy.ts          session refresh + auth redirects (Next 16 "proxy", formerly middleware)

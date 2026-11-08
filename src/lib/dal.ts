@@ -43,10 +43,11 @@ export const getAppContext = cache(async (): Promise<AppContext> => {
   const user = await requireUser();
   const supabase = await createClient();
 
+  // One round trip: the membership brings its venue and the venue's branches with it.
   const [{ data: membership }, { data: profile }] = await Promise.all([
     supabase
       .from("memberships")
-      .select("role, org:orgs(id, name)")
+      .select("role, org:orgs(id, name, branches(id, name, timezone, created_at))")
       .eq("user_id", user.id)
       .order("created_at")
       .limit(1)
@@ -56,20 +57,18 @@ export const getAppContext = cache(async (): Promise<AppContext> => {
 
   if (!membership?.org) redirect("/onboarding");
 
-  const { data: branches } = await supabase
-    .from("branches")
-    .select("id, name, timezone")
-    .eq("org_id", membership.org.id)
-    .order("created_at");
+  const branches = [...(membership.org.branches ?? [])]
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .map(({ id, name, timezone }) => ({ id, name, timezone }));
 
-  if (!branches?.length) redirect("/onboarding");
+  if (!branches.length) redirect("/onboarding");
 
   const wanted = (await cookies()).get(ACTIVE_BRANCH_COOKIE)?.value;
   const branch = branches.find((b) => b.id === wanted) ?? branches[0];
 
   return {
     user: { ...user, fullName: profile?.full_name ?? "" },
-    org: membership.org,
+    org: { id: membership.org.id, name: membership.org.name },
     role: membership.role,
     branches,
     branch,

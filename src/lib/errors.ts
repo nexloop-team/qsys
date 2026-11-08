@@ -11,7 +11,7 @@ export function friendlyError(
     return "No internet connection. Check it and try again. Nothing was saved.";
   }
   if (/jwt expired|invalid jwt|refresh token|not authenticated/i.test(message)) {
-    return "You've been signed out. Reload the page and sign in again.";
+    return "You've been logged out. Reload the page and log in again.";
   }
   return message;
 }

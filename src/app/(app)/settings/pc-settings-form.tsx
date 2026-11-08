@@ -29,7 +29,7 @@ export function PcSettingsForm({
           title="Lock screen"
           description={`Shown on every locked PC at ${branchName}, under the station name. Leave empty for the default "Ask at the counter to start your session".`}
         >
-          <Field label="Message" hint="Up to 200 characters, e.g. rates or Wi-Fi details.">
+          <Field label="Message" hint="Up to 200 characters, such as your rates or Wi-Fi password.">
             <Input name="lock_message" defaultValue={lockMessage} maxLength={200} placeholder="Ask at the counter to start your session" />
           </Field>
         </SettingsSection>
@@ -49,9 +49,9 @@ export function PcSettingsForm({
 
         <SettingsSection
           title="Blocked apps"
-          description="Programs the PC app closes while a player is on the PC, e.g. Task Manager or cheat tools. Each one it closes shows up under Activity."
+          description="Programs the PC app closes while a player is on the PC, such as Task Manager or cheat tools. Each one it closes shows up under Activity."
         >
-          <Field label="Program names" hint="One per line, as shown in Task Manager › Details, e.g. taskmgr.exe. Up to 100.">
+          <Field label="Program names" hint="One per line, as shown in Task Manager › Details (for example taskmgr.exe). Up to 100.">
             <Textarea
               name="blocked_apps"
               defaultValue={blockedApps.join("\n")}

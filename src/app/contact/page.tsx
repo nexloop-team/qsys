@@ -23,9 +23,9 @@ export const metadata: Metadata = {
 };
 
 const QUICK = [
-  ["Will the PC app slow down games?", "No. No game hooks, no screen capture; key blocking only runs while the PC is locked."],
+  ["Will the PC app slow down games?", "No. It has no game hooks and no screen capture, and key blocking only runs while the PC is locked."],
   ["What if our internet goes down?", "Running sessions still end on time on the PCs, and staff can keep working from a phone on mobile data."],
-  ["Do I need to buy hardware?", "No. QueSys runs in the browser; the PC app installs on each Windows gaming PC."],
+  ["Do I need to buy hardware?", "No. QueSys runs in the browser, and the PC app installs on each Windows gaming PC."],
 ] as const;
 
 export default function ContactPage() {

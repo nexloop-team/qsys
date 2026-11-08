@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  CalendarClock,
   ChevronRight,
   Coffee,
   Contact,
@@ -15,6 +16,7 @@ import {
   ReceiptText,
   Settings,
   Tags,
+  Trophy,
   UserRound,
   Wallet,
   type LucideIcon,
@@ -32,6 +34,8 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/dashboard", label: "Floor", icon: LayoutGrid },
       { href: "/bills", label: "Bills", icon: ReceiptText },
       { href: "/players", label: "Players", icon: Contact },
+      { href: "/bookings", label: "Bookings", icon: CalendarClock },
+      { href: "/tournaments", label: "Tournaments", icon: Trophy },
     ],
   },
   {
@@ -46,13 +50,18 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { href: "/stations", label: "Stations", icon: Monitor },
       { href: "/pricing", label: "Pricing", icon: Tags },
-      { href: "/inventory", label: "Snacks & Drinks", icon: Coffee },
+      { href: "/inventory", label: "Snacks & drinks", icon: Coffee },
       { href: "/settings", label: "Settings", icon: Settings },
     ],
   },
 ];
 
-const MOBILE_PRIMARY = GROUPS[0].items;
+// Phone bottom bar: the three most used; everything else is under More.
+const MOBILE_PRIMARY = GROUPS[0].items.slice(0, 3);
+const MORE_GROUPS = [
+  { label: GROUPS[0].label, items: GROUPS[0].items.slice(3) },
+  ...GROUPS.slice(1),
+].filter((g) => g.items.length > 0);
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -178,7 +187,7 @@ function MoreMenu({ pathname, onSamePage }: { pathname: string; onSamePage: () =
         <ChevronRight className="size-4 text-faint" />
       </Link>
 
-      {GROUPS.slice(1).map((group) => (
+      {MORE_GROUPS.map((group) => (
         <div key={group.label}>
           <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{group.label}</p>
           <ul className="flex flex-col">

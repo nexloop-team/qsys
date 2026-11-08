@@ -18,7 +18,7 @@ const VENUE = "GAME ZONE";
 const STEPS = [
   { title: "Name your venue.", body: "Your floor appears, empty and ready." },
   { title: "Add your stations.", body: "PCs, consoles, pool and snooker tables, each with its own name." },
-  { title: "Set your prices.", body: "Per hour for each kind of station, with evening and weekend rates." },
+  { title: "Set your prices.", body: "Per hour or per frame for each kind of station, with evening and weekend rates." },
   { title: "You're live.", body: "Every station on one board, timed to the minute." },
 ];
 
@@ -219,46 +219,51 @@ export function BuildScene() {
   const [stage, setStage] = useState(-1);
   const [typedN, setTypedN] = useState(0);
 
+  // Phones: steps move on by themselves while the scene is on screen (a tap moves on too).
+  const [phone, setPhone] = useState(false);
+  const [inView, setInView] = useState(false);
+
   useEffect(() => {
     const el = wrap.current;
     if (!el) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
     const wide = window.matchMedia("(min-width: 768px)");
     let raf = 0;
+    const fill = (cur: number, within: number) =>
+      bars.current.forEach((b, i) => {
+        if (b) b.style.width = i < cur ? "100%" : i === cur ? `${Math.max(within, 0.08) * 100}%` : "0%";
+      });
     const update = () => {
       raf = 0;
+      setPhone(!wide.matches);
+      // Phones don't follow the scroll: scroll-linked steps skip on a fast flick and jump when the
+      // address bar resizes the screen.
+      if (!wide.matches) return;
       let p = 1;
       if (!reduce.matches) {
         const r = el.getBoundingClientRect();
-        const vh = window.innerHeight;
-        if (wide.matches) {
-          const run = r.height - vh;
-          p = run > 0 ? -r.top / run : 1;
-        } else {
-          const start = vh * 0.9;
-          const end = vh * 0.35 - r.height;
-          p = (start - r.top) / (start - end);
-        }
+        const run = r.height - window.innerHeight;
+        p = run > 0 ? -r.top / run : 1;
       }
       p = Math.max(-0.5, Math.min(1, p));
       const s = p < -0.3 ? -1 : Math.max(0, Math.min(STEPS.length - 1, Math.floor(p * STEPS.length)));
       setStage(s);
       // The progress bars fill with the scroll itself (no re-render needed).
       const cur = Math.max(s, 0);
-      const within = Math.min(1, Math.max(0, p * STEPS.length - cur));
-      bars.current.forEach((b, i) => {
-        if (b) b.style.width = i < cur ? "100%" : i === cur ? `${Math.max(within, 0.08) * 100}%` : "0%";
-      });
+      fill(cur, Math.min(1, Math.max(0, p * STEPS.length - cur)));
     };
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(update);
     };
+    const io = new IntersectionObserver(([e]) => setInView(e.intersectionRatio >= 0.4), { threshold: [0, 0.4] });
+    io.observe(el);
     schedule();
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     reduce.addEventListener("change", schedule);
     wide.addEventListener("change", schedule);
     return () => {
+      io.disconnect();
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
       reduce.removeEventListener("change", schedule);
@@ -266,6 +271,31 @@ export function BuildScene() {
       cancelAnimationFrame(raf);
     };
   }, []);
+
+  // Phones: on screen, show the first step and move on every few seconds, pausing on "You're live".
+  useEffect(() => {
+    if (!phone || !inView) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const id = window.setTimeout(() => setStage(STEPS.length - 1), 0);
+      return () => window.clearTimeout(id);
+    }
+    const tick = () => setStage((s) => (s < 0 ? 0 : s >= STEPS.length - 1 ? 0 : s + 1));
+    const first = window.setTimeout(() => setStage((s) => (s < 0 ? 0 : s)), 0);
+    const id = window.setInterval(tick, 2600);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(id);
+    };
+  }, [phone, inView]);
+
+  // Phones: the bars show which step is up (they don't fill with the scroll there).
+  useEffect(() => {
+    if (!phone) return;
+    const cur = Math.max(stage, 0);
+    bars.current.forEach((b, i) => {
+      if (b) b.style.width = i <= cur ? "100%" : "0%";
+    });
+  }, [phone, stage]);
 
   // The venue name types itself onto the sign once the room is in.
   const entered = stage >= 0;
@@ -314,7 +344,10 @@ export function BuildScene() {
       <div className="md:sticky md:top-0 md:flex md:h-svh md:items-center">
         <div className="mx-auto grid w-full max-w-[1240px] gap-3 px-4 sm:px-8 md:grid-cols-2 md:gap-0">
           {/* The story panel (right on wide screens) */}
-          <div className="relative flex min-h-[240px] flex-col items-center justify-between overflow-hidden rounded-2xl bg-[#0b0c0e] p-6 text-center text-white ring-1 ring-white/10 ring-inset md:h-[min(76svh,640px)] md:rounded-l-none md:p-10">
+          <div
+            onClick={() => phone && setStage((st) => (st >= STEPS.length - 1 ? 0 : st + 1))}
+            className="relative flex min-h-[240px] flex-col items-center justify-between overflow-hidden rounded-2xl bg-[#0b0c0e] p-6 text-center text-white ring-1 ring-white/10 ring-inset max-md:cursor-pointer md:h-[min(76svh,640px)] md:rounded-l-none md:p-10"
+          >
             <Corners />
             <p className="font-plexmono text-[13px] tracking-wide text-white/60">05 · Set up in about two minutes</p>
             <div className="relative my-6 grid w-full place-items-center">
@@ -343,9 +376,14 @@ export function BuildScene() {
               {STEPS.map((s, i) => (
                 <span
                   key={s.title}
+                  onClick={(e) => {
+                    if (!phone) return;
+                    e.stopPropagation();
+                    setStage(i);
+                  }}
                   className={cx(
-                    "relative h-1 overflow-hidden rounded-full bg-white/35 transition-all duration-300",
-                    i === step ? "w-12" : "w-1",
+                    "relative h-1 overflow-hidden rounded-full bg-white/35 transition-all duration-300 max-md:h-1.5",
+                    i === step ? "w-12" : "w-1 max-md:w-3",
                   )}
                 >
                   <span

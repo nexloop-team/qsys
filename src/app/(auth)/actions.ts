@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { firstIssue, type ActionState } from "@/lib/action-state";
 import { safeRedirectPath } from "@/lib/safe-path";
+import { siteUrl } from "@/lib/site-url";
 
 const loginSchema = z.object({
   email: z.email("Enter a valid email."),
@@ -38,13 +39,13 @@ export async function signup(_prev: ActionState, formData: FormData): Promise<Ac
   if (!parsed.success) return { error: firstIssue(parsed.error) };
 
   const supabase = await createClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const site = await siteUrl();
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
       data: { full_name: parsed.data.fullName },
-      emailRedirectTo: `${siteUrl}/auth/confirm?next=/onboarding`,
+      emailRedirectTo: `${site}/auth/confirm?next=/onboarding`,
     },
   });
   if (error) return { error: error.message };
@@ -59,9 +60,9 @@ export async function requestPasswordReset(_prev: ActionState, formData: FormDat
   if (!parsed.success) return { error: firstIssue(parsed.error) };
 
   const supabase = await createClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const site = await siteUrl();
   await supabase.auth.resetPasswordForEmail(parsed.data, {
-    redirectTo: `${siteUrl}/auth/confirm?next=/settings/account?reset=1`,
+    redirectTo: `${site}/auth/confirm?next=/settings/account?reset=1`,
   });
   // Same answer whether or not the account exists, so emails can't be probed.
   return { ok: "If that email has an account, a reset link is on its way." };

@@ -57,6 +57,16 @@ const FIELD_LABEL: Record<string, string> = {
   default_mode_by_type: "default timer mode",
   opening_time: "opening time",
   closing_time: "closing time",
+  player_choices: "player choices",
+  per_frame: "price per frame",
+  credit_limit: "pay-later limit",
+  qr_enabled: "player QR page",
+  qr_orders: "snack orders from the QR page",
+  booking_enabled: "online bookings",
+  booking_slug: "booking page address",
+  booking_days: "days bookable ahead",
+  booking_note: "booking page note",
+  public_code: "QR code",
 };
 
 type Details = Record<string, Json>;
@@ -75,7 +85,7 @@ function describe(entity: string, action: string, details: Details) {
     .map((k) => {
       const c = details[k] as { from?: Json; to?: Json };
       const show = (x: Json | undefined) =>
-        x === null || x === undefined ? "—" : typeof x === "boolean" ? (x ? "on" : "off") : typeof x === "object" ? "…" : String(x);
+        x === null || x === undefined ? "empty" : typeof x === "boolean" ? (x ? "on" : "off") : typeof x === "object" ? "…" : String(x);
       const label = FIELD_LABEL[k] ?? k.replaceAll("_", " ");
       // Long or structured values (lists, messages): just say it changed.
       return typeof c?.to === "object" || String(c?.to ?? "").length > 24

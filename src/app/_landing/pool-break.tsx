@@ -126,39 +126,64 @@ export function PoolBreak() {
       }
     };
 
+    // Wide screens: the break follows the scroll while the table is pinned.
+    // Phones: scroll-linked motion skips and jitters (fast flicks, the address bar resizing the
+    // screen), so the break plays by itself once the table is well on screen, and again the next
+    // time it comes back into view.
+    let play = 0;
+    let played = false;
+    const playBreak = () => {
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const p = Math.min(1, (now - t0) / 3400);
+        draw(p);
+        play = p < 1 ? requestAnimationFrame(step) : 0;
+      };
+      cancelAnimationFrame(play);
+      play = requestAnimationFrame(step);
+    };
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (wide.matches || reduce.matches) return;
+        if (e.intersectionRatio >= 0.55 && !played) {
+          played = true;
+          playBreak();
+        } else if (!e.isIntersecting && played) {
+          played = false;
+          cancelAnimationFrame(play);
+          draw(0);
+        }
+      },
+      { threshold: [0, 0.55] },
+    );
+    io.observe(el);
+
     const update = () => {
       raf = 0;
       if (reduce.matches) return draw(1);
+      if (!wide.matches) return;
       const r = el.getBoundingClientRect();
-      const vh = window.innerHeight;
-      let p: number;
-      if (wide.matches) {
-        // Pinned: progress through the tall wrapper.
-        const run = r.height - vh;
-        p = run > 0 ? -r.top / run : 1;
-      } else {
-        // In the flow: starts when the table comes up from the bottom, done before it leaves the top.
-        const start = vh * 0.85;
-        const end = vh * 0.3 - r.height;
-        p = (start - r.top) / (start - end);
-      }
-      draw(clamp01(p));
+      const run = r.height - window.innerHeight;
+      draw(clamp01(run > 0 ? -r.top / run : 1));
     };
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(update);
     };
 
+    if (!wide.matches && !reduce.matches) draw(0);
     schedule();
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     reduce.addEventListener("change", schedule);
     wide.addEventListener("change", schedule);
     return () => {
+      io.disconnect();
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
       reduce.removeEventListener("change", schedule);
       wide.removeEventListener("change", schedule);
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(play);
     };
   }, []);
 
@@ -174,8 +199,7 @@ export function PoolBreak() {
             <p className={EYEBROW}>03 · Tables too</p>
             <h2 className={H2}>The clock starts with the break.</h2>
             <p className={`${LEAD} mt-3 sm:mt-4`}>
-              Open time or fixed time on every table. Scroll and watch Pool 1: the minute the frame starts, it&apos;s on the
-              bill.
+              Open time, fixed time or by the frame on every table. Watch Pool 1: the minute the frame starts, it&apos;s on the bill.
             </p>
           </div>
 

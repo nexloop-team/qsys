@@ -4,12 +4,22 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ArrowRightLeft, Coffee, Pause, Play, Plus, Square, Users } from "lucide-react";
 import type { Database } from "@/lib/database.types";
-import { SESSION_MODE_HINT, SESSION_MODE_LABEL, STATION_TYPE_LABEL, type SessionMode } from "@/lib/constants";
+import {
+  FRAME_TYPES,
+  MULTIPLAYER_TYPES,
+  SESSION_MODE_HINT,
+  SESSION_MODE_LABEL,
+  STATION_TYPE_LABEL,
+  playersWord,
+  type SessionMode,
+  type StationType,
+} from "@/lib/constants";
 import { formatINR, formatMinutes, formatTime } from "@/lib/format";
+import { planChoices, playerExtra, priceFor } from "@/lib/pricing";
 import { computeBill } from "@/lib/bill";
 import { Sheet, StickyActions } from "@/components/overlay";
 import { Badge } from "@/components/card";
-import { Button, ErrorText, Field, Input, Segmented, Select, cx } from "@/components/ui";
+import { Button, ErrorText, Field, Input, Segmented, Select, Toggle, cx } from "@/components/ui";
 import { PaymentFields, type PaymentRow } from "./payment-fields";
 import { PlayerField, type PlayerValue } from "./player-field";
 import { SessionSnacksForm } from "./session-snacks";
@@ -21,8 +31,18 @@ import { friendlyError } from "@/lib/errors";
 
 type Supa = SupabaseClient<Database>;
 
-const MULTIPLAYER = new Set(["ps5", "xbox", "pool", "snooker", "other"]);
-const CONSOLES = new Set(["ps5", "xbox"]);
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// "₹200/hr" or, with choices, "₹200–₹300/hr by players"; plus the frame price when there is one.
+function planSummary(plan: FloorPlan, type: StationType) {
+  const choices = MULTIPLAYER_TYPES.has(type) ? planChoices(plan) : [];
+  const hourly =
+    choices.length > 1
+      ? `${formatINR(choices[0].per_hour)}–${formatINR(choices[choices.length - 1].per_hour)}/hr by ${playersWord(type)}`
+      : `${formatINR(plan.per_hour)}/hr`;
+  const frame = plan.per_frame != null && FRAME_TYPES.has(type) ? ` · ${formatINR(plan.per_frame)}/frame` : "";
+  return `${hourly}${frame}${plan.rate_rules.length ? " · time-based rates apply" : ""}`;
+}
 
 export function StationSheet({
   open,
@@ -90,9 +110,7 @@ export function StationSheet({
           {station.tier !== "standard" && <Badge>{station.tier}</Badge>}
         </span>
       }
-      description={
-        plan ? `${formatINR(plan.per_hour)}/hr${plan.rate_rules.length ? " · time-based rates apply" : ""}` : "No price set"
-      }
+      description={plan ? planSummary(plan, station.type) : "No price set"}
     >
       <>
         {station.status !== "active" && !session ? (
@@ -175,11 +193,16 @@ function StartForm({
   onStarted: () => Promise<void>;
   extra?: React.ReactNode;
 }) {
-  const allowed = data.settings.allowed[station.type] ?? ["open", "prepaid"];
+  // Frames only where the venue allows it and this rate has a frame price.
+  const allowed = (data.settings.allowed[station.type] ?? ["open", "prepaid"]).filter(
+    (m) => m !== "frames" || (FRAME_TYPES.has(station.type) && plan.per_frame != null),
+  );
+  if (allowed.length === 0) allowed.push("open");
   const [mode, setMode] = useState<SessionMode>(
     allowed.includes(data.settings.defaults[station.type]) ? data.settings.defaults[station.type] : allowed[0],
   );
-  const [players, setPlayers] = useState(1);
+  const choices = MULTIPLAYER_TYPES.has(station.type) ? planChoices(plan) : [];
+  const [players, setPlayers] = useState(choices[0]?.players ?? 1);
   const [player, setPlayer] = useState<PlayerValue>({ phone: "", name: "", isNew: false, ready: false });
   const [choice, setChoice] = useState<string>(packages[0]?.id ?? "custom");
   const [customMinutes, setCustomMinutes] = useState("60");
@@ -190,7 +213,9 @@ function StartForm({
 
   const pkg = packages.find((p) => p.id === choice);
   const minutes = pkg ? pkg.minutes : Math.max(0, Math.floor(Number(customMinutes) || 0));
-  const price = pkg ? Number(pkg.price) : Math.round((Number(plan.per_hour) * minutes) / 60);
+  const basePrice = pkg ? Number(pkg.price) : Math.round((Number(plan.per_hour) * minutes) / 60);
+  // Plus what the player choice adds for that time (the database charges the same).
+  const price = Math.max(Math.round(basePrice + (playerExtra(plan, players, "hour") * minutes) / 60), 0);
   const bill = computeBill([{ amount: price, gstRate: gstRateFor(plan, data) }], 0, {
     gstEnabled: data.settings.gstEnabled,
     pricesIncludeTax: data.settings.pricesIncludeTax,
@@ -278,26 +303,14 @@ function StartForm({
         </div>
       )}
 
-      {MULTIPLAYER.has(station.type) && Number(plan.extra_player_per_hour) > 0 && (
-        <div>
-          <Field
-            label={CONSOLES.has(station.type) ? "Controllers" : "Players"}
-            hint={`${plan.included_players} included, +${formatINR(plan.extra_player_per_hour)}/hr each extra`}
-          >
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setPlayers(Math.max(1, players - 1))} aria-label="Fewer players">
-                −
-              </Button>
-              <span className="num inline-flex w-10 items-center justify-center gap-1 text-sm">
-                <Users className="size-3.5 text-muted" />
-                {players}
-              </span>
-              <Button variant="secondary" size="sm" onClick={() => setPlayers(Math.min(16, players + 1))} aria-label="More players">
-                +
-              </Button>
-            </div>
-          </Field>
-        </div>
+      {MULTIPLAYER_TYPES.has(station.type) && (
+        <PlayersPicker plan={plan} type={station.type} mode={mode} value={players} onChange={setPlayers} />
+      )}
+
+      {mode === "frames" && (
+        <p className="-mt-2 text-[13px] text-muted">
+          {formatINR(priceFor(plan, players, "frame"))} per frame. The first frame starts now.
+        </p>
       )}
 
       {mode === "prepaid" && minutes > 0 && (
@@ -306,16 +319,13 @@ function StartForm({
             <span className="text-sm text-muted">Bill for {formatMinutes(minutes)}</span>
             <span className="num text-2xl font-semibold">{formatINR(bill.total)}</span>
           </div>
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={collectNow}
-              onChange={(e) => setCollectNow(e.target.checked)}
-              className="size-4"
-            />
-            Collect payment now
-            <span className="text-muted">(otherwise at the end)</span>
-          </label>
+          <Toggle
+            name="collect_now"
+            checked={collectNow}
+            onChange={setCollectNow}
+            label="Collect payment now"
+            description="Otherwise they pay at the end."
+          />
           {collectNow && (
             <PaymentFields total={bill.total} onChange={setPayments} />
           )}
@@ -339,7 +349,9 @@ function StartForm({
               ? `Collect ${formatINR(bill.total)} & start`
               : mode === "prepaid"
                 ? `Start ${formatMinutes(minutes)}`
-                : `Start ${station.name}`}
+                : mode === "frames"
+                  ? "Start frame 1"
+                  : `Start ${station.name}`}
         </Button>
         {!player.ready && (
           <p className="mt-2 text-center text-xs text-muted">Pick a player, or add a new one with their mobile number.</p>
@@ -427,7 +439,7 @@ function LiveView({
       <div className={cx("flex flex-col gap-3 rounded-xl border p-4", CLOCK_BOX[info.state])}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <span className={cx("num text-[40px] font-semibold leading-none tracking-tight", CLOCK_TEXT[info.state])}>
-            {info.clock ?? "—"}
+            {info.clock ?? "0:00"}
           </span>
           <span className={cx("text-[13px] font-medium", CLOCK_TEXT[info.state])}>
             {info.clockLabel}
@@ -448,6 +460,8 @@ function LiveView({
           <Cell label="Started" value={formatTime(session.started_at, tz)} />
           {session.mode === "prepaid" ? (
             <Cell label="Booked" value={formatMinutes(session.prepaid_minutes)} />
+          ) : session.mode === "frames" ? (
+            <Cell label="Frames" value={String(session.frames)} />
           ) : (
             // Elapsed is the big clock; this is what the rounding rules bill for.
             <Cell label="Billed as" value={formatMinutes(info.charge?.billableMinutes ?? 0)} />
@@ -456,12 +470,45 @@ function LiveView({
         </div>
       </div>
 
+      {session.mode === "frames" && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-line p-3">
+          <div className="min-w-0">
+            <p className="text-xs text-muted">Frames</p>
+            <p className="num text-2xl font-semibold leading-tight">
+              {session.frames}
+              <span className="ml-1.5 text-sm font-normal text-muted">
+                × {formatINR(priceFor(plan, session.players, "frame"))}
+              </span>
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="secondary"
+              size="lg"
+              aria-label="Remove a frame"
+              disabled={pending || session.frames <= 0}
+              onClick={() => run(() => supabase.rpc("change_session_frames", { p_session_id: session.id, p_delta: -1 }))}
+            >
+              −
+            </Button>
+            <Button
+              size="lg"
+              disabled={pending}
+              onClick={() => run(() => supabase.rpc("change_session_frames", { p_session_id: session.id, p_delta: 1 }))}
+            >
+              <Plus /> Frame
+            </Button>
+          </div>
+        </div>
+      )}
+
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
         <dt className="text-muted">Mode</dt>
         <dd>
           {SESSION_MODE_LABEL[session.mode]}
           {session.mode === "prepaid" &&
             ` · ${formatMinutes(session.prepaid_minutes)} booked (${formatINR(session.prepaid_amount)})`}
+          {session.mode === "frames" && ` · ${formatINR(priceFor(plan, session.players, "frame"))} per frame`}
         </dd>
         {session.customer_name && (
           <>
@@ -472,47 +519,11 @@ function LiveView({
             </dd>
           </>
         )}
-        {MULTIPLAYER.has(station.type) ? (
+        {!MULTIPLAYER_TYPES.has(station.type) && session.players > 1 && (
           <>
-            <dt className="self-center text-muted">{CONSOLES.has(station.type) ? "Controllers" : "Players"}</dt>
-            <dd className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={pending || session.players <= 1}
-                aria-label="Fewer players"
-                onClick={() => run(() => supabase.rpc("set_session_players", { p_session_id: session.id, p_players: session.players - 1 }))}
-              >
-                −
-              </Button>
-              <span className="num inline-flex w-8 items-center justify-center gap-1">
-                <Users className="size-3.5 text-muted" />
-                {session.players}
-              </span>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={pending || session.players >= 16}
-                aria-label="More players"
-                onClick={() => run(() => supabase.rpc("set_session_players", { p_session_id: session.id, p_players: session.players + 1 }))}
-              >
-                +
-              </Button>
-              {Number(plan.extra_player_per_hour) > 0 && (
-                <span className="basis-full text-xs text-muted">
-                  {plan.included_players} included, +{formatINR(plan.extra_player_per_hour)}/hr each extra, charged for the
-                  whole session.
-                </span>
-              )}
-            </dd>
+            <dt className="text-muted">Players</dt>
+            <dd>{session.players}</dd>
           </>
-        ) : (
-          session.players > 1 && (
-            <>
-              <dt className="text-muted">Players</dt>
-              <dd>{session.players}</dd>
-            </>
-          )
         )}
         {session.status === "paused" && (
           <>
@@ -521,6 +532,18 @@ function LiveView({
           </>
         )}
       </dl>
+
+      {MULTIPLAYER_TYPES.has(station.type) && (
+        <PlayersPicker
+          plan={plan}
+          type={station.type}
+          mode={session.mode}
+          value={session.players}
+          disabled={pending}
+          live
+          onChange={(n) => run(() => supabase.rpc("set_session_players", { p_session_id: session.id, p_players: n }))}
+        />
+      )}
 
       <ErrorText>{error}</ErrorText>
 
@@ -622,6 +645,100 @@ function LiveView({
   );
 }
 
+// Players / controllers. With choices on the rate: one button per choice, with its price.
+// Without: a count (same price for any number, or the older "extra per player" rate).
+function PlayersPicker({
+  plan,
+  type,
+  mode,
+  value,
+  onChange,
+  disabled,
+  live = false,
+}: {
+  plan: FloorPlan;
+  type: StationType;
+  mode: SessionMode;
+  value: number;
+  onChange: (players: number) => void;
+  disabled?: boolean;
+  live?: boolean;
+}) {
+  const choices = planChoices(plan);
+  const label = capitalize(playersWord(type));
+
+  if (choices.length > 0) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[13px] font-medium">{label}</span>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {choices.map((c) => (
+            <button
+              key={c.players}
+              type="button"
+              disabled={disabled}
+              aria-pressed={value === c.players}
+              onClick={() => value !== c.players && onChange(c.players)}
+              className={cx(
+                "rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-60 pointer-coarse:py-2.5",
+                value === c.players ? "border-accent bg-accent-soft" : "border-line-strong hover:bg-hover",
+              )}
+            >
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                <Users className="size-3.5 text-muted" />
+                {c.players} {playersWord(type, c.players)}
+              </span>
+              <span className="num text-[13px] text-muted">
+                {mode === "frames"
+                  ? `${formatINR(priceFor(plan, c.players, "frame"))}/frame`
+                  : `${formatINR(c.per_hour)}/hr`}
+              </span>
+            </button>
+          ))}
+        </div>
+        {live && mode !== "frames" && <span className="text-xs text-muted">A change re-prices the whole session.</span>}
+      </div>
+    );
+  }
+
+  const legacy = Number(plan.extra_player_per_hour) > 0;
+  return (
+    <Field
+      label={label}
+      hint={
+        legacy
+          ? `${plan.included_players} included, +${formatINR(plan.extra_player_per_hour)}/hr each extra${live ? ", charged for the whole session" : ""}`
+          : "Same price for any number."
+      }
+    >
+      <div className="flex items-center gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={disabled || value <= 1}
+          onClick={() => onChange(Math.max(1, value - 1))}
+          aria-label={`Fewer ${playersWord(type)}`}
+        >
+          −
+        </Button>
+        <span className="num inline-flex w-10 items-center justify-center gap-1 text-sm">
+          <Users className="size-3.5 text-muted" />
+          {value}
+        </span>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={disabled || value >= 16}
+          onClick={() => onChange(Math.min(16, value + 1))}
+          aria-label={`More ${playersWord(type)}`}
+        >
+          +
+        </Button>
+      </div>
+    </Field>
+  );
+}
+
 function Cell({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -680,7 +797,8 @@ function ExtendForm({
 
   const pkg = packages.find((p) => p.id === choice);
   const minutes = pkg ? pkg.minutes : Math.max(0, Math.floor(Number(customMinutes) || 0));
-  const price = pkg ? Number(pkg.price) : Math.round((Number(plan.per_hour) * minutes) / 60);
+  const basePrice = pkg ? Number(pkg.price) : Math.round((Number(plan.per_hour) * minutes) / 60);
+  const price = Math.max(Math.round(basePrice + (playerExtra(plan, session.players, "hour") * minutes) / 60), 0);
   const bill = computeBill([{ amount: price, gstRate: gstRateFor(plan, data) }], 0, {
     gstEnabled: data.settings.gstEnabled,
     pricesIncludeTax: data.settings.pricesIncludeTax,
@@ -707,15 +825,13 @@ function ExtendForm({
         <span className="text-sm text-muted">Adds to the bill</span>
         <span className="num text-lg font-semibold">{formatINR(bill.total)}</span>
       </div>
-      <label className="flex cursor-pointer items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={collectNow}
-          onChange={(e) => setCollectNow(e.target.checked)}
-          className="size-4"
-        />
-        Collect payment now
-      </label>
+      <Toggle
+        name="collect_now"
+        checked={collectNow}
+        onChange={setCollectNow}
+        label="Collect payment now"
+        description="Otherwise it's added to the bill at the end."
+      />
       {collectNow && (
         <PaymentFields total={bill.total} onChange={setPayments} />
       )}

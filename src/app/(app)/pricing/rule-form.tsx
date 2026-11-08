@@ -35,7 +35,7 @@ export function RuleDialogButton({ ratePlanId, rule }: { ratePlanId: string; rul
         open={open}
         onOpenChange={setOpen}
         title={rule ? `Edit ${rule.name}` : "Add a time-based rate"}
-        description="E.g. a cheaper afternoon happy hour, or a higher weekend rate."
+        description="Such as a cheaper afternoon happy hour, or a higher weekend rate."
       >
         {open && <RuleForm ratePlanId={ratePlanId} rule={rule} onSaved={() => setOpen(false)} />}
       </Modal>
@@ -61,10 +61,14 @@ function RuleForm({ ratePlanId, rule, onSaved }: { ratePlanId: string; rule?: Ru
         <Field label="From">
           <Input name="start_time" type="time" defaultValue={rule ? toTimeInput(rule.start_time) : "12:00"} required />
         </Field>
-        <Field label="To" hint="Earlier than From runs past midnight.">
+        <Field label="To" hint="An end earlier than the start runs past midnight.">
           <Input name="end_time" type="time" defaultValue={rule ? toTimeInput(rule.end_time) : "16:00"} required />
         </Field>
-        <Field label="Price per hour (₹)" className="col-span-2">
+        <Field
+          label="Price per hour (₹)"
+          className="col-span-2"
+          hint="With player choices: the price for the smallest choice. Bigger choices keep their gap above it. Frames aren't affected."
+        >
           <Input name="per_hour" type="number" min={0} step="0.01" defaultValue={rule?.per_hour} required />
         </Field>
       </div>
