@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
@@ -67,6 +67,22 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+// Shows the tap landed while the next page is still on its way (only when it wasn't prefetched
+// yet). Always rendered and only fades, so nothing shifts.
+function PendingMark({ className }: { className: string }) {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      aria-hidden
+      className={cx(
+        "pointer-events-none absolute rounded-full bg-accent transition-opacity duration-150",
+        pending ? "animate-pulse opacity-100" : "opacity-0",
+        className,
+      )}
+    />
+  );
+}
+
 export function SidebarNav() {
   return <SidebarList pathname={usePathname()} />;
 }
@@ -91,7 +107,7 @@ function SidebarList({ pathname }: { pathname: string }) {
                     href={href}
                     aria-current={active ? "page" : undefined}
                     className={cx(
-                      "group flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors",
+                      "group relative flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors",
                       active
                         ? "bg-accent-soft text-fg"
                         : "text-muted hover:bg-hover hover:text-fg",
@@ -102,6 +118,7 @@ function SidebarList({ pathname }: { pathname: string }) {
                       strokeWidth={1.9}
                     />
                     {label}
+                    <PendingMark className="top-1/2 right-2.5 size-1.5 -translate-y-1/2" />
                   </Link>
                 </li>
               );
@@ -137,10 +154,11 @@ function MobileList({ pathname }: { pathname: string }) {
               href={href}
               aria-current={isActive(pathname, href) ? "page" : undefined}
               className={cx(
-                "flex min-h-14 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium",
+                "relative flex min-h-14 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium active:bg-hover",
                 isActive(pathname, href) ? "text-accent-ink" : "text-muted",
               )}
             >
+              <PendingMark className="inset-x-1/4 top-0 h-0.5" />
               <Icon className="size-5" strokeWidth={1.9} />
               {label}
             </Link>
@@ -203,6 +221,9 @@ function MoreMenu({ pathname, onSamePage }: { pathname: string; onSamePage: () =
                   >
                     <Icon className={cx("size-5", active ? "text-fg" : "text-muted")} strokeWidth={1.9} />
                     <span className="flex-1">{label}</span>
+                    <span className="relative">
+                      <PendingMark className="top-1/2 -left-4 size-1.5 -translate-y-1/2" />
+                    </span>
                     <ChevronRight className="size-4 text-faint" />
                   </Link>
                 </li>
