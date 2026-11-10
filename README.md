@@ -103,6 +103,11 @@ Each file in `supabase/migrations` runs once, in order. After pulling new code, 
 - `20261128000002_pc_security.sql`: the PC app's **staff PIN is checked on the server** (bcrypt, set once at
   pairing, lockout logged in Activity), and wrong player and staff PINs lock for longer each time
   (15 min, 1 h, 4 h, then 24 h).
+- `20261129000001_spend_bonus.sql`: **bonus on spending** (Settings › Billing): a % of every cash/UPI bill of a
+  known player goes back into their wallet; cancelling the bill takes it back.
+- `20261129000002_pc_launcher_health.sql`: the PC app's **games menu** (games list, wallet balance, snack
+  orders, more time, Call staff), **restrictions** (Task Manager, Control Panel, command line, USB drives) and
+  **health readings** (CPU, RAM, GPU, disk) on the floor.
 
 Station QR codes, the booking link and sign-up / reset emails use the address the app is opened at, so print
 QR codes (Stations › QR codes) from your real web address. A non-localhost `NEXT_PUBLIC_SITE_URL` overrides this.

@@ -41,6 +41,24 @@
         "maximizable": false,
         "focus": false,
         "visible": false
+      },
+      {
+        "label": "menu",
+        "title": "QueSys",
+        "url": "index.html",
+        "width": 820,
+        "height": 600,
+        "minWidth": 560,
+        "minHeight": 440,
+        "center": true,
+        "decorations": true,
+        "resizable": true,
+        "skipTaskbar": false,
+        "alwaysOnTop": false,
+        "focus": false,
+        "visible": false,
+        "minimizable": true,
+        "maximizable": true
       }
     ],
     "security": {
@@ -49,7 +67,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "nsis"],
+    "targets": [
+      "msi",
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -57,9 +78,11 @@
       "icons/icon.ico"
     ],
     "shortDescription": "QueSys PC app",
-    "longDescription": "Locks this PC until a session is started from the QueSys floor, shows the player's time, and closes blocked apps.",
+    "longDescription": "Locks this PC until a session is started from the QueSys floor, shows the player's time, a games and snacks menu, and closes blocked apps.",
     "windows": {
-      "webviewInstallMode": { "type": "downloadBootstrapper" }
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
     }
   }
 }

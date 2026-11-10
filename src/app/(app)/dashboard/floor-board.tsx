@@ -18,10 +18,11 @@ import {
   Play,
   Plus,
   ShoppingBag,
+  TriangleAlert,
   WifiOff,
   X,
 } from "lucide-react";
-import { isOnline } from "@/lib/devices";
+import { healthWarnings, isOnline, readHealth } from "@/lib/devices";
 import { estimateCharge, prepaidRemainingSeconds, type Charge } from "@/lib/pricing";
 import { STATION_TYPE_LABEL, STATION_TYPES, type StationType } from "@/lib/constants";
 import { formatClock, formatINR, formatTime } from "@/lib/format";
@@ -572,6 +573,14 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
                     {deviceByStation.has(station.id) && !isOnline(deviceByStation.get(station.id), now) && (
                       <MonitorOff className="size-3.5 shrink-0 text-faint" aria-label="PC app offline" />
                     )}
+                    {(() => {
+                      const warnings = healthWarnings(readHealth(deviceByStation.get(station.id), now));
+                      return warnings.length > 0 ? (
+                        <span title={warnings.join(" · ")} className="inline-flex shrink-0">
+                          <TriangleAlert className="size-3.5 text-ending" aria-label={warnings.join(", ")} />
+                        </span>
+                      ) : null;
+                    })()}
                     {station.tier !== "standard" && (
                       <span className="ml-auto shrink-0 rounded-md bg-subtle px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted">
                         {station.tier}

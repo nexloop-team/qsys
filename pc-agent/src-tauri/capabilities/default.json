@@ -1,8 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The lock screen, the extra-monitor covers and the timer widget.",
-  "windows": ["lock", "widget", "cover-*"],
+  "description": "The lock screen, the extra-monitor covers, the timer widget and the games menu.",
+  "windows": [
+    "lock",
+    "widget",
+    "menu",
+    "cover-*"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging"

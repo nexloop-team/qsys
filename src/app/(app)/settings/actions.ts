@@ -209,6 +209,24 @@ export async function saveWalletOffers(_prev: ActionState, formData: FormData): 
   return { ok: "Offers saved." };
 }
 
+// Bonus on spending: % of each cash/UPI bill back into the player's wallet.
+export async function saveSpendBonus(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { org } = await requireRole(["owner"]);
+  const parsed = z.coerce
+    .number({ message: "Enter a percentage." })
+    .min(0, "The bonus can't be negative.")
+    .max(20, "Keep the bonus at 20% or less.")
+    .transform((v) => Math.round(v * 10) / 10)
+    .safeParse(String(formData.get("spend_bonus_pct") ?? "").trim() || "0");
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("orgs").update({ spend_bonus_pct: parsed.data }).eq("id", org.id);
+  if (error) return { error: friendlyDbError(error) };
+  refresh();
+  return { ok: parsed.data > 0 ? `Saved. Players now get ${parsed.data}% back on every bill.` : "Bonus on spending is off." };
+}
+
 // PC app: apps it closes while a player is on the PC, and the text on the lock screen.
 const pcSchema = z.object({
   blocked_apps: z
@@ -232,13 +250,49 @@ const pcSchema = z.object({
   pc_player_login: z.string().optional().transform((v) => v === "on"),
 });
 
+// Same rules as the PC app (src-tauri/src/system.rs check_target): a program or shortcut on a
+// drive, or a known game launcher link. Nothing else is started.
+const GAME_LINK_SCHEMES = [
+  "steam", "com.epicgames.launcher", "uplay", "ubisoft", "origin", "origin2", "link2ea", "battlenet",
+  "riotclient", "roblox", "roblox-player", "minecraft",
+];
+function gameTargetError(target: string): string | null {
+  if (target.length > 300 || /["\u0000-\u001f]/.test(target)) return "is too long or has odd characters.";
+  const link = /^([a-z0-9.+-]+):\/\/(.+)$/i.exec(target);
+  if (link) return GAME_LINK_SCHEMES.includes(link[1].toLowerCase()) ? null : "isn't a game launcher link (steam://…, com.epicgames.launcher://…).";
+  if (!/^[a-z]:\\/i.test(target) || target.includes("..")) return "must be a full path such as C:\\Games\\game.exe, or a launcher link.";
+  return /\.(exe|lnk|url)$/i.test(target) ? null : "must end in .exe, .lnk or .url.";
+}
+
+const RESTRICTIONS = ["task_manager", "control_panel", "command_line", "usb_drives"] as const;
+
 export async function savePcSettings(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { branch } = await requireRole(["owner"]);
   const parsed = pcSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
 
+  // Games menu: name + target rows (ids kept, so a PC never starts the wrong game after an edit).
+  const ids = formData.getAll("game_id").map(String);
+  const names = formData.getAll("game_name").map((v) => String(v).trim());
+  const targets = formData.getAll("game_target").map((v) => String(v).trim());
+  const games: { id: string; name: string; target: string }[] = [];
+  for (let i = 0; i < names.length; i++) {
+    if (!names[i] && !targets[i]) continue;
+    if (!names[i] || names[i].length > 40) return { error: `Game ${i + 1}: give it a name of up to 40 characters.` };
+    if (!targets[i]) return { error: `${names[i]}: add the program or launcher link.` };
+    const problem = gameTargetError(targets[i]);
+    if (problem) return { error: `${names[i]}: the link ${problem}` };
+    const id = /^[a-z0-9]{6,16}$/.test(ids[i] ?? "") ? ids[i] : crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+    games.push({ id, name: names[i], target: targets[i] });
+  }
+  if (games.length > 40) return { error: "Keep the games list to 40 or fewer." };
+  const restrictions = RESTRICTIONS.filter((r) => formData.get(`restrict_${r}`) === "on");
+
   const supabase = await createClient();
-  const { error } = await supabase.from("branch_settings").update(parsed.data).eq("branch_id", branch.id);
+  const { error } = await supabase
+    .from("branch_settings")
+    .update({ ...parsed.data, pc_games: games, pc_restrictions: restrictions })
+    .eq("branch_id", branch.id);
   if (error) return { error: friendlyDbError(error) };
   refresh();
   return { ok: "Saved. PCs pick it up within a few seconds." };

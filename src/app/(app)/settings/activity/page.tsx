@@ -52,6 +52,9 @@ const FIELD_LABEL: Record<string, string> = {
   blocked_apps: "blocked apps",
   lock_message: "lock screen message",
   pc_player_login: "player login on PCs",
+  pc_games: "PC games menu",
+  pc_restrictions: "PC restrictions",
+  spend_bonus_pct: "bonus on spending",
   station_types: "station types",
   allowed_modes_by_type: "timer modes",
   default_mode_by_type: "default timer mode",
@@ -61,7 +64,7 @@ const FIELD_LABEL: Record<string, string> = {
   per_frame: "price per frame",
   credit_limit: "pay-later limit",
   qr_enabled: "player QR page",
-  qr_orders: "snack orders from the QR page",
+  qr_orders: "snack orders (QR page and PCs)",
   booking_enabled: "online bookings",
   booking_slug: "booking page address",
   booking_days: "days bookable ahead",
@@ -170,7 +173,7 @@ async function Activity() {
     ...(changes ?? []).map((c) => {
       const details = (c.details ?? {}) as Details;
       // Reported by the PC app itself: "PC-04 closed blocked app taskmgr.exe".
-      if (c.action === "blocked_app" || c.action === "staff_unlock" || c.action === "staff_pin_locked") {
+      if (c.action === "blocked_app" || c.action === "staff_unlock" || c.action === "staff_pin_locked" || c.action === "usb_drive") {
         return {
           key: `a${c.id}`,
           at: c.created_at,
@@ -180,7 +183,9 @@ async function Activity() {
               ? "was unlocked with the staff PIN on the PC"
               : c.action === "staff_pin_locked"
                 ? "locked staff unlock after 5 wrong PINs on the PC"
-                : `closed blocked app ${typeof details.app === "string" ? details.app : ""}`.trim(),
+                : c.action === "usb_drive"
+                  ? `had a USB drive plugged in during a player's time${details.blocked === true ? " (blocked)" : ""}`
+                  : `closed blocked app ${typeof details.app === "string" ? details.app : ""}`.trim(),
           alert: true,
         };
       }

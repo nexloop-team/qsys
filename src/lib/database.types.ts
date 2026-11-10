@@ -39,6 +39,8 @@ export type Database = {
         created_by: string | null;
         /** Wallet top-up offers: [{ pay, bonus }] */
         wallet_offers: Json;
+        /** % of each cash/UPI bill credited back to the player's wallet (0–20). */
+        spend_bonus_pct: number;
         created_at: Ts;
         updated_at: Ts;
       }>;
@@ -79,6 +81,9 @@ export type Database = {
         blocked_apps: string[];
         lock_message: string | null;
         pc_player_login: boolean;
+        /** Games menu on the PCs: [{ id, name, target }] */
+        pc_games: Json;
+        pc_restrictions: ("task_manager" | "control_panel" | "command_line" | "usb_drives")[];
         /** Most a player may owe (khata). null = no limit. */
         credit_limit: number | null;
         /** Player QR page on each station. */
@@ -362,6 +367,9 @@ export type Database = {
         screen_locked: boolean | null;
         last_seen_at: Ts | null;
         created_at: Ts;
+        /** Readings from the PC's last check-in (see DeviceHealth in lib/devices). */
+        health: Json | null;
+        health_at: Ts | null;
       }>;
       station_commands: Table<{
         id: string;

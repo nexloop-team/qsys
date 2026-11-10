@@ -49,13 +49,13 @@ export function OnlineForm({
         >
           <div className="flex flex-col gap-4">
             <Toggle name="qr_enabled" checked={qr} onChange={setQr} label="Turn on the player page" />
-            <div className={cx("border-t border-line pt-4", !qr && "opacity-50")}>
+            <div className="border-t border-line pt-4">
               <Toggle
                 name="qr_orders"
                 checked={orders}
                 onChange={setOrders}
                 label="Players can order snacks & drinks"
-                description="Shows your snacks & drinks that are in stock. An order goes on the bill when staff accept it."
+                description="On the QR page and in the games menu of the QueSys PC app (that one works even with the page off). Shows what's in stock; an order goes on the bill when staff accept it."
               />
             </div>
           </div>

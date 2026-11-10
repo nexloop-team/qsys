@@ -134,6 +134,12 @@ mod tests {
             player_login: true,
             session,
             commands: vec![],
+            games: vec![],
+            restrictions: vec![],
+            orders: false,
+            wallet: None,
+            menu: vec![],
+            requests: vec![],
         }
     }
 

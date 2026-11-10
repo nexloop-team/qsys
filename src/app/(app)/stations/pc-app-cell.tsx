@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CircleCheck, Loader2, MonitorSmartphone, Unlink } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { DEVICE_SELECT, isOnline, seenAgo, type DeviceStatus } from "@/lib/devices";
+import { DEVICE_SELECT, healthWarnings, isOnline, readHealth, seenAgo, type DeviceStatus } from "@/lib/devices";
 import { Modal } from "@/components/overlay";
 import { Button } from "@/components/ui";
 import { createPairingCode, unpairDevice } from "./actions";
@@ -32,6 +32,7 @@ export function PcAppCell({
   }, []);
 
   const online = isOnline(device, now);
+  const warnings = online ? healthWarnings(readHealth(device, now)) : [];
 
   return (
     // One line: status on the left (dot = online or not), actions on the right.
@@ -71,6 +72,7 @@ export function PcAppCell({
           )}
         </span>
       )}
+      {warnings.length > 0 && <p className="w-full text-xs font-medium text-ending">{warnings.join(" · ")}</p>}
       {error && <p className="w-full text-xs text-danger">{error}</p>}
       {pairing && (
         <PairDialog
