@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { MessageSquare, Power, RotateCcw, Zap } from "lucide-react";
 import type { Database } from "@/lib/database.types";
-import { seenAgo, type DeviceStatus } from "@/lib/devices";
+import { healthItems, healthWarnings, readHealth, seenAgo, type DeviceStatus } from "@/lib/devices";
 import { Button, ErrorText, Input, cx } from "@/components/ui";
 import { friendlyError } from "@/lib/errors";
 
@@ -102,6 +102,8 @@ export function PcControls({
         </span>
       </p>
 
+      <HealthLine device={device} online={online} nowMs={nowMs} />
+
       {writing ? (
         <form
           className="mt-3 flex gap-2"
@@ -152,6 +154,43 @@ export function PcControls({
       {note && <p className="mt-2 text-xs text-free">{note}</p>}
       <ErrorText>{error}</ErrorText>
     </Section>
+  );
+}
+
+const RESTRICTION_LABEL: Record<string, string> = {
+  task_manager: "Task Manager",
+  control_panel: "Control Panel",
+  command_line: "command line",
+  usb_drives: "USB drives",
+};
+
+// CPU · RAM · GPU · disk from the last check-in, with anything worth a look in amber.
+function HealthLine({ device, online, nowMs }: { device: DeviceStatus; online: boolean; nowMs: number }) {
+  const health = online ? readHealth(device, nowMs) : null;
+  if (!health) return null;
+  const items = healthItems(health);
+  const warnings = healthWarnings(health);
+  const watchedOnly = Object.entries(health.restrictions ?? {})
+    .filter(([, how]) => how !== "policy")
+    .map(([k, how]) => `${RESTRICTION_LABEL[k] ?? k}${how === "watch" ? " (reported, not blocked)" : " (apps closed)"}`);
+  return (
+    <div className="mt-2.5 flex flex-col gap-1.5">
+      {items.length > 0 && (
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-4">
+          {items.map((i) => (
+            <div key={i.label} className="min-w-0">
+              <dt className="text-[11px] text-faint">{i.label}</dt>
+              <dd className={cx("num truncate font-medium", i.warn ? "text-ending" : "text-fg")}>{i.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {health.gpu?.name && <p className="truncate text-[11px] text-faint">{health.gpu.name}</p>}
+      {warnings.length > 0 && <p className="text-xs font-medium text-ending">{warnings.join(" · ")}</p>}
+      {watchedOnly.length > 0 && (
+        <p className="text-[11px] text-faint">Without administrator rights: {watchedOnly.join(", ")}.</p>
+      )}
+    </div>
   );
 }
 

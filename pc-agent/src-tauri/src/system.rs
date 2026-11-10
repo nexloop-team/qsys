@@ -63,6 +63,65 @@ pub fn wake(mac: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Launcher links the games menu may open (Steam, Epic, Ubisoft, EA, Battle.net, Riot, Roblox…).
+const LINK_SCHEMES: &[&str] = &[
+    "steam", "com.epicgames.launcher", "uplay", "ubisoft", "origin", "origin2", "link2ea", "battlenet",
+    "riotclient", "roblox", "roblox-player", "minecraft",
+];
+
+#[derive(Debug, PartialEq)]
+pub enum Target {
+    /// A program: started directly, in its own folder.
+    Program(String),
+    /// A shortcut (.lnk / .url) or a launcher link: opened the way Windows opens it.
+    Open(String),
+}
+
+/// What a games-menu entry points at, if it is something this app will start. The list comes from
+/// the owner's settings, but is still checked here: a program on a drive, a shortcut, or a known
+/// launcher link. Nothing else (no web pages, no scripts, no command lines).
+pub fn check_target(target: &str) -> Option<Target> {
+    let t = target.trim();
+    if t.is_empty() || t.len() > 300 || t.chars().any(|c| c.is_control() || c == '"') {
+        return None;
+    }
+    if let Some((scheme, rest)) = t.split_once("://") {
+        let scheme = scheme.to_ascii_lowercase();
+        return (LINK_SCHEMES.contains(&scheme.as_str()) && !rest.is_empty()).then(|| Target::Open(t.to_string()));
+    }
+    let bytes = t.as_bytes();
+    let on_drive = bytes.len() > 3 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && bytes[2] == b'\\';
+    if !on_drive || t.contains("..") {
+        return None;
+    }
+    let lower = t.to_ascii_lowercase();
+    if lower.ends_with(".exe") {
+        Some(Target::Program(t.to_string()))
+    } else if lower.ends_with(".lnk") || lower.ends_with(".url") {
+        Some(Target::Open(t.to_string()))
+    } else {
+        None
+    }
+}
+
+/// Start a game from the menu.
+pub fn launch(target: &str) -> Result<(), String> {
+    match check_target(target).ok_or("This game's link isn't valid. Ask at the counter.")? {
+        Target::Program(path) => {
+            let mut cmd = Command::new(&path);
+            if let Some(dir) = std::path::Path::new(&path).parent() {
+                cmd.current_dir(dir);
+            }
+            cmd.spawn().map(|_| ()).map_err(|_| "Couldn't start this game. Ask at the counter.".to_string())
+        }
+        Target::Open(link) => Command::new("explorer.exe")
+            .arg(&link)
+            .spawn()
+            .map(|_| ())
+            .map_err(|_| "Couldn't start this game. Ask at the counter.".to_string()),
+    }
+}
+
 /// Never closed, whatever the owner lists: Windows needs these, and so does this app.
 const PROTECTED: &[&str] = &[
     "explorer.exe", "csrss.exe", "winlogon.exe", "wininit.exe", "services.exe", "lsass.exe", "smss.exe",
@@ -114,6 +173,29 @@ mod tests {
     fn rejects_bad_mac() {
         assert!(wake("not-a-mac").is_err());
         assert!(wake("AA:BB:CC").is_err());
+    }
+
+    #[test]
+    fn game_targets() {
+        assert_eq!(check_target("steam://rungameid/730"), Some(Target::Open("steam://rungameid/730".into())));
+        assert_eq!(
+            check_target(r"C:\Riot Games\Riot Client\RiotClientServices.exe"),
+            Some(Target::Program(r"C:\Riot Games\Riot Client\RiotClientServices.exe".into()))
+        );
+        assert_eq!(check_target(r"D:\Games\GTA V.lnk"), Some(Target::Open(r"D:\Games\GTA V.lnk".into())));
+        for bad in [
+            "https://example.com",
+            "file:///C:/Windows/System32/cmd.exe",
+            r"C:\Windows\System32\cmd.exe /c del",
+            r"C:\Games\run.bat",
+            r"\\server\share\game.exe",
+            r"C:\Games\..\Windows\x.exe",
+            "notepad.exe",
+            "steam://",
+            "",
+        ] {
+            assert_eq!(check_target(bad), None, "{bad}");
+        }
     }
 
     #[test]

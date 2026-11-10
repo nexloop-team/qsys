@@ -7,6 +7,9 @@ A small Windows app for each gaming PC. It is built with Tauri 2: a Rust core an
 - **Unlocks** when a session runs. The timer stays out of the way during games: it pops up for 10 seconds when the session starts and at 5 minutes left, then stays for the last minute (red). It never takes focus from the game.
 - **Locks again** when the session is paused or ended, or when fixed time runs out. It minimizes the game first so the lock shows over full-screen games.
 - **Commands from the floor:** message, restart, shut down, and turn on. Turn on is sent as Wake-on-LAN from another online PC on the same network.
+- **Games menu:** when a session starts, a window lists the venue's games (Settings › PC app), the player's wallet balance, snacks to order, *30 more minutes* (fixed time) and *Call staff*. Orders and calls show up on the floor like QR-page requests. The menu stays in the taskbar, and the timer has a *Menu* link.
+- **Restrictions:** Task Manager, Control Panel / Settings, command prompt / PowerShell / Registry Editor, and USB drives can be turned off for players (Settings › PC app). The app sets the Windows policy and also closes those programs. Staff unlock lifts them. USB blocking needs the app to run as administrator; otherwise a plugged-in USB drive is reported in Activity.
+- **Health:** each check-in carries CPU, memory, GPU (NVIDIA, via `nvidia-smi`) and disk readings. The floor shows them in the station sheet and flags a hot GPU, a full disk, full memory or a USB drive.
 - **Blocked apps:** listed under Settings › PC app. They are closed every 5 seconds while a player has the PC, and each one closed is logged in Activity.
 - **Time comes from the server.** Changing the PC clock does nothing. If the internet drops, the last known end time is still enforced.
 - **Light on games.** No game hooks, no screen capture, nothing anti-cheat cares about. The keyboard hook exists only while locked.
@@ -26,6 +29,7 @@ Pairing trades a one-time code for a random device key. The device key is stored
 | `agent_set_staff_pin(key, pin)` | Right after pairing: stores the staff PIN (bcrypt). Can't be changed without pairing again |
 | `agent_check_staff_pin(key, pin)` | Staff unlock or unpair → checks the PIN, logs it, locks after 5 wrong tries |
 | `agent_player_login(key, mobile, pin)` | A player logs in on the lock screen → starts open time in their name |
+| `agent_request(key, kind, product, qty)` | From the games menu: order a snack, ask for 30 more minutes, call staff |
 
 ### Security
 
@@ -51,10 +55,12 @@ Put your Supabase URL and **publishable** key in `pc-agent/.env` (copy `.env.exa
 Then, from `pc-agent/src-tauri`:
 
 ```powershell
-cargo test          # lock/unlock rules, parsing, PIN hashing
+cargo test          # lock/unlock rules, parsing, PIN hashing, game links, health readings
 cargo tauri dev     # run it (debug: not added to Windows start-up)
 cargo tauri build   # installers in target/release/bundle/{msi,nsis}/
 ```
+
+On Linux you can type-check the Windows code without a Windows PC: install `gcc-mingw-w64-x86-64`, run `rustup target add x86_64-pc-windows-gnu`, then `cargo check --target x86_64-pc-windows-gnu`.
 
 Without the `.env`, open **Server settings** on the setup screen and paste the URL and publishable key there.
 

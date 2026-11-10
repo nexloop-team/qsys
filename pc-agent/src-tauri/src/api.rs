@@ -103,6 +103,16 @@ impl Api {
         self.rpc("agent_check_staff_pin", json!({ "p_token": token, "p_pin": pin })).await
     }
 
+    /// From the games menu: order a snack, ask for 30 more minutes, or call staff.
+    pub async fn request(&self, token: &str, kind: &str, product_id: Option<&str>, quantity: u32) -> Result<(), ApiError> {
+        self.call(
+            "agent_request",
+            json!({ "p_token": token, "p_kind": kind, "p_product_id": product_id, "p_quantity": quantity }),
+        )
+        .await
+        .map(|_| ())
+    }
+
     pub async fn ack(&self, token: &str, command_id: &str, result: &str) -> Result<(), ApiError> {
         self.call("agent_ack", json!({ "p_token": token, "p_command_id": command_id, "p_result": result }))
             .await
@@ -172,6 +182,35 @@ pub struct Session {
     pub customer_name: Option<String>,
 }
 
+/// A games-menu entry (Settings › PC app). The target never goes to the window, only its id.
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+pub struct Game {
+    pub id: String,
+    pub name: String,
+    #[serde(default, skip_serializing)]
+    pub target: String,
+}
+
+/// A snack or drink the player can order from the menu.
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+pub struct MenuItem {
+    pub id: String,
+    pub name: String,
+    pub price: f64,
+    pub category: Option<String>,
+}
+
+/// An order / staff call from this session and what staff did with it.
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+pub struct Request {
+    pub id: String,
+    /// snack | extend | call
+    pub kind: String,
+    pub label: String,
+    /// pending | accepted | declined
+    pub status: String,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 pub struct Command {
     pub id: String,
@@ -196,6 +235,21 @@ pub struct SyncData {
     pub session: Option<Session>,
     #[serde(default)]
     pub commands: Vec<Command>,
+    #[serde(default)]
+    pub games: Vec<Game>,
+    /// task_manager | control_panel | command_line | usb_drives
+    #[serde(default)]
+    pub restrictions: Vec<String>,
+    /// Players can order snacks (Settings › Online, shared with the QR page).
+    #[serde(default)]
+    pub orders: bool,
+    /// The session player's wallet balance, if the session has a player.
+    #[serde(default)]
+    pub wallet: Option<f64>,
+    #[serde(default)]
+    pub menu: Vec<MenuItem>,
+    #[serde(default)]
+    pub requests: Vec<Request>,
 }
 
 #[cfg(test)]
@@ -215,12 +269,29 @@ mod tests {
                         "started_at": "2026-11-06T09:00:00+05:30",
                         "planned_end_at": "2026-11-06T11:00:00+05:30",
                         "paused_at": null, "customer_name": "Asha"},
-            "commands": [{"id": "c1", "kind": "message", "payload": {"text": "hi"}}]
+            "commands": [{"id": "c1", "kind": "message", "payload": {"text": "hi"}}],
+            "games": [{"id": "g1", "name": "Valorant", "target": "C:\\Riot\\riot.exe"}],
+            "restrictions": ["task_manager"],
+            "orders": true, "wallet": 120.50,
+            "menu": [{"id": "p1", "name": "Coke", "price": 40.00, "category": "Drinks"}],
+            "requests": [{"id": "r1", "kind": "call", "label": "Call staff", "status": "pending"}]
         }"#;
         let s: SyncData = serde_json::from_str(raw).unwrap();
         assert_eq!(s.station.name, "PC-01");
         assert_eq!(s.commands[0].payload["text"], "hi");
         assert!(s.session.unwrap().planned_end_at.is_some());
+        assert_eq!(s.games[0].target, "C:\\Riot\\riot.exe");
+        // The window gets the name and id, never the program path.
+        assert!(!serde_json::to_string(&s.games[0]).unwrap().contains("riot.exe"));
+        assert_eq!(s.wallet, Some(120.5));
+        assert_eq!(s.menu[0].price, 40.0);
+        // An older server without these fields still parses.
+        let old: SyncData = serde_json::from_str(
+            r#"{"server_now": "2026-11-06T10:00:00Z", "channel": "c", "venue": null,
+                "station": {"id": "s", "name": "PC", "status": "active"}, "lock_message": null, "session": null}"#,
+        )
+        .unwrap();
+        assert!(old.games.is_empty() && old.wallet.is_none());
     }
 
     #[test]

@@ -21,7 +21,7 @@ async function PcSettings() {
   const supabase = await createClient();
   const { data: settings } = await supabase
     .from("branch_settings")
-    .select("blocked_apps, lock_message, pc_player_login")
+    .select("blocked_apps, lock_message, pc_player_login, pc_games, pc_restrictions")
     .eq("branch_id", branch.id)
     .single();
   if (!settings) return <p className="text-sm text-danger">Couldn&apos;t load PC app settings.</p>;
@@ -34,6 +34,8 @@ async function PcSettings() {
         blockedApps={settings.blocked_apps ?? []}
         lockMessage={settings.lock_message ?? ""}
         playerLogin={settings.pc_player_login ?? true}
+        games={(Array.isArray(settings.pc_games) ? settings.pc_games : []) as { id: string; name: string; target: string }[]}
+        restrictions={settings.pc_restrictions ?? []}
         branchName={branch.name}
         disabled={!owner}
       />

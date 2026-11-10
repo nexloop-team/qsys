@@ -4,6 +4,10 @@
 //! - Shows a full-screen lock (on every monitor) until staff start a session for this station on
 //!   the QueSys floor; locks again when the session is paused or ends, or fixed time runs out.
 //! - While unlocked, shows a small timer and closes the venue's blocked apps.
+//! - A games menu for the player: the venue's games, their wallet balance, snack orders, more time
+//!   and "Call staff".
+//! - Restrictions while a player has the PC (Task Manager, Control Panel, command line, USB drives).
+//! - Sends CPU, memory, GPU and disk readings with each check-in, for the floor.
 //! - Runs staff commands: message, restart, shut down, and wake another PC on the same network.
 //!
 //! Time comes from the server (offset measured on each check-in), so changing the PC clock does
@@ -12,8 +16,10 @@
 mod api;
 mod config;
 mod decide;
+mod health;
 mod keyboard;
 mod realtime;
+mod restrict;
 mod system;
 pub mod watchdog;
 
@@ -63,6 +69,14 @@ pub struct View {
     widget: bool,
     /// Debug build (`cargo tauri dev`): the lock screen shows a Quit button so testing on your own PC is safe.
     dev: bool,
+    // The games menu (filled only while a player's session runs).
+    games: Vec<api::Game>,
+    wallet: Option<f64>,
+    orders: bool,
+    menu: Vec<api::MenuItem>,
+    requests: Vec<api::Request>,
+    /// open | prepaid | frames
+    mode: Option<String>,
 }
 
 pub struct Shared {
@@ -80,6 +94,9 @@ pub struct Shared {
     pin_failures: Mutex<(u32, u32, Option<Instant>)>,
     last_view: Mutex<Option<View>>,
     poke: Arc<Notify>,
+    /// Latest performance readings, sent with the next check-in.
+    health: Mutex<serde_json::Value>,
+    restrictions: Mutex<restrict::Enforcer>,
 }
 
 impl Shared {
@@ -111,6 +128,8 @@ impl Shared {
             .map(|(m, _)| m.clone());
         let widget = widget_visible(&d, self.server_now(), message.is_some());
         let online = *self.online.lock().unwrap();
+        let playing = d.reason == Reason::Session;
+        let live = sync.as_ref().filter(|_| playing);
         View {
             screen: d.screen,
             reason: d.reason,
@@ -129,6 +148,12 @@ impl Shared {
             player_login: d.reason == Reason::Free && online && sync.as_ref().is_some_and(|s| s.player_login),
             widget,
             dev: cfg!(debug_assertions),
+            games: live.map(|s| s.games.clone()).unwrap_or_default(),
+            wallet: live.and_then(|s| s.wallet),
+            orders: live.is_some_and(|s| s.orders),
+            menu: live.map(|s| s.menu.clone()).unwrap_or_default(),
+            requests: live.map(|s| s.requests.clone()).unwrap_or_default(),
+            mode: live.and_then(|s| s.session.as_ref()).map(|s| s.mode.clone()),
         }
     }
 }
@@ -160,6 +185,8 @@ pub fn run() {
                 pin_failures: Mutex::new((0, 0, None)),
                 last_view: Mutex::new(None),
                 poke: Arc::new(Notify::new()),
+                health: Mutex::new(serde_json::Value::Null),
+                restrictions: Mutex::new(restrict::Enforcer::default()),
             });
             app.manage(shared.clone());
 
@@ -177,6 +204,7 @@ pub fn run() {
             tauri::async_runtime::spawn(sync_loop(handle.clone(), shared.clone()));
             tauri::async_runtime::spawn(tick_loop(handle.clone(), shared.clone()));
             tauri::async_runtime::spawn(sweep_loop(handle.clone(), shared.clone()));
+            tauri::async_runtime::spawn(health_loop(shared.clone()));
             let rt = shared.clone();
             tauri::async_runtime::spawn(realtime::run(
                 move || {
@@ -188,13 +216,28 @@ pub fn run() {
             ));
             Ok(())
         })
-        .on_window_event(|_window, event| {
-            // Players can't close the lock or the timer.
+        .on_window_event(|window, event| {
+            // Players can't close the lock or the timer. Closing the games menu only hides it.
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
+                if window.label() == "menu" {
+                    let _ = window.hide();
+                }
             }
         })
-        .invoke_handler(tauri::generate_handler![get_view, pair, skip_setup, staff_unlock, staff_lock, player_login, unpair, dev_quit])
+        .invoke_handler(tauri::generate_handler![
+            get_view,
+            pair,
+            skip_setup,
+            staff_unlock,
+            staff_lock,
+            player_login,
+            unpair,
+            dev_quit,
+            open_menu,
+            launch_game,
+            send_request
+        ])
         .run(tauri::generate_context!())
         .expect("QueSys PC failed to start");
 }
@@ -253,19 +296,42 @@ fn lock_windows(app: &AppHandle) -> Vec<WebviewWindow> {
 fn apply(app: &AppHandle, shared: &Shared) {
     let view = shared.view();
     let locked = view.screen != Screen::Unlocked;
-    let changed = {
+    let (changed, started) = {
         let mut last = shared.last_view.lock().unwrap();
         let was_unlocked = last.as_ref().is_some_and(|v| v.screen == Screen::Unlocked);
+        let started = view.reason == Reason::Session && !last.as_ref().is_some_and(|v| v.reason == Reason::Session);
         let changed = last.as_ref() != Some(&view);
         if changed && locked && was_unlocked {
             // Time's up mid-game: get the game out of the way first.
             keyboard::minimize_foreground();
         }
         *last = Some(view.clone());
-        changed
+        (changed, started)
     };
 
     keyboard::set_blocking(locked);
+    // Restrictions apply while the PC is the player's (locked or playing); staff get a normal PC.
+    {
+        let staff = matches!(view.reason, Reason::Staff | Reason::Maintenance | Reason::NotPaired);
+        let wanted = if staff {
+            vec![]
+        } else {
+            shared.sync.lock().unwrap().as_ref().map(|s| s.restrictions.clone()).unwrap_or_default()
+        };
+        shared.restrictions.lock().unwrap().set(&wanted);
+    }
+    if let Some(w) = app.get_webview_window("menu") {
+        if view.reason != Reason::Session {
+            if w.is_visible().unwrap_or(false) {
+                let _ = w.hide();
+            }
+        } else if started && (!view.games.is_empty() || view.orders) {
+            // A new session: offer the games menu once. After that it lives in the taskbar.
+            let _ = w.unminimize();
+            let _ = w.show();
+            let _ = w.set_focus();
+        }
+    }
     for w in lock_windows(app) {
         if locked {
             if !w.is_visible().unwrap_or(false) {
@@ -334,7 +400,11 @@ async fn sync_once(app: &AppHandle, shared: &Arc<Shared>) {
         return;
     };
     let locked = shared.last_view.lock().unwrap().as_ref().map_or(true, |v| v.screen != Screen::Unlocked);
-    let info = system::info(locked);
+    let mut info = system::info(locked);
+    let health = shared.health.lock().unwrap().clone();
+    if !health.is_null() {
+        info["health"] = health;
+    }
     let api = shared.api();
     let sent = Instant::now();
     match api.sync(&token, &info).await {
@@ -414,17 +484,46 @@ async fn tick_loop(app: AppHandle, shared: Arc<Shared>) {
     }
 }
 
-/// Every 5 seconds, close blocked apps, except while staff have the PC (maintenance / staff PIN).
+/// Every 5 seconds, close blocked apps (the owner's list, plus the programs behind each
+/// restriction) and watch for USB drives, except while staff have the PC (maintenance / staff PIN).
 async fn sweep_loop(_app: AppHandle, shared: Arc<Shared>) {
     let mut sweeper = system::Sweeper::new();
+    let mut disks = sysinfo::Disks::new();
+    let mut usb_seen: HashSet<String> = HashSet::new();
     let mut every = tokio::time::interval(Duration::from_secs(5));
     loop {
         every.tick().await;
         let view = shared.last_view.lock().unwrap().clone();
         if view.as_ref().map_or(true, |v| matches!(v.reason, Reason::Maintenance | Reason::Staff | Reason::NotPaired)) {
+            usb_seen.clear();
             continue;
         }
-        let blocked = shared.sync.lock().unwrap().as_ref().map(|s| s.blocked_apps.clone()).unwrap_or_default();
+        let (mut blocked, restrictions) = shared
+            .sync
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|s| (s.blocked_apps.clone(), s.restrictions.clone()))
+            .unwrap_or_default();
+        blocked.extend(restrict::programs_for(&restrictions));
+
+        // USB drives: reported in Activity when plugged in during the player's time.
+        if restrictions.iter().any(|r| r == "usb_drives") {
+            disks.refresh_list();
+            let now: HashSet<String> = health::removable(&disks).into_iter().collect();
+            let new: Vec<String> = now.difference(&usb_seen).cloned().collect();
+            usb_seen = now;
+            if let (false, Some(token)) = (new.is_empty(), shared.token()) {
+                let blocked_by_windows = shared.restrictions.lock().unwrap().usb_blocked();
+                for drive in new {
+                    let _ = shared
+                        .api()
+                        .report(&token, "usb_drive", json!({ "drive": drive, "blocked": blocked_by_windows }))
+                        .await;
+                }
+            }
+        }
+
         if blocked.is_empty() {
             continue;
         }
@@ -451,6 +550,21 @@ async fn sweep_loop(_app: AppHandle, shared: Arc<Shared>) {
     }
 }
 
+/// Performance readings every 15 s (off the async threads: nvidia-smi is a separate program).
+async fn health_loop(shared: Arc<Shared>) {
+    let monitor = Arc::new(Mutex::new(health::Monitor::new()));
+    let mut every = tokio::time::interval(SYNC_EVERY);
+    loop {
+        every.tick().await;
+        let m = monitor.clone();
+        let Ok(mut reading) = tokio::task::spawn_blocking(move || m.lock().unwrap().sample()).await else {
+            continue;
+        };
+        reading["restrictions"] = shared.restrictions.lock().unwrap().status();
+        *shared.health.lock().unwrap() = reading;
+    }
+}
+
 // --- Commands from the windows -----------------------------------------------------------------
 
 // All commands are async so they run off the main thread: apply() asks the windows for their
@@ -467,7 +581,69 @@ async fn dev_quit(app: AppHandle) -> Result<(), String> {
         return Err("Not available in this build.".into());
     }
     keyboard::set_blocking(false);
+    shared_lift_restrictions(&app);
     app.exit(0);
+    Ok(())
+}
+
+fn shared_lift_restrictions(app: &AppHandle) {
+    if let Some(shared) = app.try_state::<Arc<Shared>>() {
+        shared.restrictions.lock().unwrap().set(&[]);
+    }
+}
+
+/// The games menu: from the timer's "Menu" link (it also stays in the taskbar).
+#[tauri::command]
+async fn open_menu(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<(), String> {
+    if shared.view().reason != Reason::Session {
+        return Err("The menu opens while your session runs.".into());
+    }
+    let w = app.get_webview_window("menu").ok_or("No menu window.")?;
+    let _ = w.unminimize();
+    let _ = w.show();
+    let _ = w.set_focus();
+    Ok(())
+}
+
+/// Start a game from the menu. Only ids from the venue's list: the window never sends a path.
+#[tauri::command]
+async fn launch_game(app: AppHandle, shared: State<'_, Arc<Shared>>, id: String) -> Result<(), String> {
+    if !matches!(shared.view().reason, Reason::Session | Reason::Staff) {
+        return Err("Games start while your session runs.".into());
+    }
+    let target = shared
+        .sync
+        .lock()
+        .unwrap()
+        .as_ref()
+        .and_then(|s| s.games.iter().find(|g| g.id == id).map(|g| g.target.clone()))
+        .ok_or("This game isn't on the list any more.")?;
+    system::launch(&target)?;
+    if let Some(w) = app.get_webview_window("menu") {
+        let _ = w.minimize();
+    }
+    Ok(())
+}
+
+/// From the menu: order a snack ("snack" + product), 30 more minutes ("extend") or call staff ("call").
+#[tauri::command]
+async fn send_request(
+    app: AppHandle,
+    shared: State<'_, Arc<Shared>>,
+    kind: String,
+    product_id: Option<String>,
+    quantity: Option<u32>,
+) -> Result<(), String> {
+    let token = shared.token().ok_or("This PC is not paired.")?;
+    if !matches!(kind.as_str(), "snack" | "extend" | "call") {
+        return Err("Unknown request.".into());
+    }
+    shared
+        .api()
+        .request(&token, &kind, product_id.as_deref(), quantity.unwrap_or(1).clamp(1, 10))
+        .await
+        .map_err(|e| e.to_string())?;
+    sync_once(&app, &shared).await;
     Ok(())
 }
 

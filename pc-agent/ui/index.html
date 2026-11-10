@@ -106,6 +106,56 @@
       <span id="cover-station" class="muted"></span>
     </main>
 
+    <!-- Games menu (window "menu"): games, wallet, snacks, more time, call staff -->
+    <main id="menu" class="menu" hidden>
+      <header class="m-head">
+        <div class="m-who">
+          <p class="eyebrow" id="m-station"></p>
+          <h1 class="m-title" id="m-hello">Have a good game</h1>
+        </div>
+        <div class="m-stats">
+          <div class="m-stat" id="m-wallet-box" hidden>
+            <span class="m-stat-label">Wallet</span>
+            <span class="m-stat-value mono" id="m-wallet"></span>
+          </div>
+          <div class="m-stat">
+            <span class="m-stat-label" id="m-time-label">Playing for</span>
+            <span class="m-stat-value mono" id="m-time"></span>
+          </div>
+        </div>
+      </header>
+
+      <div class="m-body">
+        <section id="m-games-box" class="m-section">
+          <h2 class="m-h2">Games</h2>
+          <div id="m-games" class="m-games"></div>
+          <p id="m-games-empty" class="muted" hidden>No games listed yet. Ask at the counter.</p>
+        </section>
+
+        <aside class="m-side">
+          <section class="m-section">
+            <h2 class="m-h2">Need something?</h2>
+            <div class="m-actions">
+              <button id="m-call" class="btn" type="button">Call staff</button>
+              <button id="m-extend" class="btn" type="button" hidden>30 more minutes</button>
+            </div>
+          </section>
+
+          <section id="m-order-box" class="m-section" hidden>
+            <h2 class="m-h2">Snacks &amp; drinks</h2>
+            <div id="m-items" class="m-items"></div>
+            <p class="hint">Staff confirm each order and add it to your bill.</p>
+          </section>
+
+          <section id="m-requests-box" class="m-section" hidden>
+            <h2 class="m-h2">Your requests</h2>
+            <ul id="m-requests" class="m-requests"></ul>
+          </section>
+          <p id="m-error" class="error" hidden></p>
+        </aside>
+      </div>
+    </main>
+
     <!-- Timer (window "widget") -->
     <main id="widget" class="widget" data-tauri-drag-region hidden>
       <div class="w-row" data-tauri-drag-region>
@@ -116,6 +166,7 @@
       <div class="w-sub" data-tauri-drag-region>
         <span id="w-sub" data-tauri-drag-region></span>
         <button id="w-lock" class="link" type="button" hidden>Lock now</button>
+        <button id="w-menu" class="link" type="button" hidden>Menu</button>
       </div>
       <p id="w-message" class="w-message" hidden></p>
     </main>

@@ -207,6 +207,7 @@ function tickWidget() {
 function drawWidget() {
   $("widget").hidden = false;
   $("w-lock").hidden = view.reason !== "staff";
+  $("w-menu").hidden = view.reason !== "session";
   $("w-message").hidden = !view.message;
   $("w-message").textContent = view.message || "";
   tickWidget();
@@ -214,10 +215,139 @@ function drawWidget() {
 
 $("w-lock").addEventListener("click", () => invoke("staff_lock"));
 
+// --- Games menu --------------------------------------------------------------------------------
+const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+const STATUS = { pending: "Waiting for staff", accepted: "Done", declined: "Not possible" };
+const qty = {}; // product id → chosen quantity
+let menuKey = "";
+
+function el(tag, props = {}, children = []) {
+  const e = Object.assign(document.createElement(tag), props);
+  for (const c of [].concat(children)) e.append(c);
+  return e;
+}
+
+// "Counter-Strike 2" → "CS", "Valorant" → "VA".
+function initials(name) {
+  const words = name.trim().split(/[\s:_-]+/).filter((w) => /^[a-z]/i.test(w));
+  const text = words.length > 1 ? words[0][0] + words[1][0] : (words[0] || name.trim()).slice(0, 2);
+  return text.toUpperCase();
+}
+
+function menuError(message) {
+  showError($("m-error"), message);
+}
+
+async function request(kind, productId, quantity, button) {
+  menuError("");
+  if (button) button.disabled = true;
+  try {
+    await invoke("send_request", { kind, productId: productId || null, quantity: quantity || null });
+    if (productId) qty[productId] = 1;
+  } catch (err) {
+    menuError(String(err));
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function drawMenu() {
+  $("menu").hidden = false;
+  $("m-station").textContent = view.station || "";
+  const first = (view.customer || "").trim().split(/\s+/)[0];
+  $("m-hello").textContent = first ? `Hi ${first}, have a good game` : "Have a good game";
+  $("m-wallet-box").hidden = view.wallet == null;
+  $("m-wallet").textContent = view.wallet == null ? "" : rupees(view.wallet);
+  $("m-extend").hidden = view.mode !== "prepaid";
+
+  // Rebuild lists only when they change (keeps focus and chosen quantities).
+  const key = JSON.stringify([view.games, view.menu, view.orders]);
+  if (key !== menuKey) {
+    menuKey = key;
+    const games = $("m-games");
+    games.replaceChildren(
+      ...view.games.map((g) => {
+        const b = el("button", { type: "button", className: "m-game", title: `Start ${g.name}` }, [
+          el("span", { className: "m-game-mark", textContent: initials(g.name) }),
+          el("span", { className: "m-game-name", textContent: g.name }),
+        ]);
+        b.addEventListener("click", async () => {
+          menuError("");
+          b.disabled = true;
+          try {
+            await invoke("launch_game", { id: g.id });
+          } catch (err) {
+            menuError(String(err));
+          } finally {
+            setTimeout(() => (b.disabled = false), 3000); // no double starts
+          }
+        });
+        return b;
+      }),
+    );
+    $("m-games-empty").hidden = view.games.length > 0;
+
+    $("m-order-box").hidden = !view.orders || view.menu.length === 0;
+    $("m-items").replaceChildren(
+      ...view.menu.map((item) => {
+        qty[item.id] = qty[item.id] || 1;
+        const count = el("span", { className: "mono m-qty", textContent: qty[item.id] });
+        const step = (d) => {
+          qty[item.id] = Math.min(10, Math.max(1, qty[item.id] + d));
+          count.textContent = qty[item.id];
+        };
+        const minus = el("button", { type: "button", className: "m-step", textContent: "−", ariaLabel: "One less" });
+        const plus = el("button", { type: "button", className: "m-step", textContent: "+", ariaLabel: "One more" });
+        const order = el("button", { type: "button", className: "btn m-order", textContent: "Order" });
+        minus.addEventListener("click", () => step(-1));
+        plus.addEventListener("click", () => step(1));
+        order.addEventListener("click", () => request("snack", item.id, qty[item.id], order));
+        return el("div", { className: "m-item" }, [
+          el("span", { className: "m-item-name" }, [
+            el("span", { textContent: item.name }),
+            el("span", { className: "muted mono", textContent: rupees(item.price) }),
+          ]),
+          el("span", { className: "m-stepper" }, [minus, count, plus]),
+          order,
+        ]);
+      }),
+    );
+  }
+
+  $("m-requests-box").hidden = view.requests.length === 0;
+  $("m-requests").replaceChildren(
+    ...view.requests.map((r) =>
+      el("li", { className: `m-req ${r.status}` }, [
+        el("span", { textContent: r.label }),
+        el("span", { className: "m-req-status", textContent: STATUS[r.status] || r.status }),
+      ]),
+    ),
+  );
+  tickMenu();
+}
+
+function tickMenu() {
+  if (!view || label !== "menu") return;
+  if (view.ends_at) {
+    $("m-time-label").textContent = "Time left";
+    $("m-time").textContent = hms((Date.parse(view.ends_at) - now()) / 1000);
+  } else if (view.started_at) {
+    $("m-time-label").textContent = "Playing for";
+    $("m-time").textContent = hms((now() - Date.parse(view.started_at)) / 1000);
+  } else {
+    $("m-time").textContent = "";
+  }
+}
+
+$("m-call").addEventListener("click", (e) => request("call", null, null, e.currentTarget));
+$("m-extend").addEventListener("click", (e) => request("extend", null, null, e.currentTarget));
+$("w-menu").addEventListener("click", () => invoke("open_menu").catch(() => {}));
+
 // --- Wiring ------------------------------------------------------------------------------------
 function draw() {
   if (!view) return;
   if (label === "widget") drawWidget();
+  else if (label === "menu") drawMenu();
   else if (label.startsWith("cover-")) {
     $("cover").hidden = false;
     $("cover-station").textContent = view.station || "";
@@ -225,6 +355,7 @@ function draw() {
 }
 
 if (label === "widget") document.body.classList.add("is-widget");
+if (label === "menu") document.body.classList.add("is-menu");
 // No right-click menu, no reload shortcuts.
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 document.addEventListener("keydown", (e) => {
@@ -241,6 +372,7 @@ invoke("get_view").then((v) => {
 });
 setInterval(() => {
   if (label === "widget") tickWidget();
+  else if (label === "menu") tickMenu();
   else if (label === "lock") tickLock();
 }, 1000);
 tickLock();
