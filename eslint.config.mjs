@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Rust build output of the PC app (generated JS).
+    "pc-agent/src-tauri/target/**",
   ]),
 ]);
 

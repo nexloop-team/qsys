@@ -22,8 +22,18 @@ Pairing trades a one-time code for a random device key. The device key is stored
 | `agent_pair(code, info)` | Setup screen → returns the device key |
 | `agent_sync(key, info)` | Every 15 s, and instantly on a Realtime "poke" → station, session, settings, commands |
 | `agent_ack(key, command, result)` | After running a command |
-| `agent_report(key, kind, details)` | A blocked app was closed, or the staff PIN was used |
+| `agent_report(key, kind, details)` | A blocked app was closed, or the PC was opened with the staff PIN while offline |
+| `agent_set_staff_pin(key, pin)` | Right after pairing: stores the staff PIN (bcrypt). Can't be changed without pairing again |
+| `agent_check_staff_pin(key, pin)` | Staff unlock or unpair → checks the PIN, logs it, locks after 5 wrong tries |
 | `agent_player_login(key, mobile, pin)` | A player logs in on the lock screen → starts open time in their name |
+
+### Security
+
+- **HTTPS only.** The app refuses an `http://` server address (only `localhost` in debug builds), so the device key and PINs never cross the café network in clear text.
+- **Release builds use the baked-in server.** The settings file lives in the player's Windows profile, so it can be edited during a paid session. When the build has a server URL and key from `.env`, the file's values are ignored, so nobody can point a PC at another server.
+- **The staff PIN is checked by the server** whenever the PC is online, for the same reason. The copy in the settings file (PBKDF2-SHA256, 200,000 rounds, salted) is used only when there is no internet.
+- **Pairing can't be repeated on a paired PC.** Unpair first, which needs the staff PIN.
+- **Wrong PINs lock for longer each time.** Staff PIN: 5 wrong → 15 min, 1 h, 4 h, 24 h on the server (5 min doubling to 1 h offline). Player PIN: 5 wrong → 15 min, 1 h, 4 h, 24 h. Every lock shows in Activity.
 
 Instant updates use a Realtime broadcast on a private topic per PC (`qs-device-<uuid>`). If that is unavailable, the 15-second check-in still covers everything.
 
@@ -52,7 +62,7 @@ Without the `.env`, open **Server settings** on the setup screen and paste the U
 
 1. Install the `.msi` and open **QueSys PC**. It starts on the setup screen.
 2. On the website, go to **Stations**, find the PC row and press **Pair**. Type the 8-character code into the PC app.
-3. Choose a **staff PIN** (4–8 digits). Staff can tap *Staff* on the lock screen to open the PC for 15 minutes without a session, for example for updates or when the internet is down. Each use is logged in Activity. The same PIN is needed to unpair the PC.
+3. Choose a **staff PIN** (6–8 digits). Staff can tap *Staff* on the lock screen to open the PC for 15 minutes without a session, for example for updates or when the internet is down. Each use is logged in Activity. The same PIN is needed to unpair the PC.
 4. Done. The PC locks, and starting a session on the floor unlocks it within a second or two.
 
 The release build adds itself to Windows start-up as `quesys-pc.exe --watchdog`. The watchdog restarts the app within seconds if it is closed or crashes.

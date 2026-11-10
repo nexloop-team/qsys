@@ -84,11 +84,12 @@ select throws_ok($$ select public.quick_sale('20000000-0000-0000-0000-0000000000
     '[{"product_id":"60000000-0000-0000-0000-0000000000f0","quantity":1}]', 0,
     '[{"method":"wallet","amount":20}]') $$,
   '22023', null, 'wallet payment needs a player');
--- (CTE so the sale runs exactly once.)
-select is((with q as (select public.quick_sale('20000000-0000-0000-0000-0000000000f0',
+-- Sale and check in separate statements: a statement can't see rows its own function call
+-- inserted, so reading the bill in the same query returned nothing.
+select set_config('test.quick_sale', public.quick_sale('20000000-0000-0000-0000-0000000000f0',
     '[{"product_id":"60000000-0000-0000-0000-0000000000f0","name":"Coke","price":1,"quantity":1}]', 0,
-    '[{"method":"cash","amount":20}]') as id)
-  select i.total from public.invoices i join q on q.id = i.id), 20.00::numeric(10,2),
+    '[{"method":"cash","amount":20}]')::text, true);
+select is((select total from public.invoices where id = current_setting('test.quick_sale')::uuid), 20.00::numeric(10,2),
   'quick sale charges the catalogue price');
 
 select * from finish();

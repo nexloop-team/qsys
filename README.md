@@ -98,6 +98,11 @@ Each file in `supabase/migrations` runs once, in order. After pulling new code, 
 - `20261127000001_tournament_teams_stations.sql`: **team tournaments** (doubles, 5v5…: a team name, a captain by
   mobile who pays one entry fee for the team, and the other members' names) and tournaments **played on stations**
   (PC, PS5, tables): each match can be sent to a station. The match time isn't billed.
+- `20261128000001_frames_session_check.sql`: fixes starting a **Frames** session (an old rule required an end
+  time on every non-open session; now only prepaid sessions need one).
+- `20261128000002_pc_security.sql`: the PC app's **staff PIN is checked on the server** (bcrypt, set once at
+  pairing, lockout logged in Activity), and wrong player and staff PINs lock for longer each time
+  (15 min, 1 h, 4 h, then 24 h).
 
 Station QR codes, the booking link and sign-up / reset emails use the address the app is opened at, so print
 QR codes (Stations › QR codes) from your real web address. A non-localhost `NEXT_PUBLIC_SITE_URL` overrides this.

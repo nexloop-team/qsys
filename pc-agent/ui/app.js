@@ -90,7 +90,7 @@ $("code").addEventListener("input", (e) => {
 $("setup-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const pin = $("pin").value;
-  if (!/^\d{4,8}$/.test(pin)) return showError($("setup-error"), "Choose a staff PIN of 4 to 8 digits.");
+  if (!/^\d{6,8}$/.test(pin)) return showError($("setup-error"), "Choose a staff PIN of 6 to 8 digits.");
   if (pin !== $("pin2").value) return showError($("setup-error"), "The two PINs don't match.");
   showError($("setup-error"), "");
   $("pair-btn").disabled = true;

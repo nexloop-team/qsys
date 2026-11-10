@@ -76,7 +76,8 @@ pub struct Shared {
     message: Mutex<Option<(String, Instant)>>,
     handled: Mutex<HashSet<String>>,
     reported: Mutex<HashMap<String, Instant>>,
-    pin_failures: Mutex<(u32, Option<Instant>)>,
+    /// Local staff PIN tries: (wrong in a row, lockouts so far, locked until).
+    pin_failures: Mutex<(u32, u32, Option<Instant>)>,
     last_view: Mutex<Option<View>>,
     poke: Arc<Notify>,
 }
@@ -156,7 +157,7 @@ pub fn run() {
                 message: Mutex::new(None),
                 handled: Mutex::new(HashSet::new()),
                 reported: Mutex::new(HashMap::new()),
-                pin_failures: Mutex::new((0, None)),
+                pin_failures: Mutex::new((0, 0, None)),
                 last_view: Mutex::new(None),
                 poke: Arc::new(Notify::new()),
             });
@@ -294,11 +295,17 @@ fn apply(app: &AppHandle, shared: &Shared) {
             }
             if !w.is_visible().unwrap_or(false) {
                 // Never take focus from the game: that would minimise a full-screen game.
+                // (hwnd() exists only on Windows; elsewhere, e.g. a Linux test build, just show it.)
+                #[cfg(windows)]
                 match w.hwnd() {
                     Ok(h) => keyboard::show_without_focus(h.0 as isize),
                     Err(_) => {
                         let _ = w.show();
                     }
+                }
+                #[cfg(not(windows))]
+                {
+                    let _ = w.show();
                 }
             }
         }
@@ -473,30 +480,42 @@ async fn pair(
     server_url: Option<String>,
     publishable_key: Option<String>,
 ) -> Result<String, String> {
+    // The lock screen only shows pairing on an unpaired PC; refuse here too, so pairing can never
+    // replace the staff PIN or the server on a PC that is in use. Unpair first (needs the PIN).
+    if shared.token().is_some() {
+        return Err("This PC is already paired. Unpair it with the staff PIN first.".into());
+    }
     if !config::valid_pin(&pin) {
-        return Err("Choose a staff PIN of 4 to 8 digits.".into());
+        return Err("Choose a staff PIN of 6 to 8 digits.".into());
     }
     let (url, key) = {
         let mut c = shared.config.lock().unwrap();
-        if let Some(u) = server_url.map(|u| u.trim().to_string()).filter(|u| !u.is_empty()) {
-            c.server_url = u;
-        }
-        if let Some(k) = publishable_key.map(|k| k.trim().to_string()).filter(|k| !k.is_empty()) {
-            if k.starts_with("sb_secret_") {
-                return Err("That is the secret key. Use the publishable key (sb_publishable_…).".into());
+        // Release builds with a baked-in server don't take another address from the screen.
+        if !config::server_is_fixed() {
+            if let Some(u) = server_url.map(|u| u.trim().to_string()).filter(|u| !u.is_empty()) {
+                config::check_server_url(&u)?;
+                c.server_url = u;
             }
-            c.publishable_key = k;
+            if let Some(k) = publishable_key.map(|k| k.trim().to_string()).filter(|k| !k.is_empty()) {
+                if k.starts_with("sb_secret_") {
+                    return Err("That is the secret key. Use the publishable key (sb_publishable_…).".into());
+                }
+                c.publishable_key = k;
+            }
         }
         (c.server_url.clone(), c.publishable_key.clone())
     };
-    if !url.starts_with("http") || key.is_empty() {
+    if url.is_empty() || key.is_empty() {
         return Err("Enter the QueSys server address and publishable key.".into());
     }
-    let paired = Api::new(&url, &key)
-        .pair(code.trim(), &system::info(true))
-        .await
-        .map_err(|e| e.to_string())?;
+    config::check_server_url(&url)?;
+    let api = Api::new(&url, &key);
+    let paired = api.pair(code.trim(), &system::info(true)).await.map_err(|e| e.to_string())?;
     config::save_token(&paired.token)?;
+    // The server keeps its own copy of the staff PIN; this one is only for when the PC is offline.
+    if let Err(e) = api.set_staff_pin(&paired.token, &pin).await {
+        eprintln!("staff PIN not stored on the server: {e}");
+    }
     {
         let mut c = shared.config.lock().unwrap();
         c.channel = Some(paired.channel.clone());
@@ -528,34 +547,64 @@ async fn skip_setup(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()
     Ok(())
 }
 
-fn check_pin(shared: &Shared, pin: &str) -> Result<(), String> {
-    let mut failures = shared.pin_failures.lock().unwrap();
-    if let Some(until) = failures.1 {
+/// The local copy of the staff PIN (used when the server can't be reached). Five wrong PINs lock it
+/// for 5 minutes, then 10, 20, 40, up to an hour.
+fn check_pin_locally(shared: &Shared, pin: &str) -> Result<(), String> {
+    let mut f = shared.pin_failures.lock().unwrap();
+    if let Some(until) = f.2 {
         if Instant::now() < until {
-            return Err("Too many wrong PINs. Try again in a few minutes.".into());
+            return Err("Too many wrong PINs. Try again later.".into());
         }
-        *failures = (0, None);
+        f.2 = None;
     }
     if shared.config.lock().unwrap().check_pin(pin) {
-        *failures = (0, None);
+        *f = (0, 0, None);
         return Ok(());
     }
-    failures.0 += 1;
-    if failures.0 >= 5 {
-        failures.1 = Some(Instant::now() + Duration::from_secs(5 * 60));
+    f.0 += 1;
+    if f.0 >= 5 {
+        let minutes = (5u64 << f.1.min(4)).min(60);
+        f.0 = 0;
+        f.1 += 1;
+        f.2 = Some(Instant::now() + Duration::from_secs(minutes * 60));
     }
     Err("Wrong PIN.".into())
+}
+
+/// Staff PIN: the server decides whenever it can be reached (the local file could have been edited
+/// during a paid session). Only with no internet does the local copy count. Returns whether the
+/// server checked it (and so already logged the unlock).
+async fn verify_staff_pin(shared: &Shared, pin: &str) -> Result<bool, String> {
+    let Some(token) = shared.token() else {
+        return check_pin_locally(shared, pin).map(|_| false);
+    };
+    match shared.api().check_staff_pin(&token, pin).await {
+        Ok(r) if r.ok => Ok(true),
+        Ok(r) if r.unset => {
+            // Paired before server checks existed: trust the local copy once, then store it there.
+            check_pin_locally(shared, pin)?;
+            if config::valid_pin(pin) {
+                let _ = shared.api().set_staff_pin(&token, pin).await;
+            }
+            Ok(false)
+        }
+        Ok(r) => Err(r.error.unwrap_or_else(|| "Wrong PIN.".into())),
+        Err(api::ApiError::Network(_)) => check_pin_locally(shared, pin).map(|_| false),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 /// Staff PIN: opens the PC for 15 minutes without a session (e.g. updates, or the internet is down).
 /// Logged in Activity when online.
 #[tauri::command]
 async fn staff_unlock(app: AppHandle, shared: State<'_, Arc<Shared>>, pin: String) -> Result<(), String> {
-    check_pin(&shared, &pin)?;
+    let logged = verify_staff_pin(&shared, &pin).await?;
     *shared.staff_until.lock().unwrap() = Some(shared.server_now() + ChronoDuration::minutes(STAFF_UNLOCK_MINUTES));
     apply(&app, &shared);
-    if let Some(token) = shared.token() {
-        let _ = shared.api().report(&token, "staff_unlock", json!({})).await;
+    if !logged {
+        if let Some(token) = shared.token() {
+            let _ = shared.api().report(&token, "staff_unlock", json!({})).await;
+        }
     }
     Ok(())
 }
@@ -590,7 +639,7 @@ async fn staff_lock(app: AppHandle, shared: State<'_, Arc<Shared>>) -> Result<()
 /// Forget this PC's pairing (e.g. moving it to another station). Needs the staff PIN.
 #[tauri::command]
 async fn unpair(app: AppHandle, shared: State<'_, Arc<Shared>>, pin: String) -> Result<(), String> {
-    check_pin(&shared, &pin)?;
+    verify_staff_pin(&shared, &pin).await?;
     config::delete_token();
     *shared.token.lock().unwrap() = None;
     *shared.sync.lock().unwrap() = None;

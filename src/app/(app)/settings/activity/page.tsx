@@ -170,7 +170,7 @@ async function Activity() {
     ...(changes ?? []).map((c) => {
       const details = (c.details ?? {}) as Details;
       // Reported by the PC app itself: "PC-04 closed blocked app taskmgr.exe".
-      if (c.action === "blocked_app" || c.action === "staff_unlock") {
+      if (c.action === "blocked_app" || c.action === "staff_unlock" || c.action === "staff_pin_locked") {
         return {
           key: `a${c.id}`,
           at: c.created_at,
@@ -178,7 +178,9 @@ async function Activity() {
           text:
             c.action === "staff_unlock"
               ? "was unlocked with the staff PIN on the PC"
-              : `closed blocked app ${typeof details.app === "string" ? details.app : ""}`.trim(),
+              : c.action === "staff_pin_locked"
+                ? "locked staff unlock after 5 wrong PINs on the PC"
+                : `closed blocked app ${typeof details.app === "string" ? details.app : ""}`.trim(),
           alert: true,
         };
       }

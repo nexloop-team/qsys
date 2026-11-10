@@ -2,6 +2,11 @@
 //!
 //! `config.json` (in the app's data folder) holds the server address, the publishable key and the
 //! staff PIN hash. The device key itself is kept in Windows Credential Manager, never in a file.
+//!
+//! The player's Windows account can write that folder, so nothing in it is trusted on its own:
+//! release builds always use the server address baked in at build time, the staff PIN is checked
+//! on the server whenever the PC is online (this copy is only the offline fallback), and the copy
+//! is a slow PBKDF2 hash so it can't be brute-forced in seconds.
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -42,6 +47,12 @@ impl Config {
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
+        // A release build with a baked-in server ignores the file: otherwise a player could point
+        // the app at their own server (which would always say "unlocked") and collect the device key.
+        if server_is_fixed() {
+            c.server_url = DEFAULT_SERVER_URL.to_string();
+            c.publishable_key = DEFAULT_PUBLISHABLE_KEY.to_string();
+        }
         if c.server_url.is_empty() {
             c.server_url = DEFAULT_SERVER_URL.to_string();
         }
@@ -66,13 +77,50 @@ impl Config {
 
     pub fn check_pin(&self, pin: &str) -> bool {
         match (&self.pin_salt, &self.pin_hash) {
-            (Some(salt), Some(hash)) => constant_eq(&hash_pin(salt, pin), hash),
+            (Some(salt), Some(hash)) => match hash.strip_prefix(PBKDF2_PREFIX) {
+                Some(rest) => constant_eq(&pbkdf2_hex(salt, pin, PBKDF2_ROUNDS), rest),
+                // Saved by an earlier version (one SHA-256 round). Still accepted.
+                None => constant_eq(&legacy_hash(salt, pin), hash),
+            },
             _ => false,
         }
     }
 }
 
+/// Release builds that were given a server address at build time always use it.
+pub fn server_is_fixed() -> bool {
+    !cfg!(debug_assertions) && !DEFAULT_SERVER_URL.is_empty()
+}
+
+/// Only HTTPS, so the device key and player PINs never cross the café network in the clear.
+/// Plain http is allowed only for a local development server in debug builds.
+pub fn check_server_url(url: &str) -> Result<(), String> {
+    let url = url.trim().to_ascii_lowercase();
+    if url.starts_with("https://") && url.len() > "https://".len() {
+        return Ok(());
+    }
+    let local = url.starts_with("http://localhost") || url.starts_with("http://127.0.0.1");
+    if cfg!(debug_assertions) && local {
+        return Ok(());
+    }
+    Err("The QueSys server address must start with https://".into())
+}
+
+const PBKDF2_PREFIX: &str = "pbkdf2-sha256$";
+// About a tenth of a second per try on a gaming PC: unnoticeable at the lock screen, slow for guessing.
+const PBKDF2_ROUNDS: u32 = 200_000;
+
 fn hash_pin(salt: &str, pin: &str) -> String {
+    format!("{PBKDF2_PREFIX}{}", pbkdf2_hex(salt, pin, PBKDF2_ROUNDS))
+}
+
+fn pbkdf2_hex(salt: &str, pin: &str, rounds: u32) -> String {
+    let mut out = [0u8; 32];
+    pbkdf2::pbkdf2_hmac::<Sha256>(pin.as_bytes(), salt.as_bytes(), rounds, &mut out);
+    hex::encode(out)
+}
+
+fn legacy_hash(salt: &str, pin: &str) -> String {
     let mut h = Sha256::new();
     h.update(salt.as_bytes());
     h.update(b":");
@@ -84,8 +132,9 @@ fn constant_eq(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
+/// Staff PINs: 6 to 8 digits (a 4-digit PIN falls quickly to guessing if this file is copied).
 pub fn valid_pin(pin: &str) -> bool {
-    (4..=8).contains(&pin.len()) && pin.chars().all(|c| c.is_ascii_digit())
+    (6..=8).contains(&pin.len()) && pin.chars().all(|c| c.is_ascii_digit())
 }
 
 // --- Device key in Windows Credential Manager -------------------------------------------------
@@ -118,17 +167,35 @@ mod tests {
     #[test]
     fn pin_round_trip() {
         let mut c = Config::default();
-        c.set_pin("4821");
-        assert!(c.check_pin("4821"));
-        assert!(!c.check_pin("4822"));
-        assert!(!Config::default().check_pin("4821"));
+        c.set_pin("482193");
+        assert!(c.pin_hash.as_deref().unwrap().starts_with(PBKDF2_PREFIX));
+        assert!(c.check_pin("482193"));
+        assert!(!c.check_pin("482194"));
+        assert!(!Config::default().check_pin("482193"));
     }
 
     #[test]
     fn pin_rules() {
-        assert!(valid_pin("1234"));
+        assert!(valid_pin("123456"));
         assert!(valid_pin("12345678"));
-        assert!(!valid_pin("123"));
-        assert!(!valid_pin("12a4"));
+        assert!(!valid_pin("1234"));
+        assert!(!valid_pin("123456789"));
+        assert!(!valid_pin("12a456"));
+    }
+
+    #[test]
+    fn legacy_pin_still_works() {
+        let salt = "abc".to_string();
+        let c = Config { pin_salt: Some(salt.clone()), pin_hash: Some(legacy_hash(&salt, "4821")), ..Default::default() };
+        assert!(c.check_pin("4821"));
+        assert!(!c.check_pin("4822"));
+    }
+
+    #[test]
+    fn server_must_be_https() {
+        assert!(check_server_url("https://abc.supabase.co").is_ok());
+        assert!(check_server_url("http://abc.supabase.co").is_err());
+        assert!(check_server_url("ftp://abc").is_err());
+        assert!(check_server_url("https://").is_err());
     }
 }

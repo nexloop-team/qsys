@@ -93,6 +93,16 @@ impl Api {
         self.rpc("agent_player_login", json!({ "p_token": token, "p_mobile": mobile, "p_pin": pin })).await
     }
 
+    /// Store the staff PIN on the server, once, right after pairing.
+    pub async fn set_staff_pin(&self, token: &str, pin: &str) -> Result<(), ApiError> {
+        self.call("agent_set_staff_pin", json!({ "p_token": token, "p_pin": pin })).await.map(|_| ())
+    }
+
+    /// Check the staff PIN on the server (it logs the unlock and locks out repeated wrong PINs).
+    pub async fn check_staff_pin(&self, token: &str, pin: &str) -> Result<StaffPinReply, ApiError> {
+        self.rpc("agent_check_staff_pin", json!({ "p_token": token, "p_pin": pin })).await
+    }
+
     pub async fn ack(&self, token: &str, command_id: &str, result: &str) -> Result<(), ApiError> {
         self.call("agent_ack", json!({ "p_token": token, "p_command_id": command_id, "p_result": result }))
             .await
@@ -116,6 +126,15 @@ impl Api {
         };
         format!("{ws}/realtime/v1/websocket?apikey={}&vsn=1.0.0", self.key)
     }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct StaffPinReply {
+    pub ok: bool,
+    /// The server has no staff PIN for this PC yet (paired before server checks existed).
+    #[serde(default)]
+    pub unset: bool,
+    pub error: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
