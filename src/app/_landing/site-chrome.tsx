@@ -85,6 +85,9 @@ export function SiteHeader() {
           <Wordmark />
         </span>
         <nav aria-label="Pages" className="relative hidden gap-1 text-sm text-muted sm:flex">
+          <Link href="/plans" className="inline-flex h-10 items-center rounded-full px-3 transition-colors hover:bg-hover/70 hover:text-fg">
+            Pricing
+          </Link>
           <Link href="/about" className="inline-flex h-10 items-center rounded-full px-3 transition-colors hover:bg-hover/70 hover:text-fg">
             About
           </Link>
@@ -122,9 +125,18 @@ const FOOTER_LINKS = [
     ],
   },
   {
+    title: "Guides",
+    links: [
+      ["Snooker & pool clubs", "/snooker-club-software"],
+      ["PS5 & console lounges", "/ps5-lounge-software"],
+      ["Gaming PC & cyber cafés", "/cyber-cafe-software"],
+    ],
+  },
+  {
     title: "Company",
     links: [
       ["About", "/about"],
+      ["Pricing", "/plans"],
       ["Contact", "/contact"],
     ],
   },
@@ -148,7 +160,7 @@ export function SiteFooter() {
             Timers, PC control, billing and bookings for gaming lounges and pool &amp; snooker halls. Made for Indian venues.
           </p>
         </div>
-        <nav aria-label="Footer" className="grid w-full grid-cols-3 gap-x-4 sm:w-auto sm:gap-x-12">
+        <nav aria-label="Footer" className="grid w-full grid-cols-2 gap-x-4 gap-y-6 sm:w-auto sm:grid-cols-4 sm:gap-x-12">
           {FOOTER_LINKS.map((group) => (
             <div key={group.title} className="flex flex-col">
               <p className="mb-1.5 text-xs font-semibold text-muted">{group.title}</p>

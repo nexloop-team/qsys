@@ -7,11 +7,13 @@ import { hoursFromNow } from "@/lib/format";
 import type { Database } from "@/lib/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  ALERT_SELECT,
   BOOKING_SELECT,
   REQUEST_SELECT,
   SESSION_SELECT,
   type FloorBooking,
   type LiveSession,
+  type PcAlert,
   type StationRequest,
 } from "./types";
 
@@ -98,7 +100,7 @@ export function useFloorSessions(branchId: string, initial: LiveSession[]) {
 function useLiveList<T>(
   supabase: SupabaseClient<Database>,
   branchId: string,
-  table: "station_requests" | "bookings",
+  table: "station_requests" | "bookings" | "pc_alerts",
   initial: T[],
   load: () => PromiseLike<{ data: unknown; error: unknown }>,
 ) {
@@ -150,6 +152,19 @@ export function useStationRequests(supabase: SupabaseClient<Database>, branchId:
       .eq("branch_id", branchId)
       .eq("status", "pending")
       .order("created_at"),
+  );
+}
+
+// Tamper alerts not yet dismissed (last 2 days).
+export function usePcAlerts(supabase: SupabaseClient<Database>, branchId: string, initial: PcAlert[]) {
+  return useLiveList<PcAlert>(supabase, branchId, "pc_alerts", initial, () =>
+    supabase
+      .from("pc_alerts")
+      .select(ALERT_SELECT)
+      .eq("branch_id", branchId)
+      .is("dismissed_at", null)
+      .gte("created_at", hoursFromNow(-48))
+      .order("created_at", { ascending: false }),
   );
 }
 

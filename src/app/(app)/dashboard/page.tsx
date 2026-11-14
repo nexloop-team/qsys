@@ -8,12 +8,14 @@ import type { SessionMode, StationType } from "@/lib/constants";
 import { PageSkeleton } from "@/components/card";
 import { FloorBoard } from "./floor-board";
 import {
+  ALERT_SELECT,
   BOOKING_SELECT,
   REQUEST_SELECT,
   SESSION_SELECT,
   type FloorBooking,
   type FloorData,
   type LiveSession,
+  type PcAlert,
   type StationRequest,
 } from "./types";
 
@@ -31,7 +33,7 @@ async function Floor() {
   const { branch, org, role } = await getAppContext();
   const supabase = await createClient();
 
-  const [stations, sessions, unpaid, plans, packages, settings, now, devices, requests, bookings] = await Promise.all([
+  const [stations, sessions, unpaid, plans, packages, settings, now, devices, requests, bookings, alerts] = await Promise.all([
     supabase
       .from("stations")
       .select("id, name, type, tier, status, zone, layout_x, layout_y, layout_rot")
@@ -74,6 +76,13 @@ async function Floor() {
       .gte("starts_at", hoursFromNow(-2))
       .lte("starts_at", hoursFromNow(36))
       .order("starts_at"),
+    supabase
+      .from("pc_alerts")
+      .select(ALERT_SELECT)
+      .eq("branch_id", branch.id)
+      .is("dismissed_at", null)
+      .gte("created_at", hoursFromNow(-48))
+      .order("created_at", { ascending: false }),
   ]);
 
   const s = settings.data;
@@ -101,6 +110,7 @@ async function Floor() {
     devices: devices.data ?? [],
     requests: (requests.data ?? []) as StationRequest[],
     bookings: (bookings.data ?? []) as FloorBooking[],
+    alerts: (alerts.data ?? []) as PcAlert[],
   };
 
   // Keyed by branch so switching branch starts from that branch's data, never the previous one's.

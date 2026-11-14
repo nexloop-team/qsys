@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Download, ReceiptText } from "lucide-react";
+import { Download, ReceiptText, Wallet } from "lucide-react";
 import { getAppContext, isOwner } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { formatINR, formatTime, nextDay, todayIn, zonedStart } from "@/lib/format";
@@ -72,6 +72,9 @@ async function Bills({ searchParams }: { searchParams: PageProps<"/bills">["sear
         description={`${branch.name} · ${date === today ? "today" : new Date(`${date}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })}`}
         actions={
           <>
+            <Link href="/bills/shift" className={buttonClass("secondary", "md")}>
+              <Wallet /> Close shift
+            </Link>
             {isOwner(role) && (
               <a href={`/bills/export?from=${date}&to=${date}`} className={buttonClass("secondary", "md")}>
                 <Download /> Export

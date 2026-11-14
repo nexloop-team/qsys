@@ -144,3 +144,68 @@ export async function clearPlayerPin(customerId: string): Promise<{ error?: stri
   refresh();
   return {};
 }
+
+// --- Vouchers -------------------------------------------------------------------------------------
+
+const voucherSchema = z.object({
+  count: z.coerce.number().int().min(1, "Make at least 1 voucher.").max(100, "Make up to 100 at a time."),
+  amount: z.coerce.number().min(1, "A voucher is worth at least ₹1.").max(10000, "Up to ₹10,000 per voucher."),
+  expires_on: z
+    .string()
+    .trim()
+    .transform((v) => v || null)
+    .pipe(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick an expiry date.").nullable()),
+  note: z.string().trim().max(80, "Keep the note under 80 characters.").transform((v) => v || null),
+});
+
+// Owner: a batch of one-time codes. Returns the codes so they can be copied or printed right away.
+export async function createVouchers(
+  _prev: (ActionState & { codes?: string[] }) | null,
+  formData: FormData,
+): Promise<(ActionState & { codes?: string[] }) | null> {
+  const { org } = await requireRole(["owner"]);
+  const parsed = voucherSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_vouchers", {
+    p_org_id: org.id,
+    p_count: parsed.data.count,
+    p_amount: parsed.data.amount,
+    p_expires_on: parsed.data.expires_on,
+    p_note: parsed.data.note,
+  });
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath("/players/vouchers");
+  return { ok: `${data.length} voucher${data.length === 1 ? "" : "s"} ready.`, codes: data };
+}
+
+export async function voidVoucher(voucherId: string): Promise<{ error?: string }> {
+  await requireRole(["owner"]);
+  if (!z.uuid().safeParse(voucherId).success) return { error: "Voucher not found." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("void_voucher", { p_voucher_id: voucherId });
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath("/players/vouchers");
+  return {};
+}
+
+// Staff: a voucher code into a player's wallet (bonus credit).
+export async function redeemVoucher(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { branch } = await getAppContext();
+  const customerId = z.uuid().safeParse(formData.get("customerId"));
+  if (!customerId.success) return { error: "Couldn't find that player." };
+  const code = String(formData.get("code") ?? "").replace(/[^a-z0-9]/gi, "");
+  if (code.length !== 8) return { error: "A voucher code has 8 letters and numbers." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("redeem_voucher", {
+    p_customer_id: customerId.data,
+    p_code: code,
+    p_branch_id: branch.id,
+  });
+  if (error) return { error: friendlyDbError(error) };
+  const amount = Number((data as { amount?: number } | null)?.amount ?? 0);
+  revalidatePath(`/players/${customerId.data}`);
+  revalidatePath("/players/vouchers");
+  refresh();
+  return { ok: `₹${amount.toLocaleString("en-IN")} added to the wallet.` };
+}

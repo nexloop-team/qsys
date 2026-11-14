@@ -10,6 +10,7 @@ import { formatDateTime, formatINR, formatMinutes } from "@/lib/format";
 import { Badge, PageHeader, PageSkeleton, Panel } from "@/components/card";
 import { buttonClass } from "@/components/styles";
 import { PcPinButton, TopupWalletButton } from "../player-forms";
+import { RedeemVoucherButton } from "../voucher-forms";
 import { DuesReminderButton, KhataLimitButton } from "../khata-controls";
 
 export const metadata: Metadata = { title: "Player" };
@@ -136,6 +137,7 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
         actions={
           <>
             <PcPinButton customerId={player.id} playerName={player.name} pinSet={Boolean(player.pin_set)} />
+            <RedeemVoucherButton customerId={player.id} playerName={player.name} />
             <TopupWalletButton
               customerId={player.id}
               playerName={player.name}

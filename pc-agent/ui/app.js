@@ -259,6 +259,7 @@ function drawMenu() {
   $("m-wallet-box").hidden = view.wallet == null;
   $("m-wallet").textContent = view.wallet == null ? "" : rupees(view.wallet);
   $("m-extend").hidden = view.mode !== "prepaid";
+  $("m-voucher-box").hidden = !view.vouchers;
 
   // Rebuild lists only when they change (keeps focus and chosen quantities).
   const key = JSON.stringify([view.games, view.menu, view.orders]);
@@ -338,6 +339,30 @@ function tickMenu() {
     $("m-time").textContent = "";
   }
 }
+
+$("m-voucher").addEventListener("input", (e) => {
+  const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+  e.target.value = raw.length > 4 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : raw;
+});
+$("m-voucher-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  menuError("");
+  const note = $("m-voucher-note");
+  note.hidden = true;
+  const code = $("m-voucher").value;
+  if (code.replace(/[^A-Z0-9]/gi, "").length !== 8) return menuError("A voucher code has 8 letters and numbers.");
+  $("m-voucher-btn").disabled = true;
+  try {
+    const amount = await invoke("redeem_voucher", { code });
+    $("m-voucher").value = "";
+    note.textContent = `${rupees(amount)} added to your wallet.`;
+    note.hidden = false;
+  } catch (err) {
+    menuError(String(err));
+  } finally {
+    $("m-voucher-btn").disabled = false;
+  }
+});
 
 $("m-call").addEventListener("click", (e) => request("call", null, null, e.currentTarget));
 $("m-extend").addEventListener("click", (e) => request("extend", null, null, e.currentTarget));

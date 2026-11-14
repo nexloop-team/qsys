@@ -174,6 +174,55 @@ export type Database = {
         details: Json;
         created_at: Ts;
       }>;
+      pc_alerts: Table<{
+        id: string;
+        org_id: string;
+        branch_id: string;
+        station_id: string;
+        session_id: string | null;
+        kind: "app_closed" | "pc_restarted" | "offline";
+        away_from: Ts;
+        away_until: Ts;
+        customer_name: string | null;
+        dismissed_by: string | null;
+        dismissed_at: Ts | null;
+        created_at: Ts;
+      }>;
+      vouchers: Table<
+        {
+          id: string;
+          org_id: string;
+          code: string;
+          amount: number;
+          note: string | null;
+          expires_on: string | null;
+          created_by: string | null;
+          created_at: Ts;
+          redeemed_at: Ts | null;
+          redeemed_by: string | null;
+          redeemed_branch_id: string | null;
+          customer_id: string | null;
+          voided_at: Ts | null;
+        },
+        [Rel<"vouchers_customer_id_fkey", ["customer_id"], "customers", ["id"]>]
+      >;
+      shift_closes: Table<{
+        id: string;
+        org_id: string;
+        branch_id: string;
+        closed_by: string | null;
+        opened_at: Ts;
+        closed_at: Ts;
+        opening_float: number;
+        cash_sales: number;
+        cash_wallet: number;
+        upi_total: number;
+        expected_cash: number;
+        counted_cash: number;
+        difference: number;
+        float_left: number;
+        note: string | null;
+      }>;
       expenses: Table<
         {
           id: string;
@@ -592,6 +641,18 @@ export type Database = {
         Returns: string;
       };
       handle_station_request: { Args: { p_request_id: string; p_accept: boolean }; Returns: undefined };
+      dismiss_pc_alert: { Args: { p_alert_id: string }; Returns: undefined };
+      create_vouchers: {
+        Args: { p_org_id: string; p_count: number; p_amount: number; p_expires_on?: string | null; p_note?: string | null };
+        Returns: string[];
+      };
+      void_voucher: { Args: { p_voucher_id: string }; Returns: undefined };
+      redeem_voucher: { Args: { p_customer_id: string; p_code: string; p_branch_id?: string | null }; Returns: Json };
+      shift_status: { Args: { p_branch_id: string }; Returns: Json };
+      close_shift: {
+        Args: { p_branch_id: string; p_counted: number; p_float_left?: number; p_note?: string | null };
+        Returns: string;
+      };
       reset_station_code: { Args: { p_station_id: string }; Returns: string };
       public_booking_info: { Args: { p_slug: string }; Returns: Json };
       public_booking_slots: {

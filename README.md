@@ -108,6 +108,10 @@ Each file in `supabase/migrations` runs once, in order. After pulling new code, 
 - `20261129000002_pc_launcher_health.sql`: the PC app's **games menu** (games list, wallet balance, snack
   orders, more time, Call staff), **restrictions** (Task Manager, Control Panel, command line, USB drives) and
   **health readings** (CPU, RAM, GPU, disk) on the floor.
+- `20261130000001_tamper_vouchers_shifts.sql`: **tamper alerts** (a PC that went quiet during a session, or
+  whose app was closed while locked, is flagged on the floor and in Activity), **vouchers** (one-time codes
+  redeemed into a wallet, at the counter or from the PC), and **shift close** (count the drawer, see the
+  difference, leave a float).
 
 Station QR codes, the booking link and sign-up / reset emails use the address the app is opened at, so print
 QR codes (Stations › QR codes) from your real web address. A non-localhost `NEXT_PUBLIC_SITE_URL` overrides this.

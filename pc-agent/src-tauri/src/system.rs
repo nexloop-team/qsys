@@ -9,7 +9,16 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+/// Call once when the app starts: check-ins report how long the app has been running.
+pub fn mark_start() {
+    STARTED.get_or_init(std::time::Instant::now);
+}
+
 /// Sent with every check-in: lets the dashboard show the PC's name, and lets another PC wake it.
+/// The two uptimes let the server tell, after a gap in check-ins, whether the PC was switched off
+/// (Windows restarted) or only this app was closed (Windows kept running): a tamper alert.
 pub fn info(locked: bool) -> Value {
     let hostname = hostname::get().ok().map(|h| h.to_string_lossy().into_owned());
     let mac = mac_address::get_mac_address().ok().flatten().map(|m| m.to_string());
@@ -22,6 +31,8 @@ pub fn info(locked: bool) -> Value {
         "mac": mac,
         "ip": ip,
         "locked": locked,
+        "uptime_s": sysinfo::System::uptime(),
+        "app_uptime_s": STARTED.get_or_init(std::time::Instant::now).elapsed().as_secs(),
     })
 }
 

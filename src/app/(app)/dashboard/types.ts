@@ -78,6 +78,16 @@ export type StationRequest = {
   created_at: string;
 };
 
+/** A PC that went quiet during a session, or whose app was closed while locked. */
+export type PcAlert = {
+  id: string;
+  station_id: string;
+  kind: "app_closed" | "pc_restarted" | "offline";
+  away_from: string;
+  away_until: string;
+  customer_name: string | null;
+};
+
 /** Upcoming bookings shown on the floor (requested or confirmed, from now to the end of tomorrow). */
 export type FloorBooking = {
   id: string;
@@ -106,6 +116,7 @@ export type FloorData = {
   devices: DeviceStatus[];
   requests: StationRequest[];
   bookings: FloorBooking[];
+  alerts: PcAlert[];
 };
 
 export const SESSION_SELECT =
@@ -117,4 +128,5 @@ export type TileState = "free" | "busy" | "ending" | "over" | "paused" | "off";
 export const ENDING_SOON_SECONDS = 5 * 60;
 
 export const REQUEST_SELECT = "id, station_id, session_id, kind, label, created_at";
+export const ALERT_SELECT = "id, station_id, kind, away_from, away_until, customer_name";
 export const BOOKING_SELECT = "id, station_type, station_id, name, phone, starts_at, minutes, players, status";
