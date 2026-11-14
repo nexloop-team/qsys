@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ChevronLeft, ChevronRight, Contact } from "lucide-react";
+import { ChevronLeft, ChevronRight, Contact, Ticket } from "lucide-react";
 import { getAppContext, isOwner } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateTime, formatINR } from "@/lib/format";
@@ -89,7 +89,14 @@ async function Players({ searchParams }: { searchParams: PageProps<"/players">["
       <PageHeader
         title="Players"
         description="One account per mobile number, for open and fixed time alike. Created the first time someone plays."
-        actions={<AddPlayerButton />}
+        actions={
+          <>
+            <Link href="/players/vouchers" className={buttonClass("secondary", "md")}>
+              <Ticket /> Vouchers
+            </Link>
+            <AddPlayerButton />
+          </>
+        }
       />
 
       {!q && page === 1 && dues.length > 0 && (

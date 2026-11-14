@@ -27,6 +27,13 @@ const ENTITY: Record<string, string> = {
   memberships: "team member",
   expenses: "expense",
   invoices: "bill",
+  vouchers: "vouchers",
+};
+
+const PC_ALERT_TEXT: Record<string, string> = {
+  app_closed: "had the QueSys app closed",
+  pc_restarted: "was switched off or restarted",
+  offline: "lost its connection",
 };
 const VERB: Record<string, string> = { insert: "added", update: "changed", delete: "removed", void: "cancelled" };
 const HIDDEN_FIELDS = new Set(["updated_at", "created_at", "org_id", "branch_id", "id", "sort_order", "_label"]);
@@ -173,6 +180,30 @@ async function Activity() {
     ...(changes ?? []).map((c) => {
       const details = (c.details ?? {}) as Details;
       // Reported by the PC app itself: "PC-04 closed blocked app taskmgr.exe".
+      if (c.action === "shift_close") {
+        const diff = typeof details.difference === "number" ? details.difference : 0;
+        return {
+          key: `a${c.id}`,
+          at: c.created_at,
+          actor: who(c.actor_id),
+          text: `closed the shift: counted ${formatINR(Number(details.counted ?? 0))}${
+            diff === 0 ? ", cash matched" : diff < 0 ? `, ${formatINR(-diff)} short` : `, ${formatINR(diff)} over`
+          }`,
+          alert: diff < 0,
+        };
+      }
+      if (c.action === "pc_alert") {
+        const kind = typeof details.kind === "string" ? details.kind : "";
+        const minutes = typeof details.minutes === "number" ? details.minutes : 0;
+        const customer = typeof details.customer === "string" ? ` during ${details.customer}'s session` : " while locked";
+        return {
+          key: `a${c.id}`,
+          at: c.created_at,
+          actor: typeof details.name === "string" ? details.name : "A PC",
+          text: `${PC_ALERT_TEXT[kind] ?? "went quiet"} for ${minutes} min${customer}`,
+          alert: true,
+        };
+      }
       if (c.action === "blocked_app" || c.action === "staff_unlock" || c.action === "staff_pin_locked" || c.action === "usb_drive") {
         return {
           key: `a${c.id}`,

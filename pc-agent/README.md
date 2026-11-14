@@ -9,6 +9,8 @@ A small Windows app for each gaming PC. It is built with Tauri 2: a Rust core an
 - **Commands from the floor:** message, restart, shut down, and turn on. Turn on is sent as Wake-on-LAN from another online PC on the same network.
 - **Games menu:** when a session starts, a window lists the venue's games (Settings › PC app), the player's wallet balance, snacks to order, *30 more minutes* (fixed time) and *Call staff*. Orders and calls show up on the floor like QR-page requests. The menu stays in the taskbar, and the timer has a *Menu* link.
 - **Restrictions:** Task Manager, Control Panel / Settings, command prompt / PowerShell / Registry Editor, and USB drives can be turned off for players (Settings › PC app). The app sets the Windows policy and also closes those programs. Staff unlock lifts them. USB blocking needs the app to run as administrator; otherwise a plugged-in USB drive is reported in Activity.
+- **Tamper alerts:** each check-in says how long Windows and the app have been running. After two minutes of silence the server works out why (app closed, PC switched off, or no connection) and flags it on the floor if it happened during a session, or if the app was closed while the PC was locked.
+- **Vouchers:** a player with a session can type a voucher code in the games menu to add it to their wallet.
 - **Health:** each check-in carries CPU, memory, GPU (NVIDIA, via `nvidia-smi`) and disk readings. The floor shows them in the station sheet and flags a hot GPU, a full disk, full memory or a USB drive.
 - **Blocked apps:** listed under Settings › PC app. They are closed every 5 seconds while a player has the PC, and each one closed is logged in Activity.
 - **Time comes from the server.** Changing the PC clock does nothing. If the internet drops, the last known end time is still enforced.
@@ -30,6 +32,7 @@ Pairing trades a one-time code for a random device key. The device key is stored
 | `agent_check_staff_pin(key, pin)` | Staff unlock or unpair → checks the PIN, logs it, locks after 5 wrong tries |
 | `agent_player_login(key, mobile, pin)` | A player logs in on the lock screen → starts open time in their name |
 | `agent_request(key, kind, product, qty)` | From the games menu: order a snack, ask for 30 more minutes, call staff |
+| `agent_redeem_voucher(key, code)` | From the games menu: a voucher into the session player's wallet |
 
 ### Security
 

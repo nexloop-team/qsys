@@ -138,6 +138,7 @@ mod tests {
             restrictions: vec![],
             orders: false,
             wallet: None,
+            vouchers: false,
             menu: vec![],
             requests: vec![],
         }

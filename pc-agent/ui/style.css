@@ -168,3 +168,5 @@ body.is-menu { overflow: auto; }
 .m-req.accepted .m-req-status { color: var(--free); }
 .m-req.declined .m-req-status { color: var(--faint); }
 .w-sub .link { font-size: 12px; }
+.m-voucher { flex: 1; text-transform: uppercase; letter-spacing: 0.12em; }
+#m-voucher-note { color: var(--free); }

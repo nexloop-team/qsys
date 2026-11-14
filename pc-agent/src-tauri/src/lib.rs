@@ -71,6 +71,8 @@ pub struct View {
     dev: bool,
     // The games menu (filled only while a player's session runs).
     games: Vec<api::Game>,
+    /// The session has a player, so a voucher can go into their wallet.
+    vouchers: bool,
     wallet: Option<f64>,
     orders: bool,
     menu: Vec<api::MenuItem>,
@@ -149,6 +151,7 @@ impl Shared {
             widget,
             dev: cfg!(debug_assertions),
             games: live.map(|s| s.games.clone()).unwrap_or_default(),
+            vouchers: live.is_some_and(|s| s.vouchers),
             wallet: live.and_then(|s| s.wallet),
             orders: live.is_some_and(|s| s.orders),
             menu: live.map(|s| s.menu.clone()).unwrap_or_default(),
@@ -170,6 +173,7 @@ pub fn run() {
             Some(vec!["--watchdog"]),
         ))
         .setup(|app| {
+            system::mark_start();
             let data_dir = app.path().app_data_dir().unwrap_or_else(|_| PathBuf::from("."));
             let shared = Arc::new(Shared {
                 config: Mutex::new(Config::load(&data_dir)),
@@ -236,7 +240,8 @@ pub fn run() {
             dev_quit,
             open_menu,
             launch_game,
-            send_request
+            send_request,
+            redeem_voucher
         ])
         .run(tauri::generate_context!())
         .expect("QueSys PC failed to start");
@@ -645,6 +650,22 @@ async fn send_request(
         .map_err(|e| e.to_string())?;
     sync_once(&app, &shared).await;
     Ok(())
+}
+
+/// From the menu: a voucher code goes into the session player's wallet. Returns the amount added.
+#[tauri::command]
+async fn redeem_voucher(app: AppHandle, shared: State<'_, Arc<Shared>>, code: String) -> Result<f64, String> {
+    let token = shared.token().ok_or("This PC is not paired.")?;
+    let code: String = code.chars().filter(|c| c.is_ascii_alphanumeric()).take(12).collect();
+    if code.len() != 8 {
+        return Err("A voucher code has 8 letters and numbers.".into());
+    }
+    let reply = shared.api().redeem_voucher(&token, &code).await.map_err(|e| e.to_string())?;
+    if !reply.ok {
+        return Err(reply.error.unwrap_or_else(|| "That voucher code isn't valid.".into()));
+    }
+    sync_once(&app, &shared).await;
+    Ok(reply.amount.unwrap_or_default())
 }
 
 #[tauri::command]

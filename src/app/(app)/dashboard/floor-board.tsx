@@ -17,6 +17,7 @@ import {
   PencilRuler,
   Play,
   Plus,
+  ShieldAlert,
   ShoppingBag,
   TriangleAlert,
   WifiOff,
@@ -35,6 +36,7 @@ import {
   useFloorSessions,
   useLocalPref,
   useMuted,
+  usePcAlerts,
   useServerClock,
   useStationRequests,
 } from "./use-floor";
@@ -49,6 +51,7 @@ import {
   type FloorPlan,
   type FloorStation,
   type LiveSession,
+  type PcAlert,
   type StationRequest,
   type TileState,
 } from "./types";
@@ -161,12 +164,20 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
   const deviceByStation = useMemo(() => new Map(devices.map((d) => [d.station_id, d])), [devices]);
   const [requests, refetchRequests] = useStationRequests(supabase, branch.id, initial.requests);
   const [bookings] = useFloorBookings(supabase, branch.id, initial.bookings);
+  const [alerts, refetchAlerts] = usePcAlerts(supabase, branch.id, initial.alerts);
 
   const [filter, setFilter] = useState<StationType | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checkoutIds, setCheckoutIds] = useState<string[] | null>(null);
   const [quickSaleOpen, setQuickSaleOpen] = useState(false);
   const [muted, setMuted] = useMuted();
+  // A new tamper alert beeps like a request (unless muted).
+  const seenAlerts = useRef(new Set(initial.alerts.map((a) => a.id)));
+  useEffect(() => {
+    const fresh = alerts.filter((a) => !seenAlerts.current.has(a.id));
+    fresh.forEach((a) => seenAlerts.current.add(a.id));
+    if (fresh.length && !muted) beep();
+  }, [alerts, muted]);
   const [view, setView] = useLocalPref<"grid" | "map">("qs_floor_view", "grid");
   const [editingLayout, setEditingLayout] = useState(false);
   const [placements, setPlacements] = useState(() => initialPlacements(stations));
@@ -410,6 +421,18 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
           </span>
         )}
       </div>
+
+      {alerts.length > 0 && (
+        <AlertsPanel
+          alerts={alerts}
+          stations={stations}
+          timezone={branch.timezone}
+          supabase={supabase}
+          onDismissed={async () => {
+            await refetchAlerts();
+          }}
+        />
+      )}
 
       {openRequests.length > 0 && (
         <RequestsPanel
@@ -751,6 +774,84 @@ function RequestsPanel({
                   <Check /> {r.kind === "call" ? "Done" : "Add"}
                 </Button>
               </span>
+            </li>
+          );
+        })}
+      </ul>
+      {error && <p className="border-t border-line px-4 py-2 text-sm text-danger">{error}</p>}
+    </Panel>
+  );
+}
+
+const ALERT_TEXT: Record<PcAlert["kind"], { title: string; hint: string }> = {
+  app_closed: { title: "QueSys app was closed", hint: "Windows kept running without the lock: check the PC." },
+  pc_restarted: { title: "PC was switched off or restarted", hint: "A power cut, a crash or the power button." },
+  offline: { title: "PC lost its connection", hint: "Network cable, Wi-Fi or the internet. The PC kept its timer." },
+};
+
+// PCs that went quiet: during a session, or with the app closed while locked (free play).
+function AlertsPanel({
+  alerts,
+  stations,
+  timezone,
+  supabase,
+  onDismissed,
+}: {
+  alerts: PcAlert[];
+  stations: FloorStation[];
+  timezone: string;
+  supabase: ReturnType<typeof useFloorSessions>["supabase"];
+  onDismissed: () => Promise<void>;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const dismiss = (ids: string[]) =>
+    startTransition(async () => {
+      setError(null);
+      const results = await Promise.all(ids.map((id) => supabase.rpc("dismiss_pc_alert", { p_alert_id: id })));
+      const failed = results.find((r) => r.error);
+      if (failed?.error) setError(friendlyError(failed.error));
+      await onDismissed();
+    });
+
+  return (
+    <Panel
+      title={
+        <span className="flex items-center gap-2">
+          <ShieldAlert className="size-4 text-over" /> PC alerts
+          <span className="num rounded-full bg-over/10 px-1.5 text-xs text-over">{alerts.length}</span>
+        </span>
+      }
+      action={
+        alerts.length > 1 ? (
+          <Button size="sm" variant="ghost" disabled={pending} onClick={() => dismiss(alerts.map((a) => a.id))}>
+            Dismiss all
+          </Button>
+        ) : undefined
+      }
+      flush
+    >
+      <ul className="divide-y divide-line">
+        {alerts.map((a) => {
+          const minutes = Math.max(1, Math.round((Date.parse(a.away_until) - Date.parse(a.away_from)) / 60_000));
+          const text = ALERT_TEXT[a.kind];
+          return (
+            <li key={a.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+              <span className={cx("size-2 shrink-0 rounded-full", a.kind === "app_closed" ? "bg-over" : "bg-ending")} />
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">{stations.find((s) => s.id === a.station_id)?.name ?? "PC"}</span>
+                <span className="text-muted">
+                  {" · "}
+                  {text.title} for {minutes} min
+                  {a.customer_name ? `, during ${a.customer_name}'s session` : ", while locked"}
+                </span>
+                <span className="block text-xs text-faint">
+                  {formatTime(a.away_from, timezone)}–{formatTime(a.away_until, timezone)} · {text.hint}
+                </span>
+              </span>
+              <Button size="sm" variant="secondary" disabled={pending} onClick={() => dismiss([a.id])}>
+                <Check /> Seen
+              </Button>
             </li>
           );
         })}

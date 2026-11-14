@@ -113,6 +113,11 @@ impl Api {
         .map(|_| ())
     }
 
+    /// From the games menu: a voucher into the session player's wallet.
+    pub async fn redeem_voucher(&self, token: &str, code: &str) -> Result<VoucherReply, ApiError> {
+        self.rpc("agent_redeem_voucher", json!({ "p_token": token, "p_code": code })).await
+    }
+
     pub async fn ack(&self, token: &str, command_id: &str, result: &str) -> Result<(), ApiError> {
         self.call("agent_ack", json!({ "p_token": token, "p_command_id": command_id, "p_result": result }))
             .await
@@ -144,6 +149,13 @@ pub struct StaffPinReply {
     /// The server has no staff PIN for this PC yet (paired before server checks existed).
     #[serde(default)]
     pub unset: bool,
+    pub error: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct VoucherReply {
+    pub ok: bool,
+    pub amount: Option<f64>,
     pub error: Option<String>,
 }
 
@@ -246,6 +258,9 @@ pub struct SyncData {
     /// The session player's wallet balance, if the session has a player.
     #[serde(default)]
     pub wallet: Option<f64>,
+    /// The session has a player: the menu offers "Have a voucher?".
+    #[serde(default)]
+    pub vouchers: bool,
     #[serde(default)]
     pub menu: Vec<MenuItem>,
     #[serde(default)]
