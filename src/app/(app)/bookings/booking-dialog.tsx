@@ -6,7 +6,7 @@ import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { friendlyError } from "@/lib/errors";
 import { zonedStart } from "@/lib/format";
-import { MULTIPLAYER_TYPES, STATION_TYPE_LABEL, playersWord, type StationType } from "@/lib/constants";
+import { STATION_TYPE_LABEL, type StationType } from "@/lib/constants";
 import { Modal, StickyActions } from "@/components/overlay";
 import { Button, ErrorText, Field, Input, Select, Textarea } from "@/components/ui";
 import { PlayerField, type PlayerValue } from "../dashboard/player-field";
@@ -19,12 +19,15 @@ export function AddBookingButton({
   branch,
   stations,
   types,
+  perPerson,
   today,
 }: {
   orgId: string;
   branch: { id: string; timezone: string };
   stations: Station[];
   types: StationType[];
+  /** Station types charged per person: their bookings ask how many. */
+  perPerson: StationType[];
   today: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -40,6 +43,7 @@ export function AddBookingButton({
             branch={branch}
             stations={stations}
             types={types}
+            perPerson={perPerson}
             today={today}
             onDone={() => setOpen(false)}
           />
@@ -54,6 +58,7 @@ function BookingForm({
   branch,
   stations,
   types,
+  perPerson,
   today,
   onDone,
 }: {
@@ -61,6 +66,7 @@ function BookingForm({
   branch: { id: string; timezone: string };
   stations: Station[];
   types: StationType[];
+  perPerson: StationType[];
   today: string;
   onDone: () => void;
 }) {
@@ -72,7 +78,7 @@ function BookingForm({
   const [date, setDate] = useState(today);
   const [time, setTime] = useState("18:00");
   const [minutes, setMinutes] = useState("60");
-  const [players, setPlayers] = useState(MULTIPLAYER_TYPES.has(types[0] ?? "snooker") ? "2" : "1");
+  const [players, setPlayers] = useState(perPerson.includes(types[0] ?? "snooker") ? "2" : "1");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
@@ -111,7 +117,7 @@ function BookingForm({
               const t = e.target.value as StationType;
               setType(t);
               setStationId("");
-              setPlayers(MULTIPLAYER_TYPES.has(t) ? "2" : "1");
+              setPlayers(perPerson.includes(t) ? "2" : "1");
             }}
           >
             {types.map((t) => (
@@ -148,8 +154,8 @@ function BookingForm({
             ))}
           </Select>
         </Field>
-        {MULTIPLAYER_TYPES.has(type) && (
-          <Field label={playersWord(type).replace(/^./, (c) => c.toUpperCase())}>
+        {perPerson.includes(type) && (
+          <Field label="People">
             <Input type="number" inputMode="numeric" min={1} max={16} value={players} onChange={(e) => setPlayers(e.target.value)} />
           </Field>
         )}

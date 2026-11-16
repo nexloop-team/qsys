@@ -17,10 +17,13 @@ export function PlayerField({
   orgId,
   supabase,
   onChange,
+  autoFocus = true,
 }: {
   orgId: string;
   supabase: SupabaseClient<Database>;
   onChange: (value: PlayerValue) => void;
+  /** Off where the field sits low on a page: on phones focus pops the keyboard and scrolls. */
+  autoFocus?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<{ q: string; matches: Match[]; failed?: boolean } | null>(null);
@@ -122,7 +125,7 @@ export function PlayerField({
             role="combobox"
             aria-expanded={matches.length > 0}
             aria-controls="player-suggestions"
-            autoFocus
+            autoFocus={autoFocus}
           />
           {loading && <Loader2 className="absolute right-3 top-2.5 size-4 animate-spin text-muted" />}
         </div>

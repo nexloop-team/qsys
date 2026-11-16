@@ -1,8 +1,8 @@
 # QueSys
 
 Management system for gaming venues (PC, PS5, Xbox) and snooker / 8-ball pool halls: one live floor,
-timers (open, fixed or per frame), billing, pay later with limits, online bookings, a QR page on each
-station, knockout tournaments, and automatic PC lock/unlock (the PC app in `pc-agent/`).
+timers (open, fixed or per frame), billing paid at the counter, phone bookings, a QR page on each station,
+knockout tournaments, and automatic PC lock/unlock (the PC app in `pc-agent/`).
 
 Stack: Next.js 16 (App Router, Cache Components) + Supabase (Postgres, Auth, RLS, Realtime).
 
@@ -88,11 +88,13 @@ Each file in `supabase/migrations` runs once, in order. After pulling new code, 
 - `20261123000002_choices_frames_khata.sql`: rates priced **per player choice** (e.g. 2 players ₹200/hr,
   4 players ₹300/hr; older "extra player" rates are converted with the same prices), **per-frame** billing,
   **who pays** (move a bill or khata to another player), and the **khata limit** (venue-wide and per player).
+  Player choices and the khata limit were later removed by `20261201000001`.
 - `20261124000001_station_qr.sql`: the **player QR page** on each station (`/s/<code>`): live timer and bill,
   snack orders, "30 more minutes" and "call staff" requests that staff accept on the Floor. Off by default
-  (Settings › Online).
+  (Settings › Table QR).
 - `20261125000001_bookings.sql`: **bookings**: a public page per branch (`/book/<address>`, off by default) and
-  bookings taken by phone. Staff confirm, assign a station, and mark arrived / no-show.
+  bookings taken by phone. Staff confirm, assign a station, and mark arrived / no-show. The public page is
+  switched off by `20261201000001` and no longer in the app.
 - `20261126000001_tournaments.sql`: **knockout tournaments**: players by mobile, entry fees as normal bills,
   a random draw with byes, and results tapped in by staff.
 - `20261127000001_tournament_teams_stations.sql`: **team tournaments** (doubles, 5v5…: a team name, a captain by
@@ -112,8 +114,12 @@ Each file in `supabase/migrations` runs once, in order. After pulling new code, 
   whose app was closed while locked, is flagged on the floor and in Activity), **vouchers** (one-time codes
   redeemed into a wallet, at the counter or from the PC), and **shift close** (count the drawer, see the
   difference, leave a float).
+- `20261201000001_simpler_billing.sql`: billing the way venues work. **No pay later** (the "most a player can
+  owe" limit is gone; an ended session waits under To collect until paid or written off), **per person or per
+  station** for each station type (Settings › Billing; consoles default to per person, tables to per table, and
+  player choices on rates go), and **online booking off** for now (phone bookings stay).
 
-Station QR codes, the booking link and sign-up / reset emails use the address the app is opened at, so print
+Station QR codes and sign-up / reset emails use the address the app is opened at, so print
 QR codes (Stations › QR codes) from your real web address. A non-localhost `NEXT_PUBLIC_SITE_URL` overrides this.
 - `20261111000001_memberships_no_direct_insert.sql`: people join a venue only by signing up as owner or with an
   invite code; owners can no longer add an account to their team directly through the API.
@@ -148,7 +154,6 @@ src/app/onboarding    create cafe + first branch
 src/app/(app)         dashboard (floor), bills, players, bookings, tournaments, reports, expenses, stations,
                       pricing, settings
 src/app/s/[code]      player QR page (public, no login)
-src/app/book/[slug]   booking page (public, no login)
 src/lib/dal.ts        current user / org / role / branch (data access layer)
 src/lib/supabase      server + browser clients
 src/proxy.ts          session refresh + auth redirects (Next 16 "proxy", formerly middleware)

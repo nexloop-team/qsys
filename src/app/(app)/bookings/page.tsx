@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { getAppContext } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { todayIn, zonedStart } from "@/lib/format";
-import { STATION_TYPES } from "@/lib/constants";
+import { DEFAULT_PER_PERSON, STATION_TYPES } from "@/lib/constants";
 import { PageSkeleton } from "@/components/card";
 import { BookingsView, type BookingRow } from "./bookings-view";
 
@@ -39,7 +39,7 @@ async function Bookings() {
       .order("sort_order"),
     supabase
       .from("branch_settings")
-      .select("station_types, booking_enabled, booking_slug")
+      .select("station_types, per_person_types")
       .eq("branch_id", branch.id)
       .single(),
   ]);
@@ -53,7 +53,7 @@ async function Bookings() {
       bookings={(bookings ?? []) as BookingRow[]}
       stations={stations ?? []}
       types={STATION_TYPES.filter((t) => (settings?.station_types ?? STATION_TYPES).includes(t))}
-      bookingPage={settings?.booking_enabled && settings.booking_slug ? `/book/${settings.booking_slug}` : null}
+      perPerson={settings?.per_person_types ?? DEFAULT_PER_PERSON}
     />
   );
 }

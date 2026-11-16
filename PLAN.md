@@ -67,19 +67,19 @@ A small service on a Raspberry Pi or the counter PC, paired to the branch. Timer
 
 **Built (2026-11-08):** migrations `20261123000001` to `20261126000001`, tests `09` to `12`.
 
-- Player choices on a rate (2 / 4 players or controllers, each with its own price) or one price for any number. Happy hour moves the smallest choice; the others keep their gap.
-- Frames timer mode for tables (+ Frame / − Frame), per-frame price per choice.
-- Who pays: a bill (or its khata) moves to another player at checkout, e.g. the losing side.
-- Khata limit, venue-wide and per player; over it, staff can't start that player (the owner can). WhatsApp dues reminders (click-to-chat) on Players.
+- Per person or per station, set for each station type under Settings › Billing (consoles default to per person, tables to per table; a PC is one person). Per person = the station's price × the people playing, happy-hour and weekend rates included. (Replaced the earlier "player choices" on rates, migration `20261201000001`.)
+- Frames timer mode for tables (+ Frame / − Frame), with a price per frame.
+- Who pays: the bill moves to another player at checkout, for example the losing side.
+- No pay later: every bill is paid at the counter. An ended session waits under To collect until it's paid or written off. (The khata limit and dues reminders were removed in `20261201000001`.)
 - Player QR page per station (`/s/<code>`): timer, bill, snack orders, 30 more minutes, call staff. Staff accept each request on the Floor. No payment on the page.
-- Bookings: public page per branch (`/book/<address>`, no payment), phone bookings, confirm / station / arrived / no-show; upcoming bookings on the Floor.
+- Bookings: phone bookings, station / arrived / no-show, upcoming bookings on the Floor. The public booking page is off for now (removed from the app; the database functions stay, switched off).
 - Knockout tournaments: singles or teams (captain pays one fee per team), on tables, PCs or consoles with a station per match (time not billed). Entry fee as a bill, random draw with byes, results by tap. Staff only. Migration `20261127000001`, test `13`.
 
 Still to do:
 
 - Snacks on the same bill: done earlier (session items).
 - Loyalty; automatic WhatsApp or SMS ("10 minutes left", bills) through a Business API.
-- Booking deposits (needs Razorpay), tournament leagues and a public bracket page.
+- Online booking again (if venues ask), booking deposits (needs Razorpay), tournament leagues and a public bracket page.
 - Multi-branch analytics.
 - SaaS subscription billing for cafe owners, with plan limits by station count.
 

@@ -4,7 +4,7 @@ import { getAppContext } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { DEVICE_SELECT } from "@/lib/devices";
 import { hoursFromNow } from "@/lib/format";
-import type { SessionMode, StationType } from "@/lib/constants";
+import { DEFAULT_PER_PERSON, type SessionMode, type StationType } from "@/lib/constants";
 import { PageSkeleton } from "@/components/card";
 import { FloorBoard } from "./floor-board";
 import {
@@ -105,7 +105,7 @@ async function Floor() {
       gstRate: Number(s?.gst_rate ?? 18),
       pricesIncludeTax: s?.prices_include_tax ?? false,
       staffMaxDiscountPct: s?.staff_max_discount_pct ?? 10,
-      creditLimit: s?.credit_limit == null ? null : Number(s.credit_limit),
+      perPerson: s?.per_person_types ?? DEFAULT_PER_PERSON,
     },
     devices: devices.data ?? [],
     requests: (requests.data ?? []) as StationRequest[],

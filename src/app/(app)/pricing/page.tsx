@@ -4,8 +4,7 @@ import type { Metadata } from "next";
 import { Tags } from "lucide-react";
 import { getAppContext, isOwner } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
-import { DAY_LABELS, MULTIPLAYER_TYPES, STATION_TYPE_LABEL, STATION_TYPES, playersWord } from "@/lib/constants";
-import { planChoices } from "@/lib/pricing";
+import { DAY_LABELS, DEFAULT_PER_PERSON, STATION_TYPE_LABEL, STATION_TYPES, unitWord } from "@/lib/constants";
 import { formatINR, formatMinutes, toTimeInput } from "@/lib/format";
 import { buttonClass } from "@/components/styles";
 import { Badge, Empty, PageHeader, PageSkeleton, Panel, SectionLabel } from "@/components/card";
@@ -37,11 +36,13 @@ async function Pricing() {
   const { branch, role } = await getAppContext();
   const supabase = await createClient();
 
-  const [{ data: stations }, { data: plans }, { data: packages }] = await Promise.all([
+  const [{ data: stations }, { data: plans }, { data: packages }, { data: settings }] = await Promise.all([
     supabase.from("stations").select("type, tier").eq("branch_id", branch.id),
     supabase.from("rate_plans").select("*, rate_rules(*)").eq("branch_id", branch.id).order("created_at"),
     supabase.from("packages").select("*").eq("branch_id", branch.id).order("minutes"),
+    supabase.from("branch_settings").select("per_person_types").eq("branch_id", branch.id).maybeSingle(),
   ]);
+  const perPerson = new Set(settings?.per_person_types ?? DEFAULT_PER_PERSON);
 
   const editable = isOwner(role);
   const types = STATION_TYPES.filter((t) => (stations ?? []).some((s) => s.type === t));
@@ -72,8 +73,13 @@ async function Pricing() {
               <Panel
                 key={type}
                 title={STATION_TYPE_LABEL[type]}
-                description={tiers.length > 1 ? `Tiers: ${tiers.join(", ")}` : undefined}
-                action={editable && <PlanDialogButton stationType={type} tiers={tiers} />}
+                description={[
+                  perPerson.has(type) ? "Charged per person" : `Charged per ${unitWord(type)}`,
+                  tiers.length > 1 ? `Tiers: ${tiers.join(", ")}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                action={editable && <PlanDialogButton stationType={type} tiers={tiers} perPerson={perPerson.has(type)} />}
                 flush
               >
                 {/* Rates */}
@@ -88,53 +94,28 @@ async function Pricing() {
                         {/* Price and its actions on one line; the rules that shape the bill below. */}
                         <div className="flex items-start gap-3">
                           <div className="min-w-0 flex-1">
-                            {planChoices(plan).length > 0 ? (
-                              <ul className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                {planChoices(plan).map((c) => (
-                                  <li key={c.players} className="flex items-baseline gap-1.5">
-                                    <span className="text-sm text-muted">
-                                      {c.players} {playersWord(type, c.players)}
-                                    </span>
-                                    <span className="num text-lg font-semibold">{formatINR(c.per_hour)}</span>
-                                    <span className="text-sm text-muted">/hr</span>
-                                    {c.per_frame != null && (
-                                      <span className="num text-sm text-muted">· {formatINR(c.per_frame)}/frame</span>
-                                    )}
-                                  </li>
-                                ))}
-                                {(plan.tier || tiers.length > 1) && <Badge>{plan.tier ?? "All tiers"}</Badge>}
-                                {!plan.is_active && <Badge tone="danger">Inactive</Badge>}
-                              </ul>
-                            ) : (
-                              <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span className="num text-lg font-semibold">{formatINR(plan.per_hour)}</span>
-                                <span className="text-sm text-muted">/ hour</span>
-                                {plan.per_frame != null && (
-                                  <>
-                                    <span className="num text-lg font-semibold">· {formatINR(plan.per_frame)}</span>
-                                    <span className="text-sm text-muted">/ frame</span>
-                                  </>
-                                )}
-                                {(plan.tier || tiers.length > 1) && <Badge>{plan.tier ?? "All tiers"}</Badge>}
-                                {!plan.is_active && <Badge tone="danger">Inactive</Badge>}
-                              </p>
-                            )}
+                            <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="num text-lg font-semibold">{formatINR(plan.per_hour)}</span>
+                              <span className="text-sm text-muted">/ hour{perPerson.has(type) ? " per person" : ""}</span>
+                              {plan.per_frame != null && (
+                                <>
+                                  <span className="num text-lg font-semibold">· {formatINR(plan.per_frame)}</span>
+                                  <span className="text-sm text-muted">/ frame</span>
+                                </>
+                              )}
+                              {(plan.tier || tiers.length > 1) && <Badge>{plan.tier ?? "All tiers"}</Badge>}
+                              {!plan.is_active && <Badge tone="danger">Inactive</Badge>}
+                            </p>
                             <p className="mt-0.5 text-[13px] text-muted">
                               {plan.rounding_minutes === 1 ? "Exact minutes" : `Rounded up to ${plan.rounding_minutes} min`}
                               {plan.min_minutes > 0 && ` · min ${formatMinutes(plan.min_minutes)}`}
-                              {planChoices(plan).length === 0 &&
-                                MULTIPLAYER_TYPES.has(type) &&
-                                Number(plan.extra_player_per_hour) === 0 &&
-                                ` · same price for any number of ${playersWord(type)}`}
-                              {Number(plan.extra_player_per_hour) > 0 &&
-                                ` · +${formatINR(plan.extra_player_per_hour)}/hr per ${playersWord(type, 1)} over ${plan.included_players}`}
                               {plan.gst_rate_override != null && ` · GST ${plan.gst_rate_override}%`}
                             </p>
                           </div>
                           {editable && (
                             <span className="flex shrink-0 items-center gap-1">
                               <RuleDialogButton ratePlanId={plan.id} />
-                              <PlanDialogButton stationType={type} tiers={tiers} plan={plan} />
+                              <PlanDialogButton stationType={type} tiers={tiers} plan={plan} perPerson={perPerson.has(type)} />
                               <DeleteButton
                                 confirmText={`Delete this ${STATION_TYPE_LABEL[type]} rate?`}
                                 onDelete={deleteRatePlan.bind(null, plan.id)}

@@ -24,7 +24,8 @@ async function Tournament({ params }: { params: PageProps<"/tournaments/[id]">["
   const supabase = await createClient();
 
   const [{ data: t }, { data: players }, { data: matches }, { data: settings }, { data: stations }] = await Promise.all([
-    supabase.from("tournaments").select("*").eq("id", id).eq("org_id", org.id).maybeSingle(),
+    // This branch only: its stations are the ones a match can go to.
+    supabase.from("tournaments").select("*").eq("id", id).eq("branch_id", branch.id).maybeSingle(),
     supabase
       .from("tournament_players")
       .select("id, customer_id, name, phone, invoice_id, team_name, members, invoices(voided_at)")

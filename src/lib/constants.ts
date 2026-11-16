@@ -44,13 +44,21 @@ export const SESSION_MODE_HINT: Record<SessionMode, string> = {
 // Frame billing only makes sense on tables.
 export const FRAME_TYPES = new Set<StationType>(["snooker", "pool", "other"]);
 
-// Station types where the number of players can matter (PCs are one person each).
-export const MULTIPLAYER_TYPES = new Set<StationType>(["ps5", "xbox", "pool", "snooker", "other"]);
+// Station types a venue can charge per person (Settings › Billing). A PC is one person.
+export const PER_PERSON_CAPABLE: StationType[] = ["ps5", "xbox", "snooker", "pool", "other"];
+/** New venues: consoles per person, tables per table. */
+export const DEFAULT_PER_PERSON: StationType[] = ["ps5", "xbox"];
 
-// "controllers" on consoles, "players" on tables.
-export function playersWord(type: StationType, n = 2) {
-  const base = type === "ps5" || type === "xbox" ? "controller" : "player";
-  return n === 1 ? base : `${base}s`;
+/** What one station is called when it's charged as a whole: "table", "console"… */
+export function unitWord(type: StationType) {
+  if (type === "snooker" || type === "pool") return "table";
+  if (type === "ps5" || type === "xbox") return "console";
+  if (type === "pc") return "PC";
+  return "station";
+}
+
+export function playersWord(_type: StationType, n = 2) {
+  return n === 1 ? "person" : "people";
 }
 
 export const STATION_STATUSES: StationStatus[] = ["active", "maintenance", "disabled"];

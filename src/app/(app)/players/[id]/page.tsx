@@ -11,7 +11,6 @@ import { Badge, PageHeader, PageSkeleton, Panel } from "@/components/card";
 import { buttonClass } from "@/components/styles";
 import { PcPinButton, TopupWalletButton } from "../player-forms";
 import { RedeemVoucherButton } from "../voucher-forms";
-import { DuesReminderButton, KhataLimitButton } from "../khata-controls";
 
 export const metadata: Metadata = { title: "Player" };
 
@@ -58,7 +57,6 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
     created_at: string;
     wallet_balance?: number;
     pin_set?: boolean;
-    credit_limit?: number | null;
   } | null = null;
 
   const [
@@ -67,9 +65,8 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
     { data: summary },
     { data: orgRow },
     { data: rawTxns },
-    { data: branchSettings },
   ] = await Promise.all([
-    supabase.from("customers").select("id, name, phone, wallet_balance, pin_set, credit_limit, created_at").eq("id", id).maybeSingle(),
+    supabase.from("customers").select("id, name, phone, wallet_balance, pin_set, created_at").eq("id", id).maybeSingle(),
     supabase
       .from("sessions")
       .select(
@@ -87,7 +84,6 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
       .eq("customer_id", id)
       .order("created_at", { ascending: false })
       .limit(20),
-    supabase.from("branch_settings").select("credit_limit").eq("branch_id", branch.id).maybeSingle(),
   ]);
 
   if (rawPlayer && !playerErr) {
@@ -112,19 +108,14 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
     visits?: number;
     played_minutes?: number;
     paid?: number;
-    owed?: number;
     favourite_type?: StationType | null;
   };
   const visits = Number(totals.visits ?? list.length);
   const minutes = Number(totals.played_minutes ?? list.reduce((sum, s) => sum + playedMinutes(s), 0));
   const spent = Number(totals.paid ?? 0);
-  const owed = Number(totals.owed ?? 0);
   const favourite = totals.favourite_type ?? undefined;
   // The balance column is the source of truth; the ledger below explains it.
   const wallet = Number(player.wallet_balance ?? 0);
-  const venueLimit = branchSettings?.credit_limit != null ? Number(branchSettings.credit_limit) : null;
-  const ownLimit = player.credit_limit != null ? Number(player.credit_limit) : null;
-  const limit = ownLimit ?? venueLimit;
 
   return (
     <>
@@ -149,31 +140,11 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
         }
       />
 
-      {/* What staff act on (wallet, money owed) stands out; the rest is one line of context. */}
+      {/* What staff act on (the wallet) stands out; the rest is one line of context. */}
       <div className="mb-5 flex flex-wrap items-end gap-x-8 gap-y-3 rounded-xl border border-line bg-panel px-4 py-3 shadow-card">
         <div>
           <p className="text-xs text-muted">Wallet</p>
           <p className={`num text-xl font-semibold ${wallet > 0 ? "text-ok" : ""}`}>{formatINR(wallet)}</p>
-        </div>
-        {owed > 0 && (
-          <div className="flex items-end gap-2">
-            <div>
-              <p className="text-xs text-muted">Owes</p>
-              <p className="num text-xl font-semibold text-over">{formatINR(owed)}</p>
-            </div>
-            <DuesReminderButton phone={player.phone} name={player.name} owed={owed} venueName={org.name} />
-          </div>
-        )}
-        <div>
-          <p className="text-xs text-muted">Can owe up to{ownLimit == null && limit != null ? " (venue)" : ""}</p>
-          <p className="flex items-center text-sm font-medium">
-            <span className={limit != null && owed > limit ? "text-over" : ""}>
-              {limit != null ? formatINR(limit) : "No limit"}
-            </span>
-            {role === "owner" && (
-              <KhataLimitButton customerId={player.id} playerName={player.name} own={ownLimit} venueLimit={venueLimit} />
-            )}
-          </p>
         </div>
         <div>
           <p className="text-xs text-muted">PC login</p>
@@ -313,7 +284,7 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
 function VisitBadge({ s }: { s: { status: string; written_off: boolean; outstanding: number | null } }) {
   if (s.status !== "ended") return <Badge tone="busy">Playing</Badge>;
   if (s.written_off) return <Badge tone="danger">Written off</Badge>;
-  if (Number(s.outstanding) > 0) return <Badge tone="over">Unpaid</Badge>;
+  if (Number(s.outstanding) > 0) return <Badge tone="over">To collect</Badge>;
   return <Badge tone="ok">Paid</Badge>;
 }
 

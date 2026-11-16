@@ -134,8 +134,12 @@ export function estimateCharge(
     nowMs: number;
     earlyEndPolicy?: "full" | "played";
     cache?: Map<number, number>;
+    /** People charged for: the player count on a per-person station type, else 1. */
+    people?: number;
   },
 ): Charge {
+  // Same as private.session_charge: the station's charge × people.
+  const n = Math.max(1, opts.people ?? 1);
   const start = Date.parse(session.started_at);
   const end = session.ended_at ? Date.parse(session.ended_at) : opts.nowMs;
   const pauses = session.pauses.map((p) => ({
@@ -154,7 +158,7 @@ export function estimateCharge(
     return {
       activeSeconds: Math.floor(activeSeconds),
       billableMinutes: 0,
-      total: Math.round((session.frames ?? 0) * priceFor(plan, session.players, "frame")),
+      total: Math.round((session.frames ?? 0) * priceFor(plan, session.players, "frame") * n),
     };
   }
 
@@ -193,7 +197,7 @@ export function estimateCharge(
     return {
       activeSeconds: Math.floor(activeSeconds),
       billableMinutes: played,
-      total: Math.round(Math.min(playedTotal, bookedTotal)),
+      total: Math.round(Math.min(playedTotal, bookedTotal) * n),
     };
   }
 
@@ -222,7 +226,7 @@ export function estimateCharge(
   return {
     activeSeconds: Math.floor(activeSeconds),
     billableMinutes: billable,
-    total: Math.max(Math.round(base + time + extra), 0),
+    total: Math.max(Math.round((base + time + extra) * n), 0),
   };
 }
 

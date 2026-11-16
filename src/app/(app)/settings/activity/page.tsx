@@ -70,6 +70,7 @@ const FIELD_LABEL: Record<string, string> = {
   player_choices: "player choices",
   per_frame: "price per frame",
   credit_limit: "pay-later limit",
+  per_person_types: "per person or per station",
   qr_enabled: "player QR page",
   qr_orders: "snack orders (QR page and PCs)",
   booking_enabled: "online bookings",

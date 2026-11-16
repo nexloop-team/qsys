@@ -38,7 +38,7 @@ const FEATURES: { k: string; v: string; viz: Viz }[] = [
   },
   {
     k: "Pricing",
-    v: "Per hour or per frame, by station type and tier. 2 or 4 players or controllers at their own price, evening and weekend rates, packages.",
+    v: "Per hour or per frame, per person or per station, by station type and tier. Evening and weekend rates, packages.",
     viz: "pricing",
   },
   {
@@ -53,7 +53,7 @@ const FEATURES: { k: string; v: string; viz: Viz }[] = [
   },
   {
     k: "Players",
-    v: "One account per mobile number, visit history, wallets with top-up offers, pay later with a limit and WhatsApp reminders.",
+    v: "One account per mobile number, visit history, and wallets with top-up offers.",
     viz: "players",
   },
   {
@@ -63,7 +63,7 @@ const FEATURES: { k: string; v: string; viz: Viz }[] = [
   },
   {
     k: "Bookings",
-    v: "A booking page for each branch. Players pick a game, day and time. You confirm, assign a station and see who's coming up.",
+    v: "Bookings taken by phone or WhatsApp, with a station held for each. The Floor shows who's coming up in the next hour.",
     viz: "bookings",
   },
   {
@@ -313,9 +313,9 @@ function Picture({ viz, t }: { viz: Viz; t: number }) {
       return (
         <div className="flex h-full flex-col justify-center gap-1.5 text-[13px]">
           {[
-            ["Snooker · 2 players", "₹200/h", false],
-            ["Snooker · 4 players", "₹300/h", true],
-            ["Per frame", "₹60", false],
+            ["Snooker · per hour", "₹200/h", false],
+            ["Snooker · per frame", "₹60", true],
+            ["PS5 · per person", "₹60/h", false],
           ].map(([a, b, on]) => (
             <div key={String(a)} className={cx(ROW, "h-8", on && "border-line-strong bg-panel")}>
               <span className={on ? "font-medium" : "text-muted"}>{a}</span>
@@ -409,9 +409,9 @@ function Picture({ viz, t }: { viz: Viz; t: number }) {
       return (
         <div className="flex h-full flex-col justify-center gap-1.5 text-[13px]">
           {[
-            ["6:30 pm", "Rohan · Snooker", "Confirmed", false],
-            ["7:00 pm", "Sneha · PS5", "To confirm", true],
-            ["8:00 pm", "Arjun · PC-04", "Confirmed", false],
+            ["6:30 pm", "Rohan · Snooker", "Arrived", false],
+            ["7:00 pm", "Sneha · PS5", "In 20 min", true],
+            ["8:00 pm", "Arjun · PC-04", "Booked", false],
           ].map(([at, who, st, ask]) => (
             <div key={String(at)} className={cx(ROW, "h-8 gap-2")}>
               <b className="w-14 shrink-0 font-plexmono text-[12px]">{at}</b>

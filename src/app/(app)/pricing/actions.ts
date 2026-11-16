@@ -16,14 +16,14 @@ const optionalText = z
   .trim()
   .transform((v) => v || null);
 
-// "2 players ₹200/hr, 4 players ₹300/hr" (and ₹/frame when frame billing is on).
+// Player choices are gone (Settings › Billing sets per person or per station); the form always sends [].
 const choicesSchema = z
   .string()
   .transform((v, ctx) => {
     try {
       return JSON.parse(v || "[]") as unknown;
     } catch {
-      ctx.addIssue({ code: "custom", message: "Check the player choices." });
+      ctx.addIssue({ code: "custom", message: "Check the controller choices." });
       return z.NEVER;
     }
   })
@@ -31,15 +31,15 @@ const choicesSchema = z
     z
       .array(
         z.object({
-          players: z.number().int("Players must be a whole number.").min(1, "At least 1 player.").max(16, "Up to 16 players."),
+          players: z.number().int("Controllers must be a whole number.").min(1, "At least 1 controller.").max(16, "Up to 16 controllers."),
           per_hour: z.number({ error: "Give every choice a price per hour." }).min(0).max(100000),
           per_frame: z.number({ error: "Give every choice a price per frame." }).min(0).max(100000).nullable(),
         }),
       )
       .max(8, "Up to 8 choices.")
-      .refine((rows) => rows.length === 0 || rows.length >= 2, { message: "Add at least two choices, like 2 and 4." })
+      .refine((rows) => rows.length === 0 || rows.length >= 2, { message: "Add at least two choices, like 2 and 4 controllers." })
       .refine((rows) => new Set(rows.map((r) => r.players)).size === rows.length, {
-        message: "Two choices have the same number of players.",
+        message: "Two choices have the same number of controllers.",
       }),
   );
 

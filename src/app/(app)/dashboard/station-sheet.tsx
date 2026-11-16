@@ -6,16 +6,14 @@ import { ArrowRightLeft, Coffee, Pause, Play, Plus, Square, Users } from "lucide
 import type { Database } from "@/lib/database.types";
 import {
   FRAME_TYPES,
-  MULTIPLAYER_TYPES,
   SESSION_MODE_HINT,
   SESSION_MODE_LABEL,
   STATION_TYPE_LABEL,
-  playersWord,
   type SessionMode,
   type StationType,
 } from "@/lib/constants";
 import { formatINR, formatMinutes, formatTime } from "@/lib/format";
-import { planChoices, playerExtra, priceFor } from "@/lib/pricing";
+import { playerExtra, priceFor } from "@/lib/pricing";
 import { computeBill } from "@/lib/bill";
 import { Sheet, StickyActions } from "@/components/overlay";
 import { Badge } from "@/components/card";
@@ -31,17 +29,11 @@ import { friendlyError } from "@/lib/errors";
 
 type Supa = SupabaseClient<Database>;
 
-const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-// "₹200/hr" or, with choices, "₹200–₹300/hr by players"; plus the frame price when there is one.
-function planSummary(plan: FloorPlan, type: StationType) {
-  const choices = MULTIPLAYER_TYPES.has(type) ? planChoices(plan) : [];
-  const hourly =
-    choices.length > 1
-      ? `${formatINR(choices[0].per_hour)}–${formatINR(choices[choices.length - 1].per_hour)}/hr by ${playersWord(type)}`
-      : `${formatINR(plan.per_hour)}/hr`;
-  const frame = plan.per_frame != null && FRAME_TYPES.has(type) ? ` · ${formatINR(plan.per_frame)}/frame` : "";
-  return `${hourly}${frame}${plan.rate_rules.length ? " · time-based rates apply" : ""}`;
+// "₹200/hr" or "₹60/hr per person"; plus the frame price when there is one.
+function planSummary(plan: FloorPlan, type: StationType, perPerson: boolean) {
+  const each = perPerson ? " per person" : "";
+  const frame = plan.per_frame != null && FRAME_TYPES.has(type) ? ` · ${formatINR(plan.per_frame)}/frame${each}` : "";
+  return `${formatINR(plan.per_hour)}/hr${each}${frame}${plan.rate_rules.length ? " · time-based rates apply" : ""}`;
 }
 
 export function StationSheet({
@@ -110,7 +102,7 @@ export function StationSheet({
           {station.tier !== "standard" && <Badge>{station.tier}</Badge>}
         </span>
       }
-      description={plan ? planSummary(plan, station.type) : "No price set"}
+      description={plan ? planSummary(plan, station.type, data.settings.perPerson.includes(station.type)) : "No price set"}
     >
       <>
         {station.status !== "active" && !session ? (
@@ -201,8 +193,10 @@ function StartForm({
   const [mode, setMode] = useState<SessionMode>(
     allowed.includes(data.settings.defaults[station.type]) ? data.settings.defaults[station.type] : allowed[0],
   );
-  const choices = MULTIPLAYER_TYPES.has(station.type) ? planChoices(plan) : [];
-  const [players, setPlayers] = useState(choices[0]?.players ?? 1);
+  // Per person: the price × the people playing (Settings › Billing).
+  const perPerson = data.settings.perPerson.includes(station.type);
+  const [players, setPlayers] = useState(1);
+  const people = perPerson ? players : 1;
   const [player, setPlayer] = useState<PlayerValue>({ phone: "", name: "", isNew: false, ready: false });
   const [choice, setChoice] = useState<string>(packages[0]?.id ?? "custom");
   const [customMinutes, setCustomMinutes] = useState("60");
@@ -214,8 +208,8 @@ function StartForm({
   const pkg = packages.find((p) => p.id === choice);
   const minutes = pkg ? pkg.minutes : Math.max(0, Math.floor(Number(customMinutes) || 0));
   const basePrice = pkg ? Number(pkg.price) : Math.round((Number(plan.per_hour) * minutes) / 60);
-  // Plus what the player choice adds for that time (the database charges the same).
-  const price = Math.max(Math.round(basePrice + (playerExtra(plan, players, "hour") * minutes) / 60), 0);
+  // The database charges the same: (price + any older "extra player" price) × people.
+  const price = Math.max(Math.round((basePrice + (playerExtra(plan, people, "hour") * minutes) / 60) * people), 0);
   const bill = computeBill([{ amount: price, gstRate: gstRateFor(plan, data) }], 0, {
     gstEnabled: data.settings.gstEnabled,
     pricesIncludeTax: data.settings.pricesIncludeTax,
@@ -229,7 +223,7 @@ function StartForm({
         p_mode: mode,
         p_phone: player.phone,
         p_name: player.isNew ? player.name : undefined,
-        p_players: players,
+        p_players: people,
         ...(mode === "prepaid"
           ? {
               p_package_id: pkg?.id,
@@ -303,13 +297,11 @@ function StartForm({
         </div>
       )}
 
-      {MULTIPLAYER_TYPES.has(station.type) && (
-        <PlayersPicker plan={plan} type={station.type} mode={mode} value={players} onChange={setPlayers} />
-      )}
+      {perPerson && <PeoplePicker plan={plan} mode={mode} value={players} onChange={setPlayers} />}
 
       {mode === "frames" && (
         <p className="-mt-2 text-[13px] text-muted">
-          {formatINR(priceFor(plan, players, "frame"))} per frame. The first frame starts now.
+          {formatINR(priceFor(plan, people, "frame") * people)} per frame. The first frame starts now.
         </p>
       )}
 
@@ -399,6 +391,9 @@ function LiveView({
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
   const tz = data.branch.timezone;
+  // Per person: the price × the people playing (Settings › Billing).
+  const perPersonLive = data.settings.perPerson.includes(station.type);
+  const sessionPeople = perPersonLive ? session.players : 1;
 
   const run = (fn: () => PromiseLike<{ error: { message: string } | null }>) =>
     startTransition(async () => {
@@ -477,7 +472,7 @@ function LiveView({
             <p className="num text-2xl font-semibold leading-tight">
               {session.frames}
               <span className="ml-1.5 text-sm font-normal text-muted">
-                × {formatINR(priceFor(plan, session.players, "frame"))}
+                × {formatINR(priceFor(plan, session.players, "frame") * sessionPeople)}
               </span>
             </p>
           </div>
@@ -508,7 +503,7 @@ function LiveView({
           {SESSION_MODE_LABEL[session.mode]}
           {session.mode === "prepaid" &&
             ` · ${formatMinutes(session.prepaid_minutes)} booked (${formatINR(session.prepaid_amount)})`}
-          {session.mode === "frames" && ` · ${formatINR(priceFor(plan, session.players, "frame"))} per frame`}
+          {session.mode === "frames" && ` · ${formatINR(priceFor(plan, session.players, "frame") * sessionPeople)} per frame`}
         </dd>
         {session.customer_name && (
           <>
@@ -519,12 +514,6 @@ function LiveView({
             </dd>
           </>
         )}
-        {!MULTIPLAYER_TYPES.has(station.type) && session.players > 1 && (
-          <>
-            <dt className="text-muted">Players</dt>
-            <dd>{session.players}</dd>
-          </>
-        )}
         {session.status === "paused" && (
           <>
             <dt className="text-muted">Status</dt>
@@ -533,10 +522,9 @@ function LiveView({
         )}
       </dl>
 
-      {MULTIPLAYER_TYPES.has(station.type) && (
-        <PlayersPicker
+      {perPersonLive && (
+        <PeoplePicker
           plan={plan}
-          type={station.type}
           mode={session.mode}
           value={session.players}
           disabled={pending}
@@ -600,6 +588,7 @@ function LiveView({
 
       {panel === "extend" && (
         <ExtendForm
+          perPerson={perPersonLive}
           session={session}
           plan={plan}
           packages={packages}
@@ -645,11 +634,9 @@ function LiveView({
   );
 }
 
-// Players / controllers. With choices on the rate: one button per choice, with its price.
-// Without: a count (same price for any number, or the older "extra per player" rate).
-function PlayersPicker({
+// How many people play, on a station type charged per person. The price is per person.
+function PeoplePicker({
   plan,
-  type,
   mode,
   value,
   onChange,
@@ -657,72 +644,27 @@ function PlayersPicker({
   live = false,
 }: {
   plan: FloorPlan;
-  type: StationType;
   mode: SessionMode;
   value: number;
-  onChange: (players: number) => void;
+  onChange: (people: number) => void;
   disabled?: boolean;
   live?: boolean;
 }) {
-  const choices = planChoices(plan);
-  const label = capitalize(playersWord(type));
-
-  if (choices.length > 0) {
-    return (
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-medium">{label}</span>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {choices.map((c) => (
-            <button
-              key={c.players}
-              type="button"
-              disabled={disabled}
-              aria-pressed={value === c.players}
-              onClick={() => value !== c.players && onChange(c.players)}
-              className={cx(
-                "rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-60 pointer-coarse:py-2.5",
-                value === c.players ? "border-accent bg-accent-soft" : "border-line-strong hover:bg-hover",
-              )}
-            >
-              <span className="flex items-center gap-1.5 text-sm font-medium">
-                <Users className="size-3.5 text-muted" />
-                {c.players} {playersWord(type, c.players)}
-              </span>
-              <span className="num text-[13px] text-muted">
-                {mode === "frames"
-                  ? `${formatINR(priceFor(plan, c.players, "frame"))}/frame`
-                  : `${formatINR(c.per_hour)}/hr`}
-              </span>
-            </button>
-          ))}
-        </div>
-        {live && mode !== "frames" && <span className="text-xs text-muted">A change re-prices the whole session.</span>}
-      </div>
-    );
-  }
-
-  const legacy = Number(plan.extra_player_per_hour) > 0;
+  const each = mode === "frames" ? `${formatINR(Number(plan.per_frame ?? 0))} a frame` : `${formatINR(plan.per_hour)}/hr`;
   return (
-    <Field
-      label={label}
-      hint={
-        legacy
-          ? `${plan.included_players} included, +${formatINR(plan.extra_player_per_hour)}/hr each extra${live ? ", charged for the whole session" : ""}`
-          : "Same price for any number."
-      }
-    >
+    <Field label="People" hint={`${each} per person${live ? ". A change re-prices the whole session." : ""}`}>
       <div className="flex items-center gap-2">
         <Button
           variant="secondary"
           size="sm"
           disabled={disabled || value <= 1}
           onClick={() => onChange(Math.max(1, value - 1))}
-          aria-label={`Fewer ${playersWord(type)}`}
+          aria-label="One person less"
         >
           −
         </Button>
-        <span className="num inline-flex w-10 items-center justify-center gap-1 text-sm">
-          <Users className="size-3.5 text-muted" />
+        <span className="num inline-flex w-12 items-center justify-center gap-1 text-base font-medium">
+          <Users className="size-4 text-muted" />
           {value}
         </span>
         <Button
@@ -730,7 +672,7 @@ function PlayersPicker({
           size="sm"
           disabled={disabled || value >= 16}
           onClick={() => onChange(Math.min(16, value + 1))}
-          aria-label={`More ${playersWord(type)}`}
+          aria-label="One more person"
         >
           +
         </Button>
@@ -775,6 +717,7 @@ const BAR: Record<TileInfo["state"], string> = {
 
 function ExtendForm({
   session,
+  perPerson,
   plan,
   packages,
   data,
@@ -782,6 +725,7 @@ function ExtendForm({
   onDone,
 }: {
   session: LiveSession;
+  perPerson: boolean;
   plan: FloorPlan;
   packages: FloorPackage[];
   data: FloorData;
@@ -798,7 +742,8 @@ function ExtendForm({
   const pkg = packages.find((p) => p.id === choice);
   const minutes = pkg ? pkg.minutes : Math.max(0, Math.floor(Number(customMinutes) || 0));
   const basePrice = pkg ? Number(pkg.price) : Math.round((Number(plan.per_hour) * minutes) / 60);
-  const price = Math.max(Math.round(basePrice + (playerExtra(plan, session.players, "hour") * minutes) / 60), 0);
+  const people = perPerson ? session.players : 1;
+  const price = Math.max(Math.round((basePrice + (playerExtra(plan, people, "hour") * minutes) / 60) * people), 0);
   const bill = computeBill([{ amount: price, gstRate: gstRateFor(plan, data) }], 0, {
     gstEnabled: data.settings.gstEnabled,
     pricesIncludeTax: data.settings.pricesIncludeTax,

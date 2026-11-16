@@ -11,7 +11,7 @@ const TABS = [
   { href: "/settings/team", label: "Team" },
   { href: "/settings/branches", label: "Branches" },
   { href: "/settings/pc", label: "PC app" },
-  { href: "/settings/online", label: "Online" },
+  { href: "/settings/online", label: "Table QR" },
   { href: "/settings/activity", label: "Activity" },
   { href: "/settings/account", label: "Account" },
 ] as const;

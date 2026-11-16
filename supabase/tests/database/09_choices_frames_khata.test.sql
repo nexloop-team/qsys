@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(24);
 
 -- Fixture: a venue with an owner and a staff member, one snooker table (choices 2 / 4 players,
 -- ₹200 / ₹300 per hour, ₹50 / ₹80 per frame) and one PS5 on an older "extra controller" rate.
@@ -84,10 +84,11 @@ select is((select details ->> 'from' from public.session_events where kind = 'pa
 
 -- Khata limit -------------------------------------------------------------------------
 update public.branch_settings set credit_limit = 100 where branch_id = '20000000-0000-0000-0000-0000000000f0';
-select pg_temp.as_user('00000000-0000-0000-0000-0000000000f2');
-select throws_ok($$ select public.start_session('30000000-0000-0000-0000-0000000000f2', 'open', '9876500002') $$,
-  '22023', null, 'staff can''t start a player who owes more than the khata limit');
-reset role;
+-- Pay later was dropped (20261128000001): a limit no longer blocks a new session.
+select lives_ok($$ select private.check_credit(
+    (select c from public.customers c where c.phone = '9876500002' and c.org_id = '10000000-0000-0000-0000-0000000000f0'),
+    '20000000-0000-0000-0000-0000000000f0') $$,
+  'a limit no longer blocks a new session');
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
 select lives_ok($$ select public.set_player_credit_limit(
     (select id from public.customers where phone = '9876500002' and org_id = '10000000-0000-0000-0000-0000000000f0'), 500) $$,
@@ -120,12 +121,20 @@ reset role;
 select is((private.session_charge(pg_temp.live('30000000-0000-0000-0000-0000000000f1'), '2026-11-10 13:00:00+05:30') ->> 'total')::numeric,
   100::numeric, '2 players in happy hour = the happy-hour price');
 
--- Older rate: extra controller per hour still works ---------------------------------------
+-- Older rate: extra controller per hour still works (PS5 charged per station) -------------
+update public.branch_settings set per_person_types = '{}' where branch_id = '20000000-0000-0000-0000-0000000000f0';
 update public.sessions set started_at = ended_at - interval '1 hour'
  where station_id = '30000000-0000-0000-0000-0000000000f2';
 select is((select (private.session_charge(s.id) ->> 'total')::numeric
              from public.sessions s where s.station_id = '30000000-0000-0000-0000-0000000000f2'),
   150::numeric, 'PS5: ₹100/hr + ₹50/hr for the second controller');
+
+-- Per person (20261128000001): the station's price × the people playing ------------------
+update public.rate_plans set extra_player_per_hour = 0 where id = '50000000-0000-0000-0000-0000000000f2';
+update public.branch_settings set per_person_types = '{ps5}' where branch_id = '20000000-0000-0000-0000-0000000000f0';
+select is((select (private.session_charge(s.id) ->> 'total')::numeric
+             from public.sessions s where s.station_id = '30000000-0000-0000-0000-0000000000f2'),
+  200::numeric, 'PS5 per person: 2 people × ₹100 for the hour');
 
 select * from finish();
 rollback;

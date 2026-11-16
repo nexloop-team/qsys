@@ -25,8 +25,8 @@ export const metadata: Metadata = {
 
 const FOR = [
   ["Gaming lounges", "PCs, PS5 and Xbox, timed by the minute, with PCs that lock and unlock themselves."],
-  ["Pool and snooker halls", "Every table on one board, by the minute or by the frame, 2 or 4 players at your price, and the bill to the losing side."],
-  ["One branch or several", "Each branch has its own floor, prices, bills and booking page. Players and team are shared."],
+  ["Pool and snooker halls", "Every table on one board, by the minute or by the frame, per table or per person, and the bill to the losing side."],
+  ["One branch or several", "Each branch has its own floor, prices and bills. Players and team are shared."],
 ] as const;
 
 const PRINCIPLES = [
@@ -43,7 +43,7 @@ const PRINCIPLES = [
     "Discounts need a reason, staff have limits, and every change lands in an activity log only the owner sees.",
   ],
   ["Nothing that slows a game", "The PC app has no game hooks and no screen capture. Its key blocking only runs while the PC is locked."],
-  ["Made for Indian venues", "Rupees, UPI and cash, GST on or off, pay later with a limit, and bills and reminders on WhatsApp or an 80 mm printer."],
+  ["Made for Indian venues", "Rupees, UPI and cash, GST on or off, and bills on WhatsApp or an 80 mm printer."],
 ] as const;
 
 export default function AboutPage() {

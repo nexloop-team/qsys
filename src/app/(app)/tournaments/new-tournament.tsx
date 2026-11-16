@@ -8,7 +8,7 @@ import { friendlyError } from "@/lib/errors";
 import { zonedStart } from "@/lib/format";
 import { STATION_TYPE_LABEL, type StationType } from "@/lib/constants";
 import { Modal, StickyActions } from "@/components/overlay";
-import { Button, ErrorText, Field, Input, Select } from "@/components/ui";
+import { Button, ErrorText, Field, Input, Select, cx } from "@/components/ui";
 import { teamLabel } from "./labels";
 
 // Suggestions for the Game box, by what it's played on. Any game can still be typed.
@@ -82,33 +82,46 @@ export function NewTournamentButton({
           <Field label="Name">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Sunday Snooker Cup" maxLength={80} autoFocus />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Played on" hint="Lets you send each match to a station.">
-              <Select
-                value={on}
-                onChange={(e) => {
-                  const next = e.target.value as StationType | "";
-                  setOn(next);
-                  // Swap the game for a fitting one, unless they typed their own.
-                  if (!game || suggestions.includes(game)) setGame(GAMES[next || "none"][0] ?? "");
-                }}
-              >
-                <option value="">Not linked</option>
-                {types.map((t) => (
-                  <option key={t} value={t}>
-                    {STATION_TYPE_LABEL[t]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+          <Field label="Played on" hint="Lets you send each match to a station.">
+            <Select
+              value={on}
+              onChange={(e) => {
+                const next = e.target.value as StationType | "";
+                setOn(next);
+                // Swap the game for a fitting one, unless they typed their own.
+                if (!game || suggestions.includes(game)) setGame(GAMES[next || "none"][0] ?? "");
+              }}
+            >
+              <option value="">Not linked</option>
+              {types.map((t) => (
+                <option key={t} value={t}>
+                  {STATION_TYPE_LABEL[t]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <div className="flex flex-col gap-2">
             <Field label="Game">
-              <Input value={game} onChange={(e) => setGame(e.target.value)} list="tournament-games" maxLength={40} />
-              <datalist id="tournament-games">
-                {suggestions.map((g) => (
-                  <option key={g} value={g} />
-                ))}
-              </datalist>
+              <Input value={game} onChange={(e) => setGame(e.target.value)} maxLength={40} placeholder="Type any game" />
             </Field>
+            {suggestions.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {suggestions.map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGame(g)}
+                    aria-pressed={game === g}
+                    className={cx(
+                      "h-9 rounded-full border px-3 text-[13px] font-medium transition-colors",
+                      game === g ? "border-accent bg-accent-soft text-fg" : "border-line-strong text-muted hover:bg-hover hover:text-fg",
+                    )}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <Field
             label="Format"
@@ -122,7 +135,7 @@ export function NewTournamentButton({
               ))}
             </Select>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label={teamSize > 1 ? "Entry fee per team (₹)" : "Entry fee (₹)"} hint="Leave empty if free.">
               <Input type="number" min={0} value={fee} onChange={(e) => setFee(e.target.value)} placeholder="0" />
             </Field>

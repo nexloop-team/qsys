@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Check, ExternalLink, MessageCircle, Phone, Users, X } from "lucide-react";
+import { CalendarClock, Check, MessageCircle, Phone, Users, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { friendlyError } from "@/lib/errors";
 import { formatTime, nextDay } from "@/lib/format";
@@ -45,7 +44,7 @@ export function BookingsView({
   bookings,
   stations,
   types,
-  bookingPage,
+  perPerson,
 }: {
   orgId: string;
   branch: Branch;
@@ -54,7 +53,8 @@ export function BookingsView({
   bookings: BookingRow[];
   stations: Station[];
   types: StationType[];
-  bookingPage: string | null;
+  /** Station types charged per person. */
+  perPerson: StationType[];
 }) {
   const router = useRouter();
   // New online requests show up without a reload.
@@ -82,25 +82,14 @@ export function BookingsView({
         title="Bookings"
         description={`${branch.name} · today and the days ahead`}
         actions={
-          <>
-            {bookingPage ? (
-              <a href={bookingPage} target="_blank" rel="noreferrer" className={buttonClass("secondary", "sm")}>
-                <ExternalLink /> Booking page
-              </a>
-            ) : (
-              <Link href="/settings/online" className={buttonClass("secondary", "sm")}>
-                Take bookings online
-              </Link>
-            )}
-            <AddBookingButton orgId={orgId} branch={branch} stations={stations} types={types} today={today} />
-          </>
+          <AddBookingButton orgId={orgId} branch={branch} stations={stations} types={types} perPerson={perPerson} today={today} />
         }
       />
 
       {bookings.length === 0 ? (
         <Panel>
           <Empty icon={<CalendarClock />} title="No bookings yet">
-            Add bookings you take by phone, or turn on the booking page so players can ask for a time themselves.
+            Add bookings that come in by phone or WhatsApp. The Floor shows who&apos;s coming up in the next hour.
           </Empty>
         </Panel>
       ) : (
@@ -117,7 +106,7 @@ export function BookingsView({
             >
               <ul className="divide-y divide-line">
                 {requests.map((b) => (
-                  <BookingCard key={b.id} b={b} branch={branch} venueName={venueName} today={today} stations={stations} />
+                  <BookingCard key={b.id} b={b} branch={branch} venueName={venueName} today={today} stations={stations} perPerson={perPerson} />
                 ))}
               </ul>
             </Panel>
@@ -128,7 +117,7 @@ export function BookingsView({
                 {rest
                   .filter((b) => dayOf(b.starts_at) === d)
                   .map((b) => (
-                    <BookingCard key={b.id} b={b} branch={branch} venueName={venueName} today={today} stations={stations} />
+                    <BookingCard key={b.id} b={b} branch={branch} venueName={venueName} today={today} stations={stations} perPerson={perPerson} />
                   ))}
               </ul>
             </Panel>
@@ -154,12 +143,14 @@ function BookingCard({
   venueName,
   today,
   stations,
+  perPerson,
 }: {
   b: BookingRow;
   branch: Branch;
   venueName: string;
   today: string;
   stations: Station[];
+  perPerson: StationType[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -216,9 +207,12 @@ function BookingCard({
         </span>
       </div>
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-        <span className="inline-flex items-center gap-1">
-          <Users className="size-3.5" /> {b.players} {playersWord(b.station_type, b.players)}
-        </span>
+        {/* The count only matters where it's charged per person. */}
+        {perPerson.includes(b.station_type) && (
+          <span className="inline-flex items-center gap-1">
+            <Users className="size-3.5" /> {b.players} {playersWord(b.station_type, b.players)}
+          </span>
+        )}
         <span>{b.source === "online" ? "Booked online" : "Booked by phone"}</span>
         {b.note && <span className="text-fg">“{b.note}”</span>}
       </p>

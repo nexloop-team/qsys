@@ -64,8 +64,8 @@ export type FloorSettings = {
   pricesIncludeTax: boolean;
   /** Most a staff member may discount, as % of the bill. The owner has no limit. */
   staffMaxDiscountPct: number;
-  /** Venue-wide khata limit per player; null = none. */
-  creditLimit: number | null;
+  /** Station types charged per person (price × people). */
+  perPerson: StationType[];
 };
 
 /** A player's request from the station QR page, waiting for staff. */

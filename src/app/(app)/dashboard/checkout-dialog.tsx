@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AlertTriangle, Ban, CheckCircle2, Printer, UserRound } from "lucide-react";
+import { Ban, CheckCircle2, Printer, UserRound } from "lucide-react";
 import type { Database } from "@/lib/database.types";
 import { computeBill } from "@/lib/bill";
 import { formatINR } from "@/lib/format";
@@ -24,34 +24,6 @@ function modeText(s: { mode: keyof typeof SESSION_MODE_LABEL; frames: number }) 
   return s.mode === "frames" ? `${s.frames} ${s.frames === 1 ? "frame" : "frames"}` : SESSION_MODE_LABEL[s.mode].toLowerCase();
 }
 
-// Shown only when it matters: the player already owes from before, or Pay later would take them over their limit.
-function KhataNote({
-  name,
-  amount,
-  owedElsewhere,
-  limit,
-}: {
-  name: string;
-  amount: number;
-  owedElsewhere: number;
-  limit: number | null;
-}) {
-  const after = owedElsewhere + amount;
-  const over = limit !== null && after > limit;
-  if (owedElsewhere <= 0 && !over) return null;
-  return (
-    <p className={`mb-2 flex items-start gap-1.5 text-xs ${over ? "text-ending" : "text-muted"}`}>
-      {over && <AlertTriangle className="mt-px size-3.5 shrink-0" />}
-      <span>
-        {owedElsewhere > 0
-          ? `${name} already owes ${formatINR(owedElsewhere)}. Pay later makes it ${formatINR(after)}.`
-          : `Pay later leaves ${formatINR(after)} in ${name}'s name.`}
-        {over && ` That's over the ${formatINR(limit)} limit: staff can't start their next session until it's paid.`}
-      </span>
-    </p>
-  );
-}
-
 export function CheckoutDialog({
   open,
   onOpenChange,
@@ -62,7 +34,6 @@ export function CheckoutDialog({
   canWriteOff = false,
   venueName,
   orgId,
-  creditLimit,
   supabase,
   onRefresh,
   onDone,
@@ -76,8 +47,6 @@ export function CheckoutDialog({
   canWriteOff?: boolean;
   venueName: string;
   orgId: string;
-  /** Venue-wide khata limit; null = none. */
-  creditLimit: number | null;
   supabase: SupabaseClient<Database>;
   /** Reload the floor's sessions (after the payer changes). */
   onRefresh: () => Promise<void>;
@@ -91,10 +60,9 @@ export function CheckoutDialog({
   const [paid, setPaid] = useState<{ id: string; number: string; total: number } | null>(null);
   const [writeOff, setWriteOff] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState<number>(0);
-  // Who pays: the bill (or the khata, on "Not now") goes to this player.
+  // Who pays: the bill goes to this player (their wallet can pay it).
   const [changingPayer, setChangingPayer] = useState(false);
   const [payer, setPayer] = useState<PlayerValue>({ phone: "", name: "", isNew: false, ready: false });
-  const [khata, setKhata] = useState<{ owedElsewhere: number; limit: number | null } | null>(null);
 
   const billable = sessions.filter((s) => s.status === "ended" && Number(s.outstanding) > 0);
   const primaryPhone = billable.find((s) => s.customer_phone)?.customer_phone;
@@ -102,33 +70,21 @@ export function CheckoutDialog({
   // The wallet that can pay is the bill's own player (the database charges the same one).
   const customerId = billable.find((s) => s.customer_id)?.customer_id ?? null;
 
-  const billableIds = billable.map((s) => s.id).join(",");
   useEffect(() => {
     if (!open || !customerId) return;
     let cancelled = false;
-    const ids = billableIds.split(",");
-    void Promise.all([
-      supabase.from("customers").select("wallet_balance, credit_limit").eq("id", customerId).maybeSingle(),
-      supabase
-        .from("sessions")
-        .select("id, outstanding")
-        .eq("customer_id", customerId)
-        .eq("status", "ended")
-        .eq("written_off", false)
-        .gt("outstanding", 0),
-    ]).then(([cu, owed]) => {
-      if (cancelled) return;
-      setWalletBalance(Number(cu.data?.wallet_balance ?? 0));
-      const own = cu.data?.credit_limit;
-      setKhata({
-        owedElsewhere: (owed.data ?? []).filter((s) => !ids.includes(s.id)).reduce((t, s) => t + Number(s.outstanding), 0),
-        limit: own != null ? Number(own) : creditLimit,
+    void supabase
+      .from("customers")
+      .select("wallet_balance")
+      .eq("id", customerId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setWalletBalance(Number(data?.wallet_balance ?? 0));
       });
-    });
     return () => {
       cancelled = true;
     };
-  }, [open, customerId, billableIds, creditLimit, supabase]);
+  }, [open, customerId, supabase]);
 
   const changePayer = () =>
     startTransition(async () => {
@@ -329,7 +285,7 @@ export function CheckoutDialog({
             ) : (
               <div className="flex flex-col gap-2 rounded-xl border border-danger/30 bg-danger/5 p-3">
                 <p className="text-xs text-muted">
-                  The amount leaves what the player owes and shows as Written off in Reports and the activity log.
+                  Closes this without a bill. It shows as Written off in Reports and the activity log.
                 </p>
                 <Field label="Reason for write-off">
                   <Input value={writeOff} onChange={(e) => setWriteOff(e.target.value)} placeholder="Walked out" />
@@ -347,23 +303,18 @@ export function CheckoutDialog({
 
           <StickyActions>
             <ErrorText>{error}</ErrorText>
-            {khata && primaryName && <KhataNote name={primaryName} amount={bill.subtotal} {...khata} />}
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" size="lg" onClick={() => onOpenChange(false)} disabled={pending}>
-                Pay later
-              </Button>
-              <Button
-                size="lg"
-                onClick={confirm}
-                disabled={
-                  pending ||
-                  bill.subtotal <= 0 ||
-                  !discountReady(bill.subtotal, discount, discountReason, canWriteOff ? null : settings.staffMaxDiscountPct)
-                }
-              >
-                {pending ? "Saving…" : bill.total > 0 ? `Mark paid ${formatINR(bill.total)}` : "Close bill (free)"}
-              </Button>
-            </div>
+            <Button
+              size="lg"
+              className="w-full"
+              onClick={confirm}
+              disabled={
+                pending ||
+                bill.subtotal <= 0 ||
+                !discountReady(bill.subtotal, discount, discountReason, canWriteOff ? null : settings.staffMaxDiscountPct)
+              }
+            >
+              {pending ? "Saving…" : bill.total > 0 ? `Mark paid ${formatINR(bill.total)}` : "Close bill (free)"}
+            </Button>
           </StickyActions>
         </div>
       )}

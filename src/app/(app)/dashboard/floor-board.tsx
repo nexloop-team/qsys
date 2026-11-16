@@ -70,10 +70,11 @@ export function deriveTile(
   session: LiveSession | undefined,
   plan: FloorPlan | undefined,
   nowMs: number,
-  rules: { graceMinutes: number; earlyEndPolicy: "full" | "played"; timeZone: string },
+  rules: { graceMinutes: number; earlyEndPolicy: "full" | "played"; timeZone: string; perPerson: StationType[] },
   cache: Map<number, number>,
 ): TileInfo {
   const { graceMinutes, earlyEndPolicy, timeZone } = rules;
+  const people = session && rules.perPerson.includes(station.type) ? session.players : 1;
   if (station.status !== "active" && !session) {
     return { state: "off", clock: null, clockLabel: station.status, charge: null, remaining: null };
   }
@@ -84,7 +85,7 @@ export function deriveTile(
         { ...session, pauses: session.session_pauses },
         plan,
         plan.rate_rules,
-        { timeZone, graceMinutes, earlyEndPolicy, nowMs, cache },
+        { timeZone, graceMinutes, earlyEndPolicy, nowMs, cache, people },
       )
     : null;
   // While a session is live, charge_amount holds the snacks added so far (time is fixed at the end).
@@ -261,7 +262,12 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
         session,
         plan,
         now,
-        { graceMinutes: settings.graceMinutes, earlyEndPolicy: settings.earlyEndPolicy, timeZone: branch.timezone },
+        {
+          graceMinutes: settings.graceMinutes,
+          earlyEndPolicy: settings.earlyEndPolicy,
+          timeZone: branch.timezone,
+          perPerson: settings.perPerson,
+        },
         cacheFor(plan?.id ?? "-"),
       ),
     };
@@ -480,7 +486,7 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
         <Panel
           title={
             <span className="flex items-center gap-2">
-              <span className="size-2 rounded-full bg-over blink" /> Ended, not paid
+              <span className="size-2 rounded-full bg-over blink" /> To collect
               <span className="num rounded-full bg-over/10 px-1.5 text-xs text-over">{unpaid.length}</span>
             </span>
           }
@@ -697,7 +703,6 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
           canWriteOff={initial.role === "owner"}
           venueName={initial.orgName}
           orgId={initial.orgId}
-          creditLimit={settings.creditLimit}
           supabase={supabase}
           onRefresh={refetch}
           onDone={() => {

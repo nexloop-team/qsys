@@ -84,12 +84,14 @@ export type Database = {
         /** Games menu on the PCs: [{ id, name, target }] */
         pc_games: Json;
         pc_restrictions: ("task_manager" | "control_panel" | "command_line" | "usb_drives")[];
-        /** Most a player may owe (khata). null = no limit. */
+        /** Unused since pay later was dropped (always null). */
         credit_limit: number | null;
+        /** Station types charged per person (price × people). The rest are per station. */
+        per_person_types: E["station_type"][];
         /** Player QR page on each station. */
         qr_enabled: boolean;
         qr_orders: boolean;
-        /** Public booking page at /book/<booking_slug>. */
+        /** Online booking (off for now; the public page was removed). */
         booking_enabled: boolean;
         booking_slug: string | null;
         booking_days: number;

@@ -71,6 +71,14 @@ export function TournamentView({
   const [members, setMembers] = useState<string[]>([]);
   const teams = t.team_size > 1;
   const [paying, setPaying] = useState<Player | null>(null);
+  // A station picked for a match shows straight away, not only after the page reloads. Fresh
+  // matches from the server replace these.
+  const [stationPick, setStationPick] = useState<Record<string, string | null>>({});
+  const [seenMatches, setSeenMatches] = useState(matches);
+  if (seenMatches !== matches) {
+    setSeenMatches(matches);
+    setStationPick({});
+  }
 
   const byId = new Map(players.map((p) => [p.id, p]));
   const fee = Number(t.entry_fee);
@@ -85,14 +93,35 @@ export function TournamentView({
     : Infinity;
   const unpaid = fee > 0 ? players.length - paidCount : 0;
 
-  const run = (fn: () => PromiseLike<{ error: { message: string } | null }>, after?: () => void) =>
+  const run = (
+    fn: () => PromiseLike<{ error: { message: string } | null }>,
+    after?: () => void,
+    onFail?: () => void,
+  ) =>
     startTransition(async () => {
       setError(undefined);
       const { error } = await fn();
-      if (error) return setError(friendlyError(error));
+      if (error) {
+        onFail?.();
+        return setError(friendlyError(error));
+      }
       after?.();
       router.refresh();
     });
+
+  const pickStation = (matchId: string, stationId: string | null) => {
+    setStationPick((p) => ({ ...p, [matchId]: stationId }));
+    run(
+      () => supabase.rpc("set_match_station", { p_match_id: matchId, p_station_id: stationId }),
+      undefined,
+      () =>
+        setStationPick((p) => {
+          const next = { ...p };
+          delete next[matchId];
+          return next;
+        }),
+    );
+  };
 
   return (
     <>
@@ -179,7 +208,8 @@ export function TournamentView({
                         }
                         pending={pending}
                         stations={stations}
-                        onStation={(id) => run(() => supabase.rpc("set_match_station", { p_match_id: m.id, p_station_id: id }))}
+                        stationId={m.id in stationPick ? stationPick[m.id] : m.station_id}
+                        onStation={(id) => pickStation(m.id, id)}
                         onWinner={(id) => run(() => supabase.rpc("set_match_winner", { p_match_id: m.id, p_winner_id: id }))}
                       />
                     ))}
@@ -222,7 +252,8 @@ export function TournamentView({
                 </Field>
               )}
               {teams && <span className="-mb-1 text-[13px] font-medium">Captain (pays the entry fee)</span>}
-              <PlayerField key={addKey} orgId={orgId} supabase={supabase} onChange={setAdding} />
+              {/* No auto focus: on a phone it would pop the keyboard and jump past the bracket. */}
+              <PlayerField key={addKey} orgId={orgId} supabase={supabase} onChange={setAdding} autoFocus={false} />
               {teams && (
                 <div className="grid grid-cols-2 gap-2">
                   {Array.from({ length: t.team_size - 1 }, (_, i) => (
@@ -343,6 +374,7 @@ function MatchCard({
   locked,
   pending,
   stations,
+  stationId,
   onStation,
   onWinner,
 }: {
@@ -352,6 +384,7 @@ function MatchCard({
   locked: boolean;
   pending: boolean;
   stations: Station[];
+  stationId: string | null;
   onStation: (stationId: string | null) => void;
   onWinner: (playerId: string | null) => void;
 }) {
@@ -388,8 +421,7 @@ function MatchCard({
         <label className="flex items-center gap-2 text-xs text-muted">
           <MapPin className="size-3.5 shrink-0" />
           <Select
-            value={m.station_id ?? ""}
-            disabled={pending}
+            value={stationId ?? ""}
             onChange={(e) => onStation(e.target.value || null)}
             className="h-9 min-w-0 flex-1 text-[13px]"
             aria-label="Station for this match"
@@ -403,9 +435,9 @@ function MatchCard({
           </Select>
         </label>
       )}
-      {m.winner_id && m.station_id && (
+      {m.winner_id && stationId && (
         <span className="flex items-center gap-1.5 text-xs text-muted">
-          <MapPin className="size-3.5" /> Played on {stations.find((s) => s.id === m.station_id)?.name ?? "a station"}
+          <MapPin className="size-3.5" /> Played on {stations.find((s) => s.id === stationId)?.name ?? "a station"}
         </span>
       )}
       <div className="flex min-h-5 items-center justify-between text-xs text-muted">

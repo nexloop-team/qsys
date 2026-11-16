@@ -4,15 +4,18 @@ import { useActionState, useState } from "react";
 import { saveBillingSettings } from "./actions";
 import type { Tables } from "@/lib/database.types";
 import {
+  DEFAULT_PER_PERSON,
   FRAME_TYPES,
+  PER_PERSON_CAPABLE,
   SESSION_MODE_LABEL,
   SESSION_MODES,
   STATION_TYPE_LABEL,
   STATION_TYPES,
   type SessionMode,
   type StationType,
+  unitWord,
 } from "@/lib/constants";
-import { Field, FormMessage, Input, Select, SubmitButton, Toggle, cx } from "@/components/ui";
+import { Field, FormMessage, Input, Segmented, Select, SubmitButton, Toggle, cx } from "@/components/ui";
 import { SaveBar, SettingsSection } from "./section";
 
 type Settings = Tables<"branch_settings">;
@@ -25,6 +28,9 @@ export function BillingForm({ settings, disabled }: { settings: Settings; disabl
   const types = settings.station_types;
   const allowed = settings.allowed_modes_by_type as Record<StationType, SessionMode[]>;
   const defaults = settings.default_mode_by_type as Record<StationType, SessionMode>;
+  const [perPerson, setPerPerson] = useState<StationType[]>(settings.per_person_types ?? DEFAULT_PER_PERSON);
+  // Types the venue has that can go either way (a PC is always one person).
+  const chargeTypes = PER_PERSON_CAPABLE.filter((t) => types.includes(t));
 
   return (
     <form action={action}>
@@ -52,22 +58,39 @@ export function BillingForm({ settings, disabled }: { settings: Settings; disabl
           </div>
         </SettingsSection>
 
-        <SettingsSection
-          title="Pay later"
-          description="When a player leaves without paying (Pay later at checkout), it stays in their name. Above this amount, staff can't start them a new session until they pay. You can always start them, and set a different limit for one player on their page."
-        >
-          <Field label="Most a player can owe (₹)" hint="Leave empty for no limit. 0 = no new session while anything is owed.">
-            <Input
-              name="credit_limit"
-              type="number"
-              min={0}
-              step="1"
-              defaultValue={settings.credit_limit ?? ""}
-              placeholder="No limit"
-              className="sm:max-w-48"
-            />
-          </Field>
-        </SettingsSection>
+        {chargeTypes.length > 0 && (
+          <SettingsSection
+            title="Charge per person or per station"
+            description="Per person: the price on the Pricing page is for one person, and staff enter how many play (3 people at ₹60/hr pay ₹180/hr). Per table or console: one price, however many play."
+          >
+            {/* Every type posts, so types the venue doesn't have keep their setting. */}
+            {PER_PERSON_CAPABLE.filter((t) => perPerson.includes(t) && !types.includes(t)).map((t) => (
+              <input key={t} type="hidden" name="per_person" value={t} />
+            ))}
+            <ul className="flex flex-col divide-y divide-line">
+              {chargeTypes.map((type) => {
+                const on = perPerson.includes(type);
+                return (
+                  <li key={type} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2.5 first:pt-0 last:pb-0">
+                    <span className="text-sm font-medium">{STATION_TYPE_LABEL[type]}</span>
+                    {on && <input type="hidden" name="per_person" value={type} />}
+                    <Segmented
+                      value={on ? "person" : "station"}
+                      onChange={(v) =>
+                        setPerPerson((list) => (v === "person" ? [...list, type] : list.filter((t) => t !== type)))
+                      }
+                      className="w-full sm:w-auto"
+                      options={[
+                        { value: "person", label: "Per person" },
+                        { value: "station", label: `Per ${unitWord(type)}` },
+                      ]}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </SettingsSection>
+        )}
 
         <SettingsSection title="GST" description="Off: bills are plain receipts. On: tax invoices with CGST and SGST.">
           <div className="flex flex-col gap-4">

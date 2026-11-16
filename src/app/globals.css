@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* The PC app (and its multi-GB Rust build folder) has no web classes: skip it when scanning. */
+@source not "../../pc-agent";
 
 /*
   Two themes, one token set. The inline script in app/layout.tsx stamps

@@ -37,13 +37,12 @@ const BAND = [
   "8-ball pool",
   "Snooker",
   "Per-frame billing",
-  "Online bookings",
+  "Bookings",
   "Table QR codes",
   "Tournaments",
   "GST invoices",
   "UPI",
   "Player wallets",
-  "Pay later",
   "Snacks & stock",
   "Floor map",
   "Branches",
@@ -111,19 +110,15 @@ const FAQ = [
   ],
   [
     "Can we charge snooker by the frame?",
-    "Yes. Bill a table by the frame or by the minute, set a price for 2 or 4 players, and move the bill to the losing side at checkout.",
+    "Yes. Bill a table by the frame or by the minute, per table or per person, and move the bill to the losing side at checkout.",
   ],
   [
-    "Can players book a table online?",
-    "Yes. Each branch gets its own booking page. Players pick a game, day and time, and you confirm it from the Bookings screen. Nothing is paid online.",
+    "Can we take bookings?",
+    "Yes. Add bookings that come in by phone or WhatsApp, hold a station, and the Floor shows who's coming up in the next hour.",
   ],
   [
     "Can we run tournaments?",
     "Yes. Knockouts for single players or teams, on tables, PCs or consoles. Entry fees go on normal bills, the draw is random, and each match can be sent to a station.",
-  ],
-  [
-    "What about players who pay later?",
-    "Unpaid bills stay in the player's name. Set a limit on how much anyone can owe, and send a reminder on WhatsApp in one tap.",
   ],
   [
     "Does it handle GST?",
