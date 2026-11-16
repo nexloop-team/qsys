@@ -6,7 +6,8 @@ A small Windows app for each gaming PC. It is built with Tauri 2: a Rust core an
 - **Locked** until a session starts, from the QueSys floor or by player login. The lock covers every monitor and blocks Win, Alt+Tab, Alt+F4, Alt+Esc, Ctrl+Esc and Ctrl+Shift+Esc.
 - **Unlocks** when a session runs. The timer stays out of the way during games: it pops up for 10 seconds when the session starts and at 5 minutes left, then stays for the last minute (red). It never takes focus from the game.
 - **Locks again** when the session is paused or ended, or when fixed time runs out. It minimizes the game first so the lock shows over full-screen games.
-- **Commands from the floor:** message, restart, shut down, and turn on. Turn on is sent as Wake-on-LAN from another online PC on the same network.
+- **Commands from the floor:** message, restart, shut down, turn on and update. Turn on is sent as Wake-on-LAN from another online PC on the same network.
+- **Updates itself** from signed releases, only while nobody is playing (see Updates below).
 - **Games menu:** when a session starts, a window lists the venue's games (Settings › PC app), the player's wallet balance, snacks to order, *30 more minutes* (fixed time) and *Call staff*. Orders and calls show up on the floor like QR-page requests. The menu stays in the taskbar, and the timer has a *Menu* link.
 - **Restrictions:** Task Manager, Control Panel / Settings, command prompt / PowerShell / Registry Editor, and USB drives can be turned off for players (Settings › PC app). The app sets the Windows policy and also closes those programs. Staff unlock lifts them. USB blocking needs the app to run as administrator; otherwise a plugged-in USB drive is reported in Activity.
 - **Tamper alerts:** each check-in says how long Windows and the app have been running. After two minutes of silence the server works out why (app closed, PC switched off, or no connection) and flags it on the floor if it happened during a session, or if the app was closed while the PC was locked.
@@ -67,6 +68,35 @@ On Linux you can type-check the Windows code without a Windows PC: install `gcc-
 
 Without the `.env`, open **Server settings** on the setup screen and paste the URL and publishable key there.
 
+## Updates
+
+Each PC updates itself from the latest GitHub release of this repo, but only while nobody is playing on it (no session and no staff unlock). It checks 3 minutes after starting and every 6 hours. The owner can also press **Update all PCs now** in Settings › PC app, or **Update app** on one PC in the floor's station sheet; a PC that's in use installs as soon as the session ends. The installer runs in passive mode, closes the app, replaces it and starts it again; the lock screen is back within seconds and no tamper alert is raised (the server sees the new version).
+
+Updates are signed. A PC only installs a release signed with the QueSys update key, so nobody can push their own build to the PCs.
+
+### One-time setup
+
+1. Make the update key on your PC (keep the private key safe and backed up; if it's lost, PCs can't be updated again without reinstalling):
+   ```powershell
+   cargo tauri signer generate -w $HOME\.tauri\quesys-update.key
+   ```
+   It prints a **public key** and saves the private key to that file. Pick a password when asked.
+2. On GitHub, open the repo's **Settings › Secrets and variables › Actions**:
+   - **Secrets:** `TAURI_SIGNING_PRIVATE_KEY` (the whole private key file), `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (its password).
+   - **Variables:** `TAURI_UPDATER_PUBKEY` (the public key), `QUESYS_SUPABASE_URL` and `QUESYS_SUPABASE_KEY` (the **publishable** key, as in `.env`).
+3. PCs running a version from before auto-update (0.1.0) need the first auto-updating version installed by hand once. After that they update themselves.
+
+### Publish a version
+
+Tag a commit with the new version and push the tag:
+
+```powershell
+git tag pc-v0.2.0
+git push origin pc-v0.2.0
+```
+
+The **PC app release** workflow builds and signs the installers, and publishes a release with `latest.json`. Every version must be higher than the one before. Local builds (`cargo tauri build`) have no update key and never check for updates.
+
 ## Set up a PC
 
 1. Install the `.msi` and open **QueSys PC**. It starts on the setup screen.
@@ -96,11 +126,10 @@ src-tauri/src/keyboard.rs   key blocking while locked (Windows)
 src-tauri/src/system.rs     PC details, restart/shutdown, Wake-on-LAN, blocked apps
 src-tauri/src/config.rs     settings file + device key in Credential Manager
 src-tauri/src/watchdog.rs   keeps the app running
+src-tauri/src/update.rs     signed self-updates, only while the PC is free
 ui/                         lock screen, extra-monitor covers, timer widget
 ```
 
 ## Not in this version
 
-- Auto-update. Install new versions with the `.msi`.
 - Screen view or remote control.
-z

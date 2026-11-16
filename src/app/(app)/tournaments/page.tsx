@@ -29,7 +29,7 @@ export default function TournamentsPage() {
 async function Tournaments() {
   const { branch } = await getAppContext();
   const supabase = await createClient();
-  const [{ data }, { data: settings }] = await Promise.all([
+  const [{ data }, { data: settings }, { data: stationRows }] = await Promise.all([
     supabase
       .from("tournaments")
       .select("id, name, game, entry_fee, prize, starts_at, status, created_at, team_size, station_type, tournament_players(count)")
@@ -37,7 +37,11 @@ async function Tournaments() {
       .order("created_at", { ascending: false })
       .limit(100),
     supabase.from("branch_settings").select("station_types").eq("branch_id", branch.id).single(),
+    supabase.from("stations").select("type").eq("branch_id", branch.id).neq("status", "disabled"),
   ]);
+  // How many of each kind the venue has, so a 5 v 5 on 8 PCs is caught before it starts.
+  const counts: Record<string, number> = {};
+  for (const s of stationRows ?? []) counts[s.type] = (counts[s.type] ?? 0) + 1;
   const list = data ?? [];
   const types = STATION_TYPES.filter((t) => (settings?.station_types ?? STATION_TYPES).includes(t));
 
@@ -46,7 +50,7 @@ async function Tournaments() {
       <PageHeader
         title="Tournaments"
         description="Knockout tournaments for singles or teams, on tables, PCs or consoles."
-        actions={<NewTournamentButton branchId={branch.id} timezone={branch.timezone} types={types} />}
+        actions={<NewTournamentButton branchId={branch.id} timezone={branch.timezone} types={types} counts={counts} />}
       />
       {list.length === 0 ? (
         <Panel>

@@ -1,0 +1,84 @@
+name: PC app release
+
+# Push a tag like pc-v0.2.0 to build the Windows installers, sign them, and publish a GitHub release
+# with latest.json. PCs running the app find it, and install it the next time nobody is playing.
+#
+# One-time setup (see pc-agent/README.md, "Updates"):
+#   Secrets:   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+#   Variables: TAURI_UPDATER_PUBKEY, QUESYS_SUPABASE_URL, QUESYS_SUPABASE_KEY (the publishable key)
+
+on:
+  push:
+    tags: ["pc-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, sign and publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the setup
+        shell: pwsh
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+          URL: ${{ vars.QUESYS_SUPABASE_URL }}
+          ANON: ${{ vars.QUESYS_SUPABASE_KEY }}
+        run: |
+          $missing = @()
+          if (-not $env:KEY) { $missing += "secret TAURI_SIGNING_PRIVATE_KEY" }
+          if (-not $env:PUBKEY) { $missing += "variable TAURI_UPDATER_PUBKEY" }
+          if (-not $env:URL) { $missing += "variable QUESYS_SUPABASE_URL" }
+          if (-not $env:ANON) { $missing += "variable QUESYS_SUPABASE_KEY" }
+          if ($env:ANON -like "sb_secret_*") { $missing += "QUESYS_SUPABASE_KEY must be the publishable key, not the secret one" }
+          if ($missing.Count) { Write-Error ("Missing: " + ($missing -join ", ")); exit 1 }
+
+      - name: Version from the tag
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".Substring(4)   # pc-v0.2.0 -> 0.2.0
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { Write-Error "Tag must look like pc-v0.2.0"; exit 1 }
+          $f = "pc-agent/src-tauri/tauri.conf.json"
+          (Get-Content $f -Raw) -replace '"version": "[^"]+"', "`"version`": `"$v`"" | Set-Content $f -NoNewline
+          $c = "pc-agent/src-tauri/Cargo.toml"
+          (Get-Content $c -Raw) -replace '(?m)^version = "[^"]+"', "version = `"$v`"" | Set-Content $c -NoNewline
+
+      # The update key and the signed update files only exist in release builds.
+      - name: Release settings
+        shell: pwsh
+        env:
+          PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+        run: |
+          @{ bundle = @{ createUpdaterArtifacts = $true }; plugins = @{ updater = @{ pubkey = $env:PUBKEY } } } |
+            ConvertTo-Json -Depth 5 | Set-Content "pc-agent/src-tauri/release.conf.json"
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: pc-agent/src-tauri -> target
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g @tauri-apps/cli@2
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          QUESYS_SUPABASE_URL: ${{ vars.QUESYS_SUPABASE_URL }}
+          QUESYS_SUPABASE_KEY: ${{ vars.QUESYS_SUPABASE_KEY }}
+        with:
+          projectPath: pc-agent
+          tauriScript: tauri
+          args: --config ${{ github.workspace }}/pc-agent/src-tauri/release.conf.json
+          tagName: ${{ github.ref_name }}
+          releaseName: QueSys PC ${{ github.ref_name }}
+          releaseBody: Windows installers for the QueSys PC app. PCs already running it update themselves when nobody is playing.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true

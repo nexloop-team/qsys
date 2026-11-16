@@ -123,6 +123,24 @@ Each file in `supabase/migrations` runs once, in order. After pulling new code, 
   owe" limit is gone; an ended session waits under To collect until paid or written off), **per person or per
   station** for each station type (Settings › Billing; consoles default to per person, tables to per table, and
   player choices on rates go), and **online booking off** for now (phone bookings stay).
+- `20261202000001_station_page_live.sql`: the table QR page updates the moment its session, snacks or requests
+  change (a Realtime signal from the database), instead of asking every 10 seconds.
+- `20261202000002_pc_installs_restriction.sql`: a new PC restriction, **installing and removing games and apps**.
+- `20261203000001_snacks_cost_writeoffs.sql`: **buying price** on snacks and drinks (a running average updated
+  by each delivery, kept with every sale), **write-offs** with a reason (broken or spilled, expired, used by
+  staff, given free, missing), several items onto a station's bill in one go for the **Counter** screen, and a
+  snacks report (sales, cost, profit per item, losses) on Reports and Snacks & drinks.
+- `20261203000002_counter_pos.sql`: the Counter works like a shop POS. **Your own categories** (the five old ones
+  become plain names), a **barcode** on each item for a scanner, and **top sellers** of the last 30 days for the
+  first tab.
+- `20261204000001_options_private_cost.sql`: **sizes and add-ons** on snacks and drinks (priced by the database
+  from the item's own list), and **buying prices for the owner only**: the cost columns are hidden from the app's
+  database role, and the owner reads and sets them through owner-only functions.
+- `20261204000002_pc_updates.sql`: the PC app's **Update** command, **Update all PCs now** for the owner, and no
+  tamper alert when an update restarts the app on a free PC.
+- `20261205000001_tournament_rules.sql`: tournaments as venues run them. A match takes as many stations as it
+  needs (one PC per player, so a 5 v 5 takes 10; one console for singles and doubles; one table per match), a
+  station can't be in two matches being played at once, and results keep a score or a walkover.
 
 Station QR codes and sign-up / reset emails use the address the app is opened at, so print
 QR codes (Stations › QR codes) from your real web address. A non-localhost `NEXT_PUBLIC_SITE_URL` overrides this.

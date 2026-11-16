@@ -1,2 +1,4 @@
 src-tauri/target/
 src-tauri/gen/
+# Written by the release workflow (update key settings).
+src-tauri/release.conf.json

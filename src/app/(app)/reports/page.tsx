@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Download, Lock } from "lucide-react";
 import { getAppContext, isOwner } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
+import { SnacksReportPanel, type SnacksReport } from "../inventory/snacks-report";
 import { nextDay, todayIn } from "@/lib/format";
 import { Empty, PageHeader, PageSkeleton, Panel } from "@/components/card";
 import { buttonClass, cx } from "@/components/styles";
@@ -96,9 +97,11 @@ async function Reports({ searchParams }: { searchParams: PageProps<"/reports">["
   const prevFrom = nextDay(from, -range.days);
   const expensesBetween = (a: string, b: string) =>
     supabase.from("expenses").select("amount").eq("branch_id", branch.id).gte("spent_on", a).lte("spent_on", b);
-  const [summary, insights, spent, spentBefore] = await Promise.all([
+  const [summary, insights, snacks, gstSetting, spent, spentBefore] = await Promise.all([
     supabase.rpc("report_summary", args),
     supabase.rpc("report_insights", args),
+    supabase.rpc("report_snacks", args),
+    supabase.from("branch_settings").select("gst_enabled").eq("branch_id", branch.id).single(),
     expensesBetween(from, to),
     expensesBetween(prevFrom, nextDay(from, -1)),
   ]);
@@ -152,5 +155,15 @@ async function Reports({ searchParams }: { searchParams: PageProps<"/reports">["
   const sum = (rows: { amount: number }[] | null) => (rows ?? []).reduce((t, e) => t + Number(e.amount), 0);
   const costs = { total: sum(spent.data), previous: sum(spentBefore.data) };
 
-  return <ReportView header={header} range={range} from={from} r={r} x={x} costs={costs} />;
+  const snackReport = snacks.data as SnacksReport | null;
+  return (
+    <>
+      <ReportView header={header} range={range} from={from} r={r} x={x} costs={costs} />
+      {snackReport && (
+        <div className="mt-5">
+          <SnacksReportPanel report={snackReport} gst={Boolean(gstSetting.data?.gst_enabled)} />
+        </div>
+      )}
+    </>
+  );
 }

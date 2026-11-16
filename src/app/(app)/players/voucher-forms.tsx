@@ -9,7 +9,7 @@ import { Button, Field, FormMessage, Input, SubmitButton } from "@/components/ui
 import type { ActionState } from "@/lib/action-state";
 
 /** ABCDEFGH → ABCD-EFGH */
-export const showCode = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
+import { showCode } from "./voucher-code";
 
 // Owner: make a batch of vouchers, then copy or print the codes.
 export function CreateVouchersButton({ venueName }: { venueName: string }) {

@@ -7,7 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDateTime, formatINR, todayIn } from "@/lib/format";
 import { Badge, Empty, PageHeader, PageSkeleton, Panel } from "@/components/card";
 import { buttonClass } from "@/components/styles";
-import { CreateVouchersButton, VoidVoucherButton, showCode } from "../voucher-forms";
+import { CreateVouchersButton, VoidVoucherButton } from "../voucher-forms";
+import { showCode } from "../voucher-code";
 
 export const metadata: Metadata = { title: "Vouchers" };
 

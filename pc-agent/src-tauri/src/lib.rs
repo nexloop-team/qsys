@@ -8,7 +8,9 @@
 //!   and "Call staff".
 //! - Restrictions while a player has the PC (Task Manager, Control Panel, command line, USB drives).
 //! - Sends CPU, memory, GPU and disk readings with each check-in, for the floor.
-//! - Runs staff commands: message, restart, shut down, and wake another PC on the same network.
+//! - Runs staff commands: message, restart, shut down, wake another PC on the same network, and
+//!   update.
+//! - Updates itself from signed QueSys releases, only while nobody is playing (see update.rs).
 //!
 //! Time comes from the server (offset measured on each check-in), so changing the PC clock does
 //! nothing. If the internet drops, the last known end time is still enforced.
@@ -21,6 +23,7 @@ mod keyboard;
 mod realtime;
 mod restrict;
 mod system;
+mod update;
 pub mod watchdog;
 
 use api::{Api, ApiError, SyncData};
@@ -99,6 +102,8 @@ pub struct Shared {
     /// Latest performance readings, sent with the next check-in.
     health: Mutex<serde_json::Value>,
     restrictions: Mutex<restrict::Enforcer>,
+    /// Wakes the update loop (the floor's "Update" command).
+    update_now: Arc<Notify>,
 }
 
 impl Shared {
@@ -109,6 +114,13 @@ impl Shared {
 
     fn token(&self) -> Option<String> {
         self.token.lock().unwrap().clone()
+    }
+
+    /// Nobody is using the PC: no session on this station and no staff unlock. Updates wait for this.
+    fn is_free(&self) -> bool {
+        let no_session = self.sync.lock().unwrap().as_ref().is_some_and(|d| d.session.is_none());
+        let staff = self.staff_until.lock().unwrap().is_some_and(|until| until > self.server_now());
+        no_session && !staff
     }
 
     fn server_now(&self) -> DateTime<Utc> {
@@ -168,6 +180,7 @@ pub fn run() {
                 let _ = w.set_focus();
             }
         }))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--watchdog"]),
@@ -191,6 +204,7 @@ pub fn run() {
                 poke: Arc::new(Notify::new()),
                 health: Mutex::new(serde_json::Value::Null),
                 restrictions: Mutex::new(restrict::Enforcer::default()),
+                update_now: Arc::new(Notify::new()),
             });
             app.manage(shared.clone());
 
@@ -198,6 +212,11 @@ pub fn run() {
             {
                 use tauri_plugin_autostart::ManagerExt;
                 let _ = app.autolaunch().enable();
+                // Started directly (after an update, or by hand) rather than by the watchdog: start
+                // the watchdog too, so the app keeps being restarted if it's closed.
+                if !std::env::args().any(|a| a == "--app") {
+                    watchdog::spawn();
+                }
             }
 
             keyboard::start();
@@ -209,6 +228,7 @@ pub fn run() {
             tauri::async_runtime::spawn(tick_loop(handle.clone(), shared.clone()));
             tauri::async_runtime::spawn(sweep_loop(handle.clone(), shared.clone()));
             tauri::async_runtime::spawn(health_loop(shared.clone()));
+            tauri::async_runtime::spawn(update::run(handle.clone(), shared.clone(), shared.update_now.clone()));
             let rt = shared.clone();
             tauri::async_runtime::spawn(realtime::run(
                 move || {
@@ -471,6 +491,26 @@ async fn run_command(app: &AppHandle, shared: &Arc<Shared>, api: &Api, token: &s
             }
             return;
         }
+        // Update now if nobody is playing; otherwise as soon as the session ends.
+        "update" => match update::find(app).await {
+            Ok(None) => format!("up to date ({})", env!("CARGO_PKG_VERSION")),
+            Ok(Some(u)) if !shared.is_free() => {
+                shared.update_now.notify_one();
+                format!("{} is ready, it installs when the session ends", u.version)
+            }
+            Ok(Some(u)) => {
+                // Acknowledge first: installing closes the app.
+                let _ = api.ack(token, &c.id, &format!("installing {}", u.version)).await;
+                match update::install(shared, u).await {
+                    Ok(()) => return,
+                    Err(e) => {
+                        shared.update_now.notify_one();
+                        format!("failed: {e}")
+                    }
+                }
+            }
+            Err(e) => format!("failed: {e}"),
+        },
         "wake" => match c.payload["mac"].as_str().map(system::wake) {
             Some(Ok(())) => "sent".to_string(),
             Some(Err(e)) => format!("failed: {e}"),

@@ -43,7 +43,6 @@ import {
 import { FloorMap, LayoutEditor, initialPlacements } from "./floor-map";
 import { StationSheet } from "./station-sheet";
 import { CheckoutDialog } from "./checkout-dialog";
-import { QuickSaleDialog } from "./quick-sale-dialog";
 import {
   ENDING_SOON_SECONDS,
   type FloorBooking,
@@ -170,7 +169,6 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
   const [filter, setFilter] = useState<StationType | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checkoutIds, setCheckoutIds] = useState<string[] | null>(null);
-  const [quickSaleOpen, setQuickSaleOpen] = useState(false);
   const [muted, setMuted] = useMuted();
   // A new tamper alert beeps like a request (unless muted).
   const seenAlerts = useRef(new Set(initial.alerts.map((a) => a.id)));
@@ -324,15 +322,9 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
               <span className={cx("size-1.5 rounded-full", connected ? "bg-free" : "bg-ending blink")} />
               {connected ? "Live" : "Reconnecting"}
             </span>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setQuickSaleOpen(true)}
-              title="Sell snacks and drinks without a station"
-              className="gap-1.5"
-            >
-              <ShoppingBag className="size-3.5" /> Counter sale
-            </Button>
+            <Link href="/counter" className={buttonClass("secondary", "sm", "gap-1.5")}>
+              <ShoppingBag className="size-3.5" /> Counter
+            </Link>
             {pausedSessions.length > 0 && (
               <Button
                 size="sm"
@@ -650,16 +642,6 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
         />
       )}
 
-      <QuickSaleDialog
-        open={quickSaleOpen}
-        onOpenChange={setQuickSaleOpen}
-        branchId={branch.id}
-        branchName={branch.name}
-        supabase={supabase}
-        gst={{ enabled: settings.gstEnabled, rate: settings.gstRate, inclusive: settings.pricesIncludeTax }}
-        discountLimit={initial.role === "owner" ? null : settings.staffMaxDiscountPct}
-        onDone={() => void refetch()}
-      />
     </div>
   );
 }

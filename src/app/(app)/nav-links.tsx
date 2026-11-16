@@ -15,6 +15,7 @@ import {
   Monitor,
   ReceiptText,
   Settings,
+  ShoppingBag,
   Tags,
   Trophy,
   UserRound,
@@ -32,6 +33,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Operate",
     items: [
       { href: "/dashboard", label: "Floor", icon: LayoutGrid },
+      { href: "/counter", label: "Counter", icon: ShoppingBag },
       { href: "/bills", label: "Bills", icon: ReceiptText },
       { href: "/players", label: "Players", icon: Contact },
       { href: "/bookings", label: "Bookings", icon: CalendarClock },
@@ -56,10 +58,10 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   },
 ];
 
-// Phone bottom bar: the three most used; everything else is under More.
-const MOBILE_PRIMARY = GROUPS[0].items.slice(0, 3);
+// Phone bottom bar: the four most used; everything else is under More.
+const MOBILE_PRIMARY = GROUPS[0].items.slice(0, 4);
 const MORE_GROUPS = [
-  { label: GROUPS[0].label, items: GROUPS[0].items.slice(3) },
+  { label: GROUPS[0].label, items: GROUPS[0].items.slice(4) },
   ...GROUPS.slice(1),
 ].filter((g) => g.items.length > 0);
 
@@ -147,7 +149,7 @@ function MobileList({ pathname }: { pathname: string }) {
 
   return (
     <>
-      <ul className="grid grid-cols-4">
+      <ul className="grid grid-cols-5">
         {MOBILE_PRIMARY.map(({ href, label, icon: Icon }) => (
           <li key={href}>
             <Link

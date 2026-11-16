@@ -174,6 +174,7 @@ export function Modal({
   description,
   children,
   wide = false,
+  large = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -181,6 +182,8 @@ export function Modal({
   description?: ReactNode;
   children: ReactNode;
   wide?: boolean;
+  /** A big working dialog (a menu to pick from): tall on phones, most of the screen on desktop. */
+  large?: boolean;
 }) {
   useBackToClose(open, onOpenChange);
   return (
@@ -194,7 +197,7 @@ export function Modal({
             "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t",
             // Larger screens: centred card.
             "sm:inset-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100vw-48px)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border",
-            wide ? "sm:max-w-2xl" : "sm:max-w-md",
+            large ? "h-[92dvh] sm:h-[min(88dvh,860px)] sm:max-w-5xl" : wide ? "sm:max-w-2xl" : "sm:max-w-md",
           )}
         >
           <Grabber />
@@ -211,7 +214,12 @@ export function Modal({
               <X className="size-5" />
             </D.Close>
           </header>
-          <div className="overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
+          <div
+            className={cx(
+              "overscroll-contain px-5 pt-4 pb-[calc(16px+env(safe-area-inset-bottom))]",
+              large ? "flex min-h-0 flex-1 flex-col" : "overflow-y-auto",
+            )}
+          >
             {children}
           </div>
         </D.Content>

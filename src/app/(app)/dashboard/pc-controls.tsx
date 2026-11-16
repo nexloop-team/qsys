@@ -9,13 +9,14 @@ import { healthItems, healthWarnings, readHealth, seenAgo, type DeviceStatus } f
 import { Button, ErrorText, Input, cx } from "@/components/ui";
 import { friendlyError } from "@/lib/errors";
 
-type Kind = "message" | "restart" | "shutdown" | "wake";
+type Kind = "message" | "restart" | "shutdown" | "wake" | "update";
 
 const SENT: Record<Kind, string> = {
   message: "Message sent.",
   restart: "Restarting the PC…",
   shutdown: "Shutting down the PC…",
   wake: "Wake signal sent. The PC should start within a minute.",
+  update: "Asked the PC to update. It installs when nobody is playing on it.",
 };
 
 // PC app controls in the station sheet: status, message, restart, shut down, turn on.

@@ -28,3 +28,16 @@ pub fn run() {
         std::thread::sleep(Duration::from_secs(wait));
     }
 }
+
+/// Starts `quesys-pc.exe --watchdog` in the background. Used when the app was started without the
+/// watchdog (the updater restarts the app directly). A second watchdog is harmless: the app it
+/// starts finds the first copy running and exits, and the watchdog backs off.
+#[cfg_attr(debug_assertions, allow(dead_code))]
+pub fn spawn() {
+    let Ok(exe) = std::env::current_exe() else { return };
+    let mut cmd = Command::new(exe);
+    cmd.arg("--watchdog");
+    #[cfg(windows)]
+    cmd.creation_flags(0x0800_0000 | 0x0000_0008); // CREATE_NO_WINDOW | DETACHED_PROCESS
+    let _ = cmd.spawn();
+}

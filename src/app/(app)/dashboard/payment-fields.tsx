@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Banknote, QrCode, Split, Wallet } from "lucide-react";
 import { formatINR } from "@/lib/format";
-import { Button, Field, Input, Segmented } from "@/components/ui";
+import { Button, Field, Input, Segmented, cx } from "@/components/ui";
 
 export type PaymentMethod = "cash" | "upi" | "wallet";
 export type PaymentRow = { method: PaymentMethod; amount: number; reference?: string };
@@ -137,6 +137,22 @@ export function PaymentFields({
                 onChange={(e) => setReceived(e.target.value)}
                 placeholder={String(total)}
               />
+              {/* The notes a player usually hands over: tap one to see the change. */}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {cashNotes(total).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setReceived(String(v))}
+                    className={cx(
+                      "num h-9 rounded-lg border px-3 text-sm font-medium transition-colors pointer-coarse:h-11",
+                      Number(received) === v ? "border-fg bg-fg text-bg" : "border-line hover:bg-hover",
+                    )}
+                  >
+                    {v === total ? "Exact" : formatINR(v)}
+                  </button>
+                ))}
+              </div>
             </Field>
           )}
         </>
@@ -201,4 +217,11 @@ export function PaymentFields({
       )}
     </div>
   );
+}
+
+// Exact, then the next round amounts above the total that a note or two would make.
+function cashNotes(total: number) {
+  if (!(total > 0)) return [];
+  const up = (step: number) => Math.ceil(total / step) * step;
+  return [...new Set([total, up(50), up(100), up(500), up(2000)])].filter((v) => v >= total).slice(0, 5);
 }

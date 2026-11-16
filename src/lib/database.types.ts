@@ -590,6 +590,7 @@ export type Database = {
           product_id: string | null
           quantity: number | null
           session_id: string | null
+          unit_cost: number | null
         }
         Insert: {
           amount: number
@@ -602,6 +603,7 @@ export type Database = {
           product_id?: string | null
           quantity?: number | null
           session_id?: string | null
+          unit_cost?: number | null
         }
         Update: {
           amount?: number
@@ -614,6 +616,7 @@ export type Database = {
           product_id?: string | null
           quantity?: number | null
           session_id?: string | null
+          unit_cost?: number | null
         }
         Relationships: [
           {
@@ -990,37 +993,46 @@ export type Database = {
       }
       products: {
         Row: {
+          barcode: string | null
           branch_id: string
           category: string
+          cost: number | null
           created_at: string
           id: string
           is_active: boolean
           low_stock_at: number
           name: string
+          options: Json
           org_id: string
           price: number
           stock: number | null
         }
         Insert: {
+          barcode?: string | null
           branch_id: string
           category?: string
+          cost?: number | null
           created_at?: string
           id?: string
           is_active?: boolean
           low_stock_at?: number
           name: string
+          options?: Json
           org_id: string
           price: number
           stock?: number | null
         }
         Update: {
+          barcode?: string | null
           branch_id?: string
           category?: string
+          cost?: number | null
           created_at?: string
           id?: string
           is_active?: boolean
           low_stock_at?: number
           name?: string
+          options?: Json
           org_id?: string
           price?: number
           stock?: number | null
@@ -1237,6 +1249,7 @@ export type Database = {
           product_id: string | null
           quantity: number
           session_id: string
+          unit_cost: number | null
         }
         Insert: {
           created_at?: string
@@ -1248,6 +1261,7 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           session_id: string
+          unit_cost?: number | null
         }
         Update: {
           created_at?: string
@@ -1259,6 +1273,7 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           session_id?: string
+          unit_cost?: number | null
         }
         Relationships: [
           {
@@ -1726,6 +1741,7 @@ export type Database = {
           product_id: string
           reason: string
           session_id: string | null
+          unit_cost: number | null
         }
         Insert: {
           created_at?: string
@@ -1738,6 +1754,7 @@ export type Database = {
           product_id: string
           reason: string
           session_id?: string | null
+          unit_cost?: number | null
         }
         Update: {
           created_at?: string
@@ -1750,6 +1767,7 @@ export type Database = {
           product_id?: string
           reason?: string
           session_id?: string | null
+          unit_cost?: number | null
         }
         Relationships: [
           {
@@ -1834,8 +1852,10 @@ export type Database = {
           player1_id: string | null
           player2_id: string | null
           round: number
+          score: string | null
           slot: number
           station_id: string | null
+          station_ids: string[]
           tournament_id: string
           winner_id: string | null
         }
@@ -1846,8 +1866,10 @@ export type Database = {
           player1_id?: string | null
           player2_id?: string | null
           round: number
+          score?: string | null
           slot: number
           station_id?: string | null
+          station_ids?: string[]
           tournament_id: string
           winner_id?: string | null
         }
@@ -1858,8 +1880,10 @@ export type Database = {
           player1_id?: string | null
           player2_id?: string | null
           round?: number
+          score?: string | null
           slot?: number
           station_id?: string | null
+          station_ids?: string[]
           tournament_id?: string
           winner_id?: string | null
         }
@@ -2191,13 +2215,19 @@ export type Database = {
       accept_invite: { Args: { p_code: string }; Returns: string }
       add_session_item: {
         Args: {
+          p_addons?: string[]
           p_name: string
           p_price: number
           p_product_id?: string
           p_quantity?: number
           p_session_id: string
+          p_size?: string
         }
         Returns: string
+      }
+      add_session_items: {
+        Args: { p_items: Json; p_session_id: string }
+        Returns: undefined
       }
       add_tournament_player: {
         Args: {
@@ -2215,6 +2245,8 @@ export type Database = {
           p_note?: string
           p_product_id: string
           p_qty: number
+          p_reason?: string
+          p_unit_cost?: number
         }
         Returns: number
       }
@@ -2414,6 +2446,13 @@ export type Database = {
         Returns: string
       }
       player_summary: { Args: { p_customer_id: string }; Returns: Json }
+      product_costs: {
+        Args: { p_branch_id: string }
+        Returns: {
+          cost: number
+          product_id: string
+        }[]
+      }
       public_booking_info: { Args: { p_slug: string }; Returns: Json }
       public_booking_slots: {
         Args: {
@@ -2476,6 +2515,10 @@ export type Database = {
         Args: { p_branch_id: string; p_from: string; p_to: string }
         Returns: Json
       }
+      report_snacks: {
+        Args: { p_branch_id: string; p_from: string; p_to: string }
+        Returns: Json
+      }
       report_summary: {
         Args: { p_branch_id: string; p_from: string; p_to: string }
         Returns: Json
@@ -2514,8 +2557,12 @@ export type Database = {
         Args: { p_match_id: string; p_station_id: string }
         Returns: undefined
       }
+      set_match_stations: {
+        Args: { p_match_id: string; p_station_ids: string[] }
+        Returns: undefined
+      }
       set_match_winner: {
-        Args: { p_match_id: string; p_winner_id: string }
+        Args: { p_match_id: string; p_score?: string; p_winner_id: string }
         Returns: undefined
       }
       set_player_credit_limit: {
@@ -2524,6 +2571,10 @@ export type Database = {
       }
       set_player_pin: {
         Args: { p_customer_id: string; p_pin: string }
+        Returns: undefined
+      }
+      set_product_cost: {
+        Args: { p_cost: number; p_product_id: string }
         Returns: undefined
       }
       set_session_payer: {
@@ -2552,6 +2603,33 @@ export type Database = {
         Args: { p_tournament_id: string }
         Returns: undefined
       }
+      stations_per_match: {
+        Args: {
+          p_team_size: number
+          p_type: Database["public"]["Enums"]["station_type"]
+        }
+        Returns: number
+      }
+      stock_history: {
+        Args: {
+          p_branch_id: string
+          p_limit?: number
+          p_product_id?: string
+          p_reasons?: string[]
+        }
+        Returns: {
+          created_at: string
+          created_by: string
+          delta: number
+          id: string
+          invoice_id: string
+          note: string
+          product_id: string
+          product_name: string
+          reason: string
+          value: number
+        }[]
+      }
       submit_contact_message: {
         Args: {
           p_email: string
@@ -2563,6 +2641,13 @@ export type Database = {
           p_venue: string
         }
         Returns: undefined
+      }
+      top_products: {
+        Args: { p_branch_id: string; p_days?: number; p_limit?: number }
+        Returns: {
+          product_id: string
+          qty: number
+        }[]
       }
       topup_wallet: {
         Args: {
@@ -2580,6 +2665,7 @@ export type Database = {
         Returns: undefined
       }
       unpair_device: { Args: { p_station_id: string }; Returns: undefined }
+      update_all_pcs: { Args: { p_branch_id: string }; Returns: number }
       void_invoice: {
         Args: { p_invoice_id: string; p_reason: string; p_restock?: boolean }
         Returns: Json

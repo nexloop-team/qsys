@@ -9,7 +9,7 @@ import { zonedStart } from "@/lib/format";
 import { STATION_TYPE_LABEL, type StationType } from "@/lib/constants";
 import { Modal, StickyActions } from "@/components/overlay";
 import { Button, ErrorText, Field, Input, Select, cx } from "@/components/ui";
-import { teamLabel } from "./labels";
+import { stationsPerMatch, teamLabel } from "./labels";
 
 // Suggestions for the Game box, by what it's played on. Any game can still be typed.
 const GAMES: Record<StationType | "none", string[]> = {
@@ -26,11 +26,14 @@ export function NewTournamentButton({
   branchId,
   timezone,
   types,
+  counts,
 }: {
   branchId: string;
   timezone: string;
   /** The station types this venue has. */
   types: StationType[];
+  /** How many stations of each type the branch has. */
+  counts: Record<string, number>;
 }) {
   const router = useRouter();
   const first = types.length === 1 ? types[0] : "";
@@ -45,6 +48,11 @@ export function NewTournamentButton({
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
   const suggestions = GAMES[on || "none"];
+  // What one match takes, and whether the venue has that many.
+  const need = stationsPerMatch(on || null, teamSize);
+  const have = on ? (counts[on] ?? 0) : 0;
+  const one = on === "pc" ? "PC" : on === "ps5" ? "PS5" : on === "xbox" ? "Xbox" : on === "snooker" || on === "pool" ? "table" : "station";
+  const many = one === "Xbox" ? "Xboxes" : `${one}s`;
 
   const submit = () =>
     startTransition(async () => {
@@ -135,6 +143,17 @@ export function NewTournamentButton({
               ))}
             </Select>
           </Field>
+          {need > 0 && (
+            <p className={cx("-mt-2 text-sm", have < need ? "font-medium text-over" : "text-muted")}>
+              Each match takes {need} {need === 1 ? one : many}
+              {on === "pc" ? " (one per player)" : need > 1 ? " (one per player)" : teamSize > 1 ? " (both teams on it)" : ""}.
+              {have < need
+                ? ` This branch has ${have}, so a match can't be played. Pick a smaller format.`
+                : need > 1
+                  ? ` With ${have}, ${Math.floor(have / need)} ${Math.floor(have / need) === 1 ? "match" : "matches"} can run at once.`
+                  : ""}
+            </p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={teamSize > 1 ? "Entry fee per team (₹)" : "Entry fee (₹)"} hint="Leave empty if free.">
               <Input type="number" min={0} value={fee} onChange={(e) => setFee(e.target.value)} placeholder="0" />
@@ -151,7 +170,7 @@ export function NewTournamentButton({
             <Button
               size="lg"
               className="w-full"
-              disabled={pending || name.trim().length < 2 || game.trim().length < 2}
+              disabled={pending || name.trim().length < 2 || game.trim().length < 2 || (need > 0 && have < need)}
               onClick={submit}
             >
               {pending ? "Creating…" : teamSize > 1 ? "Create and add teams" : "Create and add players"}

@@ -32,16 +32,21 @@ async function Bill({
   searchParams: PageProps<"/bills/[id]">["searchParams"];
 }) {
   const { id } = await params;
-  // Opened from checkout on the Floor: print straight away, and "back" goes to the Floor.
+  // Opened from checkout on the Floor or a counter sale: print straight away, and "back" goes there.
   const sp = await searchParams;
-  const fromFloor = sp.from === "floor";
+  const back =
+    sp.from === "floor"
+      ? { href: "/dashboard", label: "Floor" }
+      : sp.from === "counter"
+        ? { href: "/counter", label: "Counter" }
+        : { href: "/bills", label: "Bills" };
   const autoPrint = sp.print === "1";
   const { branch, org, role } = await getAppContext();
   const supabase = await createClient();
 
   const { data: inv } = await supabase
     .from("invoices")
-    .select("*, invoice_lines(*), payments(method, amount, reference)")
+    .select("*, invoice_lines(id, invoice_id, session_id, description, minutes, amount, gst_rate, product_id, quantity), payments(method, amount, reference)")
     .eq("id", id)
     .maybeSingle();
   if (!inv) notFound();
@@ -59,8 +64,8 @@ async function Bill({
   return (
     <div className="mx-auto max-w-sm">
       <div className="mb-4 flex items-center justify-between print:hidden">
-        <Link href={fromFloor ? "/dashboard" : "/bills"} className={buttonClass("ghost", "sm")}>
-          <ArrowLeft /> {fromFloor ? "Floor" : "Bills"}
+        <Link href={back.href} className={buttonClass("ghost", "sm")}>
+          <ArrowLeft /> {back.label}
         </Link>
         <div className="flex items-center gap-2">
           <WhatsAppButton

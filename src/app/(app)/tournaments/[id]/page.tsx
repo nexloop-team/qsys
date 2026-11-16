@@ -23,7 +23,7 @@ async function Tournament({ params }: { params: PageProps<"/tournaments/[id]">["
   const { org, branch, role } = await getAppContext();
   const supabase = await createClient();
 
-  const [{ data: t }, { data: players }, { data: matches }, { data: settings }, { data: stations }] = await Promise.all([
+  const [{ data: t }, { data: players }, { data: matches }, { data: settings }, { data: stations }, { data: live }] = await Promise.all([
     // This branch only: its stations are the ones a match can go to.
     supabase.from("tournaments").select("*").eq("id", id).eq("branch_id", branch.id).maybeSingle(),
     supabase
@@ -34,6 +34,8 @@ async function Tournament({ params }: { params: PageProps<"/tournaments/[id]">["
     supabase.from("tournament_matches").select("*").eq("tournament_id", id).order("round").order("slot"),
     supabase.from("branch_settings").select("gst_enabled, gst_rate, prices_include_tax").eq("branch_id", branch.id).single(),
     supabase.from("stations").select("id, name, type").eq("branch_id", branch.id).neq("status", "disabled").order("sort_order"),
+    // Stations with a customer on them now: picking one for a match gets a warning.
+    supabase.from("sessions").select("station_id").eq("branch_id", branch.id).neq("status", "ended"),
   ]);
   if (!t) notFound();
 
@@ -64,6 +66,7 @@ async function Tournament({ params }: { params: PageProps<"/tournaments/[id]">["
         }}
         // Matches get a station only when the tournament says what it's played on.
         stations={t.station_type ? (stations ?? []).filter((s) => s.type === t.station_type) : []}
+        busy={(live ?? []).map((s) => s.station_id)}
         canDelete={isOwner(role)}
       />
     </>

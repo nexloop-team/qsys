@@ -20,8 +20,8 @@ import { Badge } from "@/components/card";
 import { Button, ErrorText, Field, Input, Segmented, Select, Toggle, cx } from "@/components/ui";
 import { PaymentFields, type PaymentRow } from "./payment-fields";
 import { PlayerField, type PlayerValue } from "./player-field";
-import { SessionSnacksForm } from "./session-snacks";
 import { PcControls } from "./pc-controls";
+import { StationSnacksDialog } from "./station-snacks-dialog";
 import type { DeviceStatus } from "@/lib/devices";
 import type { TileInfo } from "./floor-board";
 import type { FloorData, FloorPackage, FloorPlan, FloorStation, LiveSession } from "./types";
@@ -387,7 +387,8 @@ function LiveView({
   onClose: () => void;
   extra?: React.ReactNode;
 }) {
-  const [panel, setPanel] = useState<"none" | "extend" | "transfer" | "snack">("none");
+  const [panel, setPanel] = useState<"none" | "extend" | "transfer">("none");
+  const [snacksOpen, setSnacksOpen] = useState(false);
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
   const tz = data.branch.timezone;
@@ -568,23 +569,20 @@ function LiveView({
             <ArrowRightLeft /> Move to another {STATION_TYPE_LABEL[station.type]}
           </Button>
         )}
-        <Button
-          variant="secondary"
-          className="col-span-2"
-          onClick={() => setPanel(panel === "snack" ? "none" : "snack")}
-        >
-          <Coffee /> {panel === "snack" ? "Hide snacks & drinks" : "Add snacks & drinks"}
+        <Button variant="secondary" className="col-span-2" onClick={() => setSnacksOpen(true)}>
+          <Coffee /> Snacks &amp; drinks
         </Button>
       </div>
 
-      {panel === "snack" && (
-        <SessionSnacksForm
-          sessionId={session.id}
-          branchId={data.branch.id}
-          supabase={supabase}
-          onDone={onChanged}
-        />
-      )}
+      <StationSnacksDialog
+        open={snacksOpen}
+        onOpenChange={setSnacksOpen}
+        sessionId={session.id}
+        stationName={station.name}
+        branchId={data.branch.id}
+        supabase={supabase}
+        onDone={onChanged}
+      />
 
       {panel === "extend" && (
         <ExtendForm
