@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { subscribeSessionChanges } from "@/lib/live-sessions";
 import { DEVICE_SELECT, type DeviceStatus } from "@/lib/devices";
 import { hoursFromNow } from "@/lib/format";
 import type { Database } from "@/lib/database.types";
@@ -57,21 +58,18 @@ export function useFloorSessions(branchId: string, initial: LiveSession[]) {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => void refetch(), 150);
     };
-    const channel = supabase
-      .channel(`floor:${branchId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "sessions", filter: `branch_id=eq.${branchId}` },
-        soon,
-      )
-      .subscribe((status) => {
+    // Shared with the time's-up alerts (one channel per branch).
+    const unsubscribe = subscribeSessionChanges(supabase, branchId, {
+      onChange: soon,
+      onStatus: (status) => {
         if (status === "SUBSCRIBED") {
           setConnected(true);
           void refetch(); // catch anything missed while disconnected
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        } else {
           setConnected(false);
         }
-      });
+      },
+    });
 
     const goOffline = () => setConnected(false);
     const goOnline = () => void refetch().then(() => setConnected(true));
@@ -88,7 +86,7 @@ export function useFloorSessions(branchId: string, initial: LiveSession[]) {
       window.removeEventListener("offline", goOffline);
       window.removeEventListener("online", goOnline);
       document.removeEventListener("visibilitychange", onVisible);
-      void supabase.removeChannel(channel);
+      unsubscribe();
     };
   }, [branchId, refetch, supabase]);
 

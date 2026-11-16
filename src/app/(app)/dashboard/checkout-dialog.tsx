@@ -92,7 +92,7 @@ export function CheckoutDialog({
       const { error } = await supabase.rpc("set_session_payer", {
         p_session_ids: billable.map((s) => s.id),
         p_phone: payer.phone,
-        p_name: payer.isNew ? payer.name : null,
+        p_name: payer.isNew ? payer.name : undefined,
       });
       if (error) return setError(friendlyError(error));
       await onRefresh();
@@ -121,7 +121,7 @@ export function CheckoutDialog({
         p_session_ids: billable.map((s) => s.id),
         p_discount: bill.discount,
         p_payments: bill.total > 0 ? payments : [],
-        p_discount_reason: bill.discount > 0 ? discountReason.trim() : null,
+        p_discount_reason: bill.discount > 0 ? discountReason.trim() : undefined,
       });
       if (res.error || !res.data) return setError(friendlyError(res.error, "Couldn't create the bill."));
       const invoiceId = res.data;

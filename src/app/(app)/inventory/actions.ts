@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/dal";
 import { firstIssue, friendlyDbError, type ActionState } from "@/lib/action-state";
+import { sqlNull } from "@/lib/sql-null";
 
 const productSchema = z.object({
   id: z.string().uuid().optional().or(z.literal("").transform(() => undefined)),
@@ -73,8 +74,8 @@ export async function adjustStock(
   const { error } = await supabase.rpc("adjust_stock", {
     p_product_id: productId,
     p_mode: mode,
-    p_qty: qty,
-    p_note: note.trim() || null,
+    p_qty: sqlNull(qty),
+    p_note: note.trim() || undefined,
   });
   if (error) return { error: error.message };
   refresh();

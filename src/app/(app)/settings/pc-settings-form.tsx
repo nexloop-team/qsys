@@ -25,6 +25,12 @@ const RESTRICTIONS = [
     description: "Their windows are closed. Batch files that game launchers use keep working.",
   },
   {
+    key: "installs",
+    label: "Installing and removing games and apps",
+    description:
+      "Closes installers and uninstallers (Windows Installer, the Microsoft Store, common uninstallers) and hides Programs and Features. Turn on Control Panel and Settings too, so apps can't be removed from Windows Settings. It doesn't stop files being deleted from a game folder; for that, use Windows folder permissions or a restore tool.",
+  },
+  {
     key: "usb_drives",
     label: "USB drives",
     description:

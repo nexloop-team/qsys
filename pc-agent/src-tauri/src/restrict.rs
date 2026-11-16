@@ -1,5 +1,5 @@
 //! Restrictions while a player has the PC (Settings › PC app): Task Manager, Control Panel and
-//! Settings, the command line and registry editor, and USB drives.
+//! Settings, the command line and registry editor, USB drives, and installing or removing apps.
 //!
 //! Each one sets the matching Windows policy where this app is allowed to (most live in the
 //! player's own part of the registry; the USB one needs the app to run as administrator), and the
@@ -9,7 +9,7 @@
 use serde_json::{Map, Value};
 use std::collections::BTreeSet;
 
-pub const KINDS: [&str; 4] = ["task_manager", "control_panel", "command_line", "usb_drives"];
+pub const KINDS: [&str; 5] = ["task_manager", "control_panel", "command_line", "usb_drives", "installs"];
 
 /// Programs closed for each restriction, on top of the policy.
 pub fn programs(kind: &str) -> &'static [&'static str] {
@@ -18,6 +18,21 @@ pub fn programs(kind: &str) -> &'static [&'static str] {
         "control_panel" => &["control.exe", "systemsettings.exe", "mmc.exe"],
         // Batch files keep working (some game launchers use them): only the windows are closed.
         "command_line" => &["cmd.exe", "powershell.exe", "pwsh.exe", "powershell_ise.exe", "windowsterminal.exe", "wt.exe", "regedit.exe"],
+        // Installers and uninstallers it can recognise by name: Windows Installer, the usual Inno
+        // Setup and NSIS uninstallers, the Microsoft Store, App Installer and winget. (Not
+        // "setup.exe": game launchers run redistributable setups with that name.)
+        "installs" => &[
+            "msiexec.exe",
+            "unins000.exe",
+            "unins001.exe",
+            "unins002.exe",
+            "uninstall.exe",
+            "uninst.exe",
+            "au_.exe",
+            "winstore.app.exe",
+            "appinstaller.exe",
+            "winget.exe",
+        ],
         _ => &[],
     }
 }
@@ -82,6 +97,9 @@ fn policy(kind: &str, on: bool) -> bool {
     const CMD: &str = r"Software\Policies\Microsoft\Windows\System";
     // Removable disks (the device class of USB sticks and drives).
     const USB: &str = r"Software\Policies\Microsoft\Windows\RemovableStorageDevices\{53f5630d-b6bf-11d0-94f2-00a0c91efb8b}";
+    const PROGRAMS: &str = r"Software\Microsoft\Windows\CurrentVersion\Policies\Programs";
+    const UNINSTALL: &str = r"Software\Microsoft\Windows\CurrentVersion\Policies\Uninstall";
+    const INSTALLER: &str = r"Software\Policies\Microsoft\Windows\Installer";
 
     fn write(root: &RegKey, path: &str, name: &str, value: u32, on: bool) -> bool {
         if on {
@@ -113,6 +131,16 @@ fn policy(kind: &str, on: bool) -> bool {
             let u = write(&user, USB, "Deny_Read", 1, on) & write(&user, USB, "Deny_Write", 1, on);
             m || u
         }
+        "installs" => {
+            // The player's own policies: no Programs and Features, no "Programs" in Control Panel.
+            let features = write(&user, UNINSTALL, "NoAddRemovePrograms", 1, on);
+            let programs = write(&user, PROGRAMS, "NoProgramsCPL", 1, on);
+            // Windows Installer off for apps an admin hasn't approved (1). Needs administrator;
+            // without it the sweep still closes msiexec.exe.
+            let machine = RegKey::predef(HKEY_LOCAL_MACHINE);
+            let _ = write(&machine, INSTALLER, "DisableMSI", 1, on);
+            features && programs
+        }
         _ => false,
     }
 }
@@ -130,6 +158,8 @@ mod tests {
     fn programs_cover_each_restriction() {
         assert!(programs("task_manager").contains(&"taskmgr.exe"));
         assert!(programs("usb_drives").is_empty());
+        assert!(programs("installs").contains(&"msiexec.exe"));
+        assert!(!programs("installs").contains(&"setup.exe"));
         let all = programs_for(&["task_manager".into(), "command_line".into()]);
         assert!(all.contains(&"regedit.exe".to_string()) && all.contains(&"taskmgr.exe".to_string()));
     }

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(24);
 
 -- Fixture: owner + staff, a PC (device key 'key-m') at ₹60/hr, Coke ₹40, player Meera (9876500009).
 insert into auth.users (id, email) values
@@ -89,6 +89,9 @@ select is(pg_temp.wallet(), 5.00::numeric(10,2), 'cancelling the bill takes the 
 select throws_ok($$ update public.branch_settings set pc_restrictions = '{task_manager,format_c}'
                     where branch_id = '20000000-0000-0000-0000-0000000000c0' $$,
   '23514', null, 'only known restrictions');
+select lives_ok($$ update public.branch_settings set pc_restrictions = '{installs}'
+                   where branch_id = '20000000-0000-0000-0000-0000000000c0' $$,
+  'installing and removing apps is a known restriction (20261202000002)');
 update public.branch_settings
    set pc_games = '[{"id": "g1abcd", "name": "Counter-Strike 2", "target": "steam://rungameid/730"}]',
        pc_restrictions = '{task_manager,usb_drives}'

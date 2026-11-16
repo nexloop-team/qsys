@@ -75,7 +75,7 @@ export async function managePlayerWallet(_prev: ActionState, formData: FormData)
       p_amount: amount,
       p_method: method,
       p_note: note || "Deposit",
-      p_bonus: bonus,
+      p_bonus: bonus ?? undefined,
       p_branch_id: branch.id,
     });
     if (error) return { error: error.message };
@@ -171,8 +171,8 @@ export async function createVouchers(
     p_org_id: org.id,
     p_count: parsed.data.count,
     p_amount: parsed.data.amount,
-    p_expires_on: parsed.data.expires_on,
-    p_note: parsed.data.note,
+    p_expires_on: parsed.data.expires_on ?? undefined,
+    p_note: parsed.data.note ?? undefined,
   });
   if (error) return { error: friendlyDbError(error) };
   revalidatePath("/players/vouchers");

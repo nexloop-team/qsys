@@ -162,6 +162,7 @@ const RESTRICTION_LABEL: Record<string, string> = {
   control_panel: "Control Panel",
   command_line: "command line",
   usb_drives: "USB drives",
+  installs: "installing and removing apps",
 };
 
 // CPU · RAM · GPU · disk from the last check-in, with anything worth a look in amber.

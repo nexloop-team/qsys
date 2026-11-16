@@ -60,7 +60,7 @@ async function Tournaments() {
           <ul className="divide-y divide-line">
             {list.map((t) => {
               const players = (t.tournament_players as unknown as { count: number }[])[0]?.count ?? 0;
-              const st = STATUS[t.status];
+              const st = STATUS[t.status as keyof typeof STATUS] ?? STATUS.finished;
               return (
                 <li key={t.id}>
                   <Link href={`/tournaments/${t.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-hover">

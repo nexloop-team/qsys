@@ -10,6 +10,7 @@ import { STATION_TYPE_LABEL, type StationType } from "@/lib/constants";
 import { Modal, StickyActions } from "@/components/overlay";
 import { Button, ErrorText, Field, Input, Select, Textarea } from "@/components/ui";
 import { PlayerField, type PlayerValue } from "../dashboard/player-field";
+import { sqlNull } from "@/lib/sql-null";
 
 type Station = { id: string; name: string; type: StationType };
 
@@ -90,16 +91,16 @@ function BookingForm({
       if (!date || Number.isNaN(h) || Number.isNaN(m)) return setError("Pick a day and a time.");
       const startsAt = new Date(Date.parse(zonedStart(date, branch.timezone)) + (h * 60 + m) * 60_000).toISOString();
       const { error } = await supabase.rpc("save_booking", {
-        p_booking_id: null,
+        p_booking_id: sqlNull<string>(null), // a new booking
         p_branch_id: branch.id,
         p_type: type,
         p_starts_at: startsAt,
         p_minutes: Number(minutes),
         p_players: Number(players) || 1,
         p_phone: player.phone,
-        p_name: player.isNew ? player.name : null,
-        p_note: note.trim() || null,
-        p_station_id: stationId || null,
+        p_name: player.isNew ? player.name : undefined,
+        p_note: note.trim() || undefined,
+        p_station_id: stationId || undefined,
       });
       if (error) return setError(friendlyError(error));
       router.refresh();

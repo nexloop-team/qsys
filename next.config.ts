@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 // Tunnels for testing on a phone (ngrok, Cloudflare). `next dev` refuses its scripts and server
 // actions to any address other than localhost unless it's listed here. Development only: in
@@ -29,4 +30,13 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry: readable stack traces need the source maps uploaded, which only happens when
+// SENTRY_AUTH_TOKEN (and SENTRY_ORG / SENTRY_PROJECT) are set on Vercel. Without them it builds as usual.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  telemetry: false,
+});

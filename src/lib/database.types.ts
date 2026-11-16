@@ -1,790 +1,2596 @@
-// Hand-written to match supabase/migrations. Regenerate with (Git Bash):
-//   npx supabase gen types typescript --project-id <project-ref> --schema public > src/lib/database.types.ts
-
 export type Json =
   | string
   | number
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[];
-
-type Ts = string;
-
-type Rel<Name extends string, Cols extends string[], Ref extends string, RefCols extends string[]> = {
-  foreignKeyName: Name;
-  columns: Cols;
-  isOneToOne: false;
-  referencedRelation: Ref;
-  referencedColumns: RefCols;
-};
-
-// Writes to most tables go through RPCs, so Insert/Update are kept loose.
-type Table<Row, Relationships extends unknown[] = []> = {
-  Row: Row;
-  Insert: Partial<Row>;
-  Update: Partial<Row>;
-  Relationships: Relationships;
-};
-
-type E = Database["public"]["Enums"];
+  | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.18"
+  }
   public: {
     Tables: {
-      profiles: Table<{ id: string; full_name: string; phone: string | null; created_at: Ts; updated_at: Ts }>;
-      orgs: Table<{
-        id: string;
-        name: string;
-        created_by: string | null;
-        /** Wallet top-up offers: [{ pay, bonus }] */
-        wallet_offers: Json;
-        /** % of each cash/UPI bill credited back to the player's wallet (0–20). */
-        spend_bonus_pct: number;
-        created_at: Ts;
-        updated_at: Ts;
-      }>;
-      memberships: Table<
-        { org_id: string; user_id: string; role: E["member_role"]; created_at: Ts },
-        [Rel<"memberships_org_id_fkey", ["org_id"], "orgs", ["id"]>]
-      >;
-      branches: Table<{
-        id: string;
-        org_id: string;
-        name: string;
-        address: string | null;
-        phone: string | null;
-        timezone: string;
-        opening_time: string | null;
-        closing_time: string | null;
-        created_at: Ts;
-        updated_at: Ts;
-      }, [Rel<"branches_org_id_fkey", ["org_id"], "orgs", ["id"]>]>;
-      branch_settings: Table<{
-        branch_id: string;
-        org_id: string;
-        gst_enabled: boolean;
-        gstin: string | null;
-        gst_rate: number;
-        prices_include_tax: boolean;
-        invoice_prefix: string;
-        default_mode_by_type: Json;
-        allowed_modes_by_type: Json;
-        leftover_policy: E["leftover_policy"];
-        leftover_keep_days: number;
-        upi_vpa: string | null;
-        upi_payee_name: string | null;
-        overtime_grace_minutes: number;
-        staff_max_discount_pct: number;
-        early_end_policy: "full" | "played";
-        station_types: E["station_type"][];
-        blocked_apps: string[];
-        lock_message: string | null;
-        pc_player_login: boolean;
-        /** Games menu on the PCs: [{ id, name, target }] */
-        pc_games: Json;
-        pc_restrictions: ("task_manager" | "control_panel" | "command_line" | "usb_drives")[];
-        /** Unused since pay later was dropped (always null). */
-        credit_limit: number | null;
-        /** Station types charged per person (price × people). The rest are per station. */
-        per_person_types: E["station_type"][];
-        /** Player QR page on each station. */
-        qr_enabled: boolean;
-        qr_orders: boolean;
-        /** Online booking (off for now; the public page was removed). */
-        booking_enabled: boolean;
-        booking_slug: string | null;
-        booking_days: number;
-        booking_note: string | null;
-        updated_at: Ts;
-      }>;
-      stations: Table<{
-        id: string;
-        org_id: string;
-        branch_id: string;
-        type: E["station_type"];
-        name: string;
-        zone: string | null;
-        tier: string;
-        status: E["station_status"];
-        sort_order: number;
-        hw_config: Json;
-        layout_x: number | null;
-        layout_y: number | null;
-        layout_rot: number;
-        /** The code in the station's player QR (/s/<code>). */
-        public_code: string;
-        created_at: Ts;
-        updated_at: Ts;
-      }>;
-      rate_plans: Table<{
-        id: string;
-        org_id: string;
-        branch_id: string;
-        name: string;
-        station_type: E["station_type"];
-        tier: string | null;
-        per_hour: number;
-        min_minutes: number;
-        rounding_minutes: number;
-        included_players: number;
-        extra_player_per_hour: number;
-        /** [] = one price for any number of players; else [{ players, per_hour, per_frame? }]. */
-        player_choices: Json;
-        /** Price per frame; null = this rate can't bill by frame. */
-        per_frame: number | null;
-        gst_rate_override: number | null;
-        is_active: boolean;
-        created_at: Ts;
-        updated_at: Ts;
-      }>;
-      rate_rules: Table<
-        {
-          id: string;
-          org_id: string;
-          rate_plan_id: string;
-          name: string;
-          days_of_week: number[];
-          start_time: string;
-          end_time: string;
-          per_hour: number;
-          priority: number;
-          created_at: Ts;
-        },
-        [Rel<"rate_rules_rate_plan_id_org_id_fkey", ["rate_plan_id", "org_id"], "rate_plans", ["id", "org_id"]>]
-      >;
-      packages: Table<{
-        id: string;
-        org_id: string;
-        branch_id: string;
-        name: string;
-        station_type: E["station_type"];
-        tier: string | null;
-        minutes: number;
-        price: number;
-        is_active: boolean;
-        created_at: Ts;
-        updated_at: Ts;
-      }>;
-      audit_log: Table<{
-        id: number;
-        org_id: string;
-        actor_id: string | null;
-        action: string;
-        entity: string;
-        entity_id: string | null;
-        details: Json;
-        created_at: Ts;
-      }>;
-      pc_alerts: Table<{
-        id: string;
-        org_id: string;
-        branch_id: string;
-        station_id: string;
-        session_id: string | null;
-        kind: "app_closed" | "pc_restarted" | "offline";
-        away_from: Ts;
-        away_until: Ts;
-        customer_name: string | null;
-        dismissed_by: string | null;
-        dismissed_at: Ts | null;
-        created_at: Ts;
-      }>;
-      vouchers: Table<
-        {
-          id: string;
-          org_id: string;
-          code: string;
-          amount: number;
-          note: string | null;
-          expires_on: string | null;
-          created_by: string | null;
-          created_at: Ts;
-          redeemed_at: Ts | null;
-          redeemed_by: string | null;
-          redeemed_branch_id: string | null;
-          customer_id: string | null;
-          voided_at: Ts | null;
-        },
-        [Rel<"vouchers_customer_id_fkey", ["customer_id"], "customers", ["id"]>]
-      >;
-      shift_closes: Table<{
-        id: string;
-        org_id: string;
-        branch_id: string;
-        closed_by: string | null;
-        opened_at: Ts;
-        closed_at: Ts;
-        opening_float: number;
-        cash_sales: number;
-        cash_wallet: number;
-        upi_total: number;
-        expected_cash: number;
-        counted_cash: number;
-        difference: number;
-        float_left: number;
-        note: string | null;
-      }>;
-      expenses: Table<
-        {
-          id: string;
-          org_id: string;
-          branch_id: string;
-          category: E["expense_category"];
-          name: string;
-          amount: number;
-          spent_on: string;
-          staff_id: string | null;
-          note: string | null;
-          repeats_monthly: boolean;
-          created_by: string | null;
-          created_at: Ts;
-          updated_at: Ts;
-        },
-        [Rel<"expenses_branch_id_org_id_fkey", ["branch_id", "org_id"], "branches", ["id", "org_id"]>]
-      >;
-      customers: Table<{
-        id: string;
-        org_id: string;
-        phone: string;
-        name: string;
-        wallet_balance: number;
-        /** Read-only: true when the player has a PC login PIN (the hash itself is never readable). */
-        pin_set: boolean;
-        /** This player's khata limit; null = the venue's. */
-        credit_limit: number | null;
-        created_by: string | null;
-        created_at: Ts;
-        updated_at: Ts;
-      }>;
-      products: Table<{
-        id: string;
-        org_id: string;
-        branch_id: string;
-        name: string;
-        category: "beverage" | "snack" | "food" | "accessory" | "other";
-        price: number;
-        is_active: boolean;
-        /** null = stock not tracked */
-        stock: number | null;
-        low_stock_at: number;
-        created_at: Ts;
-      }>;
-      stock_moves: Table<{
-        id: string;
-        org_id: string;
-        product_id: string;
-        delta: number;
-        reason: "sale" | "return" | "receive" | "count" | "void" | "start";
-        invoice_id: string | null;
-        session_id: string | null;
-        note: string | null;
-        created_by: string | null;
-        created_at: Ts;
-      }>;
-      session_items: Table<{
-        id: string;
-        org_id: string;
-        session_id: string;
-        product_id: string | null;
-        name: string;
-        price: number;
-        quantity: number;
-        invoice_id: string | null;
-        created_at: Ts;
-      }>;
-      wallet_transactions: Table<{
-        id: string;
-        org_id: string;
-        branch_id: string | null;
-        customer_id: string;
-        amount: number;
-        balance_after: number;
-        method: "cash" | "upi" | "bonus" | "gameplay" | "void";
-        note: string | null;
-        invoice_id: string | null;
-        created_by: string | null;
-        created_at: Ts;
-      }>;
-      sessions: Table<
-        {
-          id: string;
-          org_id: string;
-          branch_id: string;
-          station_id: string;
-          rate_plan_id: string;
-          mode: E["session_mode"];
-          status: E["session_status"];
-          customer_id: string | null;
-          customer_name: string | null;
-          customer_phone: string | null;
-          players: number;
-          started_at: Ts;
-          planned_end_at: Ts | null;
-          prepaid_minutes: number;
-          prepaid_amount: number;
-          frames: number;
-          paused_at: Ts | null;
-          ended_at: Ts | null;
-          charge_amount: number | null;
-          billed_amount: number;
-          outstanding: number;
-          written_off: boolean;
-          write_off_reason: string | null;
-          started_by: string | null;
-          ended_by: string | null;
-          created_at: Ts;
-        },
-        [Rel<"sessions_station_id_org_id_fkey", ["station_id", "org_id"], "stations", ["id", "org_id"]>]
-      >;
-      session_pauses: Table<
-        { id: string; org_id: string; session_id: string; started_at: Ts; ended_at: Ts | null },
-        [Rel<"session_pauses_session_id_fkey", ["session_id"], "sessions", ["id"]>]
-      >;
-      session_events: Table<
-        {
-          id: number;
-          org_id: string;
-          session_id: string;
-          kind: string;
-          actor_id: string | null;
-          details: Json;
-          created_at: Ts;
-        },
-        [Rel<"session_events_session_id_fkey", ["session_id"], "sessions", ["id"]>]
-      >;
-      invoices: Table<{
-        id: string;
-        org_id: string;
-        branch_id: string;
-        number: string;
-        gst_enabled: boolean;
-        gstin: string | null;
-        prices_include_tax: boolean;
-        customer_name: string | null;
-        customer_phone: string | null;
-        subtotal: number;
-        discount: number;
-        discount_reason: string | null;
-        taxable_amount: number;
-        cgst: number;
-        sgst: number;
-        total: number;
-        voided_at: Ts | null;
-        voided_by: string | null;
-        void_reason: string | null;
-        created_by: string | null;
-        created_at: Ts;
-      }>;
-      invoice_lines: Table<
-        {
-          id: string;
-          org_id: string;
-          invoice_id: string;
-          session_id: string | null;
-          description: string;
-          minutes: number | null;
-          amount: number;
-          gst_rate: number;
-          product_id: string | null;
-          quantity: number | null;
-        },
-        [Rel<"invoice_lines_invoice_id_fkey", ["invoice_id"], "invoices", ["id"]>]
-      >;
-      payments: Table<
-        {
-          id: string;
-          org_id: string;
-          branch_id: string;
-          invoice_id: string;
-          method: E["payment_method"];
-          amount: number;
-          reference: string | null;
-          received_by: string | null;
-          created_at: Ts;
-        },
-        [Rel<"payments_invoice_id_fkey", ["invoice_id"], "invoices", ["id"]>]
-      >;
-      devices: Table<{
-        id: string;
-        org_id: string;
-        branch_id: string;
-        station_id: string;
-        hostname: string | null;
-        agent_version: string | null;
-        os: string | null;
-        ip: string | null;
-        mac: string | null;
-        screen_locked: boolean | null;
-        last_seen_at: Ts | null;
-        created_at: Ts;
-        /** Readings from the PC's last check-in (see DeviceHealth in lib/devices). */
-        health: Json | null;
-        health_at: Ts | null;
-      }>;
-      station_commands: Table<{
-        id: string;
-        org_id: string;
-        station_id: string;
-        kind: "message" | "restart" | "shutdown" | "wake";
-        payload: Json;
-        created_by: string | null;
-        created_at: Ts;
-        delivered_at: Ts | null;
-        done_at: Ts | null;
-        result: string | null;
-      }>;
-      station_requests: Table<{
-        id: string;
-        org_id: string;
-        branch_id: string;
-        station_id: string;
-        session_id: string;
-        kind: "snack" | "extend" | "call";
-        product_id: string | null;
-        label: string;
-        quantity: number | null;
-        minutes: number | null;
-        status: "pending" | "accepted" | "declined";
-        handled_by: string | null;
-        handled_at: Ts | null;
-        created_at: Ts;
-      }>;
-      bookings: Table<{
-        id: string;
-        org_id: string;
-        branch_id: string;
-        station_type: E["station_type"];
-        station_id: string | null;
-        customer_id: string | null;
-        name: string;
-        phone: string;
-        starts_at: Ts;
-        minutes: number;
-        players: number;
-        note: string | null;
-        status: "requested" | "confirmed" | "arrived" | "cancelled" | "no_show";
-        source: "online" | "staff";
-        created_by: string | null;
-        handled_by: string | null;
-        created_at: Ts;
-        updated_at: Ts;
-      }>;
-      tournaments: Table<{
-        id: string;
-        org_id: string;
-        branch_id: string;
-        name: string;
-        game: string;
-        entry_fee: number;
-        prize: string | null;
-        starts_at: Ts | null;
-        status: "open" | "running" | "finished";
-        winner_id: string | null;
-        created_by: string | null;
-        created_at: Ts;
-        /** 1 = singles; more = teams of this size (captain + others). */
-        team_size: number;
-        /** Which stations matches are played on; null = not linked. */
-        station_type: E["station_type"] | null;
-      }>;
-      tournament_players: Table<
-        {
-          id: string;
-          org_id: string;
-          tournament_id: string;
-          customer_id: string;
-          name: string;
-          phone: string;
-          invoice_id: string | null;
-          created_at: Ts;
-          /** Team entries: the team's name. name / phone are the captain's. */
-          team_name: string | null;
-          members: string[];
-        },
-        [Rel<"tournament_players_invoice_id_fkey", ["invoice_id"], "invoices", ["id"]>]
-      >;
-      tournament_matches: Table<{
-        id: string;
-        org_id: string;
-        tournament_id: string;
-        round: number;
-        slot: number;
-        player1_id: string | null;
-        player2_id: string | null;
-        winner_id: string | null;
-        decided_at: Ts | null;
-        station_id: string | null;
-      }>;
-      team_invites: Table<{
-        id: string;
-        org_id: string;
-        code: string;
-        role: E["member_role"];
-        created_by: string | null;
-        created_at: Ts;
-        expires_at: Ts;
-        used_by: string | null;
-        used_at: Ts | null;
-      }>;
-    };
-    Views: { [_ in never]: never };
+      audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          details: Json
+          entity: string
+          entity_id: string | null
+          id: number
+          org_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          entity: string
+          entity_id?: string | null
+          id?: never
+          org_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          entity?: string
+          entity_id?: string | null
+          id?: never
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings: {
+        Row: {
+          branch_id: string
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          handled_by: string | null
+          id: string
+          minutes: number
+          name: string
+          note: string | null
+          org_id: string
+          phone: string
+          players: number
+          source: string
+          starts_at: string
+          station_id: string | null
+          station_type: Database["public"]["Enums"]["station_type"]
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          handled_by?: string | null
+          id?: string
+          minutes: number
+          name: string
+          note?: string | null
+          org_id: string
+          phone: string
+          players?: number
+          source?: string
+          starts_at: string
+          station_id?: string | null
+          station_type: Database["public"]["Enums"]["station_type"]
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          handled_by?: string | null
+          id?: string
+          minutes?: number
+          name?: string
+          note?: string | null
+          org_id?: string
+          phone?: string
+          players?: number
+          source?: string
+          starts_at?: string
+          station_id?: string | null
+          station_type?: Database["public"]["Enums"]["station_type"]
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "bookings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_settings: {
+        Row: {
+          allowed_modes_by_type: Json
+          blocked_apps: string[]
+          booking_days: number
+          booking_enabled: boolean
+          booking_note: string | null
+          booking_slug: string | null
+          branch_id: string
+          credit_limit: number | null
+          default_mode_by_type: Json
+          early_end_policy: string
+          gst_enabled: boolean
+          gst_rate: number
+          gstin: string | null
+          invoice_prefix: string
+          leftover_keep_days: number
+          leftover_policy: Database["public"]["Enums"]["leftover_policy"]
+          lock_message: string | null
+          org_id: string
+          overtime_grace_minutes: number
+          pc_games: Json
+          pc_player_login: boolean
+          pc_restrictions: string[]
+          per_person_types: Database["public"]["Enums"]["station_type"][]
+          prices_include_tax: boolean
+          qr_enabled: boolean
+          qr_orders: boolean
+          staff_max_discount_pct: number
+          station_types: Database["public"]["Enums"]["station_type"][]
+          updated_at: string
+          upi_payee_name: string | null
+          upi_vpa: string | null
+        }
+        Insert: {
+          allowed_modes_by_type?: Json
+          blocked_apps?: string[]
+          booking_days?: number
+          booking_enabled?: boolean
+          booking_note?: string | null
+          booking_slug?: string | null
+          branch_id: string
+          credit_limit?: number | null
+          default_mode_by_type?: Json
+          early_end_policy?: string
+          gst_enabled?: boolean
+          gst_rate?: number
+          gstin?: string | null
+          invoice_prefix?: string
+          leftover_keep_days?: number
+          leftover_policy?: Database["public"]["Enums"]["leftover_policy"]
+          lock_message?: string | null
+          org_id: string
+          overtime_grace_minutes?: number
+          pc_games?: Json
+          pc_player_login?: boolean
+          pc_restrictions?: string[]
+          per_person_types?: Database["public"]["Enums"]["station_type"][]
+          prices_include_tax?: boolean
+          qr_enabled?: boolean
+          qr_orders?: boolean
+          staff_max_discount_pct?: number
+          station_types?: Database["public"]["Enums"]["station_type"][]
+          updated_at?: string
+          upi_payee_name?: string | null
+          upi_vpa?: string | null
+        }
+        Update: {
+          allowed_modes_by_type?: Json
+          blocked_apps?: string[]
+          booking_days?: number
+          booking_enabled?: boolean
+          booking_note?: string | null
+          booking_slug?: string | null
+          branch_id?: string
+          credit_limit?: number | null
+          default_mode_by_type?: Json
+          early_end_policy?: string
+          gst_enabled?: boolean
+          gst_rate?: number
+          gstin?: string | null
+          invoice_prefix?: string
+          leftover_keep_days?: number
+          leftover_policy?: Database["public"]["Enums"]["leftover_policy"]
+          lock_message?: string | null
+          org_id?: string
+          overtime_grace_minutes?: number
+          pc_games?: Json
+          pc_player_login?: boolean
+          pc_restrictions?: string[]
+          per_person_types?: Database["public"]["Enums"]["station_type"][]
+          prices_include_tax?: boolean
+          qr_enabled?: boolean
+          qr_orders?: boolean
+          staff_max_discount_pct?: number
+          station_types?: Database["public"]["Enums"]["station_type"][]
+          updated_at?: string
+          upi_payee_name?: string | null
+          upi_vpa?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_settings_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      branches: {
+        Row: {
+          address: string | null
+          closing_time: string | null
+          created_at: string
+          id: string
+          name: string
+          opening_time: string | null
+          org_id: string
+          phone: string | null
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          closing_time?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          opening_time?: string | null
+          org_id: string
+          phone?: string | null
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          closing_time?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          opening_time?: string | null
+          org_id?: string
+          phone?: string | null
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_messages: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          message: string
+          name: string
+          phone: string | null
+          sender_hash: string | null
+          topic: string
+          user_id: string | null
+          venue: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          message: string
+          name: string
+          phone?: string | null
+          sender_hash?: string | null
+          topic: string
+          user_id?: string | null
+          venue?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          message?: string
+          name?: string
+          phone?: string | null
+          sender_hash?: string | null
+          topic?: string
+          user_id?: string | null
+          venue?: string | null
+        }
+        Relationships: []
+      }
+      customers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          credit_limit: number | null
+          id: string
+          name: string
+          org_id: string
+          phone: string
+          pin_failed: number
+          pin_hash: string | null
+          pin_locked_until: string | null
+          pin_lockouts: number
+          pin_set: boolean | null
+          updated_at: string
+          wallet_balance: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          credit_limit?: number | null
+          id?: string
+          name: string
+          org_id: string
+          phone: string
+          pin_failed?: number
+          pin_hash?: string | null
+          pin_locked_until?: string | null
+          pin_lockouts?: number
+          pin_set?: boolean | null
+          updated_at?: string
+          wallet_balance?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          credit_limit?: number | null
+          id?: string
+          name?: string
+          org_id?: string
+          phone?: string
+          pin_failed?: number
+          pin_hash?: string | null
+          pin_locked_until?: string | null
+          pin_lockouts?: number
+          pin_set?: boolean | null
+          updated_at?: string
+          wallet_balance?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      devices: {
+        Row: {
+          agent_version: string | null
+          branch_id: string
+          channel: string
+          created_at: string
+          health: Json | null
+          health_at: string | null
+          hostname: string | null
+          id: string
+          ip: string | null
+          last_seen_at: string | null
+          mac: string | null
+          org_id: string
+          os: string | null
+          paired_by: string | null
+          screen_locked: boolean | null
+          staff_pin_failed: number
+          staff_pin_hash: string | null
+          staff_pin_locked_until: string | null
+          staff_pin_lockouts: number
+          station_id: string
+          token_hash: string
+        }
+        Insert: {
+          agent_version?: string | null
+          branch_id: string
+          channel?: string
+          created_at?: string
+          health?: Json | null
+          health_at?: string | null
+          hostname?: string | null
+          id?: string
+          ip?: string | null
+          last_seen_at?: string | null
+          mac?: string | null
+          org_id: string
+          os?: string | null
+          paired_by?: string | null
+          screen_locked?: boolean | null
+          staff_pin_failed?: number
+          staff_pin_hash?: string | null
+          staff_pin_locked_until?: string | null
+          staff_pin_lockouts?: number
+          station_id: string
+          token_hash: string
+        }
+        Update: {
+          agent_version?: string | null
+          branch_id?: string
+          channel?: string
+          created_at?: string
+          health?: Json | null
+          health_at?: string | null
+          hostname?: string | null
+          id?: string
+          ip?: string | null
+          last_seen_at?: string | null
+          mac?: string | null
+          org_id?: string
+          os?: string | null
+          paired_by?: string | null
+          screen_locked?: boolean | null
+          staff_pin_failed?: number
+          staff_pin_hash?: string | null
+          staff_pin_locked_until?: string | null
+          staff_pin_lockouts?: number
+          station_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devices_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "devices_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: true
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expenses: {
+        Row: {
+          amount: number
+          branch_id: string
+          category: Database["public"]["Enums"]["expense_category"]
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          note: string | null
+          org_id: string
+          repeats_monthly: boolean
+          spent_on: string
+          staff_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          branch_id: string
+          category: Database["public"]["Enums"]["expense_category"]
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          note?: string | null
+          org_id: string
+          repeats_monthly?: boolean
+          spent_on: string
+          staff_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          branch_id?: string
+          category?: Database["public"]["Enums"]["expense_category"]
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          note?: string | null
+          org_id?: string
+          repeats_monthly?: boolean
+          spent_on?: string
+          staff_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "expenses_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_org_id_staff_id_fkey"
+            columns: ["org_id", "staff_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["org_id", "user_id"]
+          },
+        ]
+      }
+      invoice_counters: {
+        Row: {
+          branch_id: string
+          next_seq: number
+          series: string
+        }
+        Insert: {
+          branch_id: string
+          next_seq: number
+          series: string
+        }
+        Update: {
+          branch_id?: string
+          next_seq?: number
+          series?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_counters_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_lines: {
+        Row: {
+          amount: number
+          description: string
+          gst_rate: number
+          id: string
+          invoice_id: string
+          minutes: number | null
+          org_id: string
+          product_id: string | null
+          quantity: number | null
+          session_id: string | null
+        }
+        Insert: {
+          amount: number
+          description: string
+          gst_rate?: number
+          id?: string
+          invoice_id: string
+          minutes?: number | null
+          org_id: string
+          product_id?: string | null
+          quantity?: number | null
+          session_id?: string | null
+        }
+        Update: {
+          amount?: number
+          description?: string
+          gst_rate?: number
+          id?: string
+          invoice_id?: string
+          minutes?: number | null
+          org_id?: string
+          product_id?: string | null
+          quantity?: number | null
+          session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          branch_id: string
+          cgst: number
+          created_at: string
+          created_by: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          discount: number
+          discount_reason: string | null
+          gst_enabled: boolean
+          gstin: string | null
+          id: string
+          number: string
+          org_id: string
+          prices_include_tax: boolean
+          sgst: number
+          subtotal: number
+          taxable_amount: number
+          total: number
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          branch_id: string
+          cgst?: number
+          created_at?: string
+          created_by?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          discount?: number
+          discount_reason?: string | null
+          gst_enabled: boolean
+          gstin?: string | null
+          id?: string
+          number: string
+          org_id: string
+          prices_include_tax: boolean
+          sgst?: number
+          subtotal: number
+          taxable_amount: number
+          total: number
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          branch_id?: string
+          cgst?: number
+          created_at?: string
+          created_by?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          discount?: number
+          discount_reason?: string | null
+          gst_enabled?: boolean
+          gstin?: string | null
+          id?: string
+          number?: string
+          org_id?: string
+          prices_include_tax?: boolean
+          sgst?: number
+          subtotal?: number
+          taxable_amount?: number
+          total?: number
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      memberships: {
+        Row: {
+          created_at: string
+          org_id: string
+          role: Database["public"]["Enums"]["member_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          role: Database["public"]["Enums"]["member_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          role?: Database["public"]["Enums"]["member_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memberships_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orgs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          spend_bonus_pct: number
+          updated_at: string
+          wallet_offers: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          spend_bonus_pct?: number
+          updated_at?: string
+          wallet_offers?: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          spend_bonus_pct?: number
+          updated_at?: string
+          wallet_offers?: Json
+        }
+        Relationships: []
+      }
+      packages: {
+        Row: {
+          branch_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          minutes: number
+          name: string
+          org_id: string
+          price: number
+          station_type: Database["public"]["Enums"]["station_type"]
+          tier: string | null
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          minutes: number
+          name: string
+          org_id: string
+          price: number
+          station_type: Database["public"]["Enums"]["station_type"]
+          tier?: string | null
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          minutes?: number
+          name?: string
+          org_id?: string
+          price?: number
+          station_type?: Database["public"]["Enums"]["station_type"]
+          tier?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packages_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      pairing_codes: {
+        Row: {
+          code: string
+          created_by: string | null
+          expires_at: string
+          org_id: string
+          station_id: string
+          used_at: string | null
+        }
+        Insert: {
+          code: string
+          created_by?: string | null
+          expires_at?: string
+          org_id: string
+          station_id: string
+          used_at?: string | null
+        }
+        Update: {
+          code?: string
+          created_by?: string | null
+          expires_at?: string
+          org_id?: string
+          station_id?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pairing_codes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pairing_codes_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          branch_id: string
+          created_at: string
+          id: string
+          invoice_id: string
+          method: Database["public"]["Enums"]["payment_method"]
+          org_id: string
+          received_by: string | null
+          reference: string | null
+        }
+        Insert: {
+          amount: number
+          branch_id: string
+          created_at?: string
+          id?: string
+          invoice_id: string
+          method: Database["public"]["Enums"]["payment_method"]
+          org_id: string
+          received_by?: string | null
+          reference?: string | null
+        }
+        Update: {
+          amount?: number
+          branch_id?: string
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          method?: Database["public"]["Enums"]["payment_method"]
+          org_id?: string
+          received_by?: string | null
+          reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pc_alerts: {
+        Row: {
+          away_from: string
+          away_until: string
+          branch_id: string
+          created_at: string
+          customer_name: string | null
+          dismissed_at: string | null
+          dismissed_by: string | null
+          id: string
+          kind: string
+          org_id: string
+          session_id: string | null
+          station_id: string
+        }
+        Insert: {
+          away_from: string
+          away_until: string
+          branch_id: string
+          created_at?: string
+          customer_name?: string | null
+          dismissed_at?: string | null
+          dismissed_by?: string | null
+          id?: string
+          kind: string
+          org_id: string
+          session_id?: string | null
+          station_id: string
+        }
+        Update: {
+          away_from?: string
+          away_until?: string
+          branch_id?: string
+          created_at?: string
+          customer_name?: string | null
+          dismissed_at?: string | null
+          dismissed_by?: string | null
+          id?: string
+          kind?: string
+          org_id?: string
+          session_id?: string | null
+          station_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pc_alerts_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "pc_alerts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pc_alerts_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pc_alerts_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          branch_id: string
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean
+          low_stock_at: number
+          name: string
+          org_id: string
+          price: number
+          stock: number | null
+        }
+        Insert: {
+          branch_id: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          low_stock_at?: number
+          name: string
+          org_id: string
+          price: number
+          stock?: number | null
+        }
+        Update: {
+          branch_id?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          low_stock_at?: number
+          name?: string
+          org_id?: string
+          price?: number
+          stock?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string
+          id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rate_plans: {
+        Row: {
+          branch_id: string
+          created_at: string
+          extra_player_per_hour: number
+          gst_rate_override: number | null
+          id: string
+          included_players: number
+          is_active: boolean
+          min_minutes: number
+          name: string
+          org_id: string
+          per_frame: number | null
+          per_hour: number
+          player_choices: Json
+          rounding_minutes: number
+          station_type: Database["public"]["Enums"]["station_type"]
+          tier: string | null
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          extra_player_per_hour?: number
+          gst_rate_override?: number | null
+          id?: string
+          included_players?: number
+          is_active?: boolean
+          min_minutes?: number
+          name: string
+          org_id: string
+          per_frame?: number | null
+          per_hour: number
+          player_choices?: Json
+          rounding_minutes?: number
+          station_type: Database["public"]["Enums"]["station_type"]
+          tier?: string | null
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          extra_player_per_hour?: number
+          gst_rate_override?: number | null
+          id?: string
+          included_players?: number
+          is_active?: boolean
+          min_minutes?: number
+          name?: string
+          org_id?: string
+          per_frame?: number | null
+          per_hour?: number
+          player_choices?: Json
+          rounding_minutes?: number
+          station_type?: Database["public"]["Enums"]["station_type"]
+          tier?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_plans_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      rate_rules: {
+        Row: {
+          created_at: string
+          days_of_week: number[]
+          end_time: string
+          id: string
+          name: string
+          org_id: string
+          per_hour: number
+          priority: number
+          rate_plan_id: string
+          start_time: string
+        }
+        Insert: {
+          created_at?: string
+          days_of_week?: number[]
+          end_time: string
+          id?: string
+          name: string
+          org_id: string
+          per_hour: number
+          priority?: number
+          rate_plan_id: string
+          start_time: string
+        }
+        Update: {
+          created_at?: string
+          days_of_week?: number[]
+          end_time?: string
+          id?: string
+          name?: string
+          org_id?: string
+          per_hour?: number
+          priority?: number
+          rate_plan_id?: string
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_rules_rate_plan_id_org_id_fkey"
+            columns: ["rate_plan_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "rate_plans"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      session_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          details: Json
+          id: number
+          kind: string
+          org_id: string
+          session_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: never
+          kind: string
+          org_id: string
+          session_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: never
+          kind?: string
+          org_id?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_items: {
+        Row: {
+          created_at: string
+          id: string
+          invoice_id: string | null
+          name: string
+          org_id: string
+          price: number
+          product_id: string | null
+          quantity: number
+          session_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          name: string
+          org_id: string
+          price: number
+          product_id?: string | null
+          quantity?: number
+          session_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          name?: string
+          org_id?: string
+          price?: number
+          product_id?: string | null
+          quantity?: number
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_items_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_pauses: {
+        Row: {
+          ended_at: string | null
+          id: string
+          org_id: string
+          session_id: string
+          started_at: string
+        }
+        Insert: {
+          ended_at?: string | null
+          id?: string
+          org_id: string
+          session_id: string
+          started_at?: string
+        }
+        Update: {
+          ended_at?: string | null
+          id?: string
+          org_id?: string
+          session_id?: string
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_pauses_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sessions: {
+        Row: {
+          billed_amount: number
+          branch_id: string
+          charge_amount: number | null
+          created_at: string
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          ended_at: string | null
+          ended_by: string | null
+          frames: number
+          id: string
+          mode: Database["public"]["Enums"]["session_mode"]
+          org_id: string
+          outstanding: number | null
+          paused_at: string | null
+          planned_end_at: string | null
+          players: number
+          prepaid_amount: number
+          prepaid_minutes: number
+          rate_plan_id: string
+          started_at: string
+          started_by: string | null
+          station_id: string
+          status: Database["public"]["Enums"]["session_status"]
+          write_off_reason: string | null
+          written_off: boolean
+        }
+        Insert: {
+          billed_amount?: number
+          branch_id: string
+          charge_amount?: number | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          ended_at?: string | null
+          ended_by?: string | null
+          frames?: number
+          id?: string
+          mode: Database["public"]["Enums"]["session_mode"]
+          org_id: string
+          outstanding?: number | null
+          paused_at?: string | null
+          planned_end_at?: string | null
+          players?: number
+          prepaid_amount?: number
+          prepaid_minutes?: number
+          rate_plan_id: string
+          started_at?: string
+          started_by?: string | null
+          station_id: string
+          status?: Database["public"]["Enums"]["session_status"]
+          write_off_reason?: string | null
+          written_off?: boolean
+        }
+        Update: {
+          billed_amount?: number
+          branch_id?: string
+          charge_amount?: number | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          ended_at?: string | null
+          ended_by?: string | null
+          frames?: number
+          id?: string
+          mode?: Database["public"]["Enums"]["session_mode"]
+          org_id?: string
+          outstanding?: number | null
+          paused_at?: string | null
+          planned_end_at?: string | null
+          players?: number
+          prepaid_amount?: number
+          prepaid_minutes?: number
+          rate_plan_id?: string
+          started_at?: string
+          started_by?: string | null
+          station_id?: string
+          status?: Database["public"]["Enums"]["session_status"]
+          write_off_reason?: string | null
+          written_off?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "sessions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessions_rate_plan_id_org_id_fkey"
+            columns: ["rate_plan_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "rate_plans"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "sessions_station_id_org_id_fkey"
+            columns: ["station_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      shift_closes: {
+        Row: {
+          branch_id: string
+          cash_sales: number
+          cash_wallet: number
+          closed_at: string
+          closed_by: string | null
+          counted_cash: number
+          difference: number
+          expected_cash: number
+          float_left: number
+          id: string
+          note: string | null
+          opened_at: string
+          opening_float: number
+          org_id: string
+          upi_total: number
+        }
+        Insert: {
+          branch_id: string
+          cash_sales?: number
+          cash_wallet?: number
+          closed_at?: string
+          closed_by?: string | null
+          counted_cash: number
+          difference: number
+          expected_cash: number
+          float_left?: number
+          id?: string
+          note?: string | null
+          opened_at: string
+          opening_float?: number
+          org_id: string
+          upi_total?: number
+        }
+        Update: {
+          branch_id?: string
+          cash_sales?: number
+          cash_wallet?: number
+          closed_at?: string
+          closed_by?: string | null
+          counted_cash?: number
+          difference?: number
+          expected_cash?: number
+          float_left?: number
+          id?: string
+          note?: string | null
+          opened_at?: string
+          opening_float?: number
+          org_id?: string
+          upi_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_closes_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "shift_closes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      station_commands: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          delivered_at: string | null
+          done_at: string | null
+          id: string
+          kind: string
+          org_id: string
+          payload: Json
+          result: string | null
+          station_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          delivered_at?: string | null
+          done_at?: string | null
+          id?: string
+          kind: string
+          org_id: string
+          payload?: Json
+          result?: string | null
+          station_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          delivered_at?: string | null
+          done_at?: string | null
+          id?: string
+          kind?: string
+          org_id?: string
+          payload?: Json
+          result?: string | null
+          station_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "station_commands_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "station_commands_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      station_requests: {
+        Row: {
+          branch_id: string
+          created_at: string
+          handled_at: string | null
+          handled_by: string | null
+          id: string
+          kind: string
+          label: string
+          minutes: number | null
+          org_id: string
+          product_id: string | null
+          quantity: number | null
+          session_id: string
+          station_id: string
+          status: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          handled_at?: string | null
+          handled_by?: string | null
+          id?: string
+          kind: string
+          label: string
+          minutes?: number | null
+          org_id: string
+          product_id?: string | null
+          quantity?: number | null
+          session_id: string
+          station_id: string
+          status?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          handled_at?: string | null
+          handled_by?: string | null
+          id?: string
+          kind?: string
+          label?: string
+          minutes?: number | null
+          org_id?: string
+          product_id?: string | null
+          quantity?: number | null
+          session_id?: string
+          station_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "station_requests_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "station_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "station_requests_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "station_requests_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "station_requests_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stations: {
+        Row: {
+          branch_id: string
+          created_at: string
+          hw_config: Json
+          id: string
+          layout_rot: number
+          layout_x: number | null
+          layout_y: number | null
+          name: string
+          org_id: string
+          public_code: string
+          sort_order: number
+          status: Database["public"]["Enums"]["station_status"]
+          tier: string
+          type: Database["public"]["Enums"]["station_type"]
+          updated_at: string
+          zone: string | null
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          hw_config?: Json
+          id?: string
+          layout_rot?: number
+          layout_x?: number | null
+          layout_y?: number | null
+          name: string
+          org_id: string
+          public_code?: string
+          sort_order?: number
+          status?: Database["public"]["Enums"]["station_status"]
+          tier?: string
+          type: Database["public"]["Enums"]["station_type"]
+          updated_at?: string
+          zone?: string | null
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          hw_config?: Json
+          id?: string
+          layout_rot?: number
+          layout_x?: number | null
+          layout_y?: number | null
+          name?: string
+          org_id?: string
+          public_code?: string
+          sort_order?: number
+          status?: Database["public"]["Enums"]["station_status"]
+          tier?: string
+          type?: Database["public"]["Enums"]["station_type"]
+          updated_at?: string
+          zone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stations_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      stock_moves: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          delta: number
+          id: string
+          invoice_id: string | null
+          note: string | null
+          org_id: string
+          product_id: string
+          reason: string
+          session_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          delta: number
+          id?: string
+          invoice_id?: string | null
+          note?: string | null
+          org_id: string
+          product_id: string
+          reason: string
+          session_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          delta?: number
+          id?: string
+          invoice_id?: string | null
+          note?: string | null
+          org_id?: string
+          product_id?: string
+          reason?: string
+          session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_moves_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_moves_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_moves_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_moves_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_invites: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          org_id: string
+          role: Database["public"]["Enums"]["member_role"]
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          org_id: string
+          role: Database["public"]["Enums"]["member_role"]
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          org_id?: string
+          role?: Database["public"]["Enums"]["member_role"]
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_invites_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournament_matches: {
+        Row: {
+          decided_at: string | null
+          id: string
+          org_id: string
+          player1_id: string | null
+          player2_id: string | null
+          round: number
+          slot: number
+          station_id: string | null
+          tournament_id: string
+          winner_id: string | null
+        }
+        Insert: {
+          decided_at?: string | null
+          id?: string
+          org_id: string
+          player1_id?: string | null
+          player2_id?: string | null
+          round: number
+          slot: number
+          station_id?: string | null
+          tournament_id: string
+          winner_id?: string | null
+        }
+        Update: {
+          decided_at?: string | null
+          id?: string
+          org_id?: string
+          player1_id?: string | null
+          player2_id?: string | null
+          round?: number
+          slot?: number
+          station_id?: string | null
+          tournament_id?: string
+          winner_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_matches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_player1_id_fkey"
+            columns: ["player1_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_player2_id_fkey"
+            columns: ["player2_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_winner_id_fkey"
+            columns: ["winner_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournament_players: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          invoice_id: string | null
+          members: string[]
+          name: string
+          org_id: string
+          phone: string
+          team_name: string | null
+          tournament_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          invoice_id?: string | null
+          members?: string[]
+          name: string
+          org_id: string
+          phone: string
+          team_name?: string | null
+          tournament_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          invoice_id?: string | null
+          members?: string[]
+          name?: string
+          org_id?: string
+          phone?: string
+          team_name?: string | null
+          tournament_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_players_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_players_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_players_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_players_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournaments: {
+        Row: {
+          branch_id: string
+          created_at: string
+          created_by: string | null
+          entry_fee: number
+          game: string
+          id: string
+          name: string
+          org_id: string
+          prize: string | null
+          starts_at: string | null
+          station_type: Database["public"]["Enums"]["station_type"] | null
+          status: string
+          team_size: number
+          winner_id: string | null
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          created_by?: string | null
+          entry_fee?: number
+          game: string
+          id?: string
+          name: string
+          org_id: string
+          prize?: string | null
+          starts_at?: string | null
+          station_type?: Database["public"]["Enums"]["station_type"] | null
+          status?: string
+          team_size?: number
+          winner_id?: string | null
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          created_by?: string | null
+          entry_fee?: number
+          game?: string
+          id?: string
+          name?: string
+          org_id?: string
+          prize?: string | null
+          starts_at?: string | null
+          station_type?: Database["public"]["Enums"]["station_type"] | null
+          status?: string
+          team_size?: number
+          winner_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournaments_branch_id_org_id_fkey"
+            columns: ["branch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "tournaments_winner_fkey"
+            columns: ["winner_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vouchers: {
+        Row: {
+          amount: number
+          code: string
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          expires_on: string | null
+          id: string
+          note: string | null
+          org_id: string
+          redeemed_at: string | null
+          redeemed_branch_id: string | null
+          redeemed_by: string | null
+          voided_at: string | null
+        }
+        Insert: {
+          amount: number
+          code: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          expires_on?: string | null
+          id?: string
+          note?: string | null
+          org_id: string
+          redeemed_at?: string | null
+          redeemed_branch_id?: string | null
+          redeemed_by?: string | null
+          voided_at?: string | null
+        }
+        Update: {
+          amount?: number
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          expires_on?: string | null
+          id?: string
+          note?: string | null
+          org_id?: string
+          redeemed_at?: string | null
+          redeemed_branch_id?: string | null
+          redeemed_by?: string | null
+          voided_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vouchers_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vouchers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vouchers_redeemed_branch_id_fkey"
+            columns: ["redeemed_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          branch_id: string | null
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          invoice_id: string | null
+          method: string
+          note: string | null
+          org_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          branch_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          invoice_id?: string | null
+          method: string
+          note?: string | null
+          org_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          branch_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          invoice_id?: string | null
+          method?: string
+          note?: string | null
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_transactions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
     Functions: {
-      create_organization: {
-        Args: {
-          p_org_name: string;
-          p_branch_name: string;
-          p_timezone?: string;
-          p_station_types?: E["station_type"][];
-        };
-        Returns: string;
-      };
-      create_branch: { Args: { p_org_id: string; p_name: string; p_timezone?: string }; Returns: string };
-      bulk_create_stations: {
-        Args: {
-          p_branch_id: string;
-          p_type: E["station_type"];
-          p_prefix: string;
-          p_count: number;
-          p_start?: number;
-          p_tier?: string;
-          p_zone?: string;
-        };
-        Returns: Database["public"]["Tables"]["stations"]["Row"][];
-      };
-      server_time: { Args: Record<PropertyKey, never>; Returns: string };
-      start_session: {
-        Args: {
-          p_station_id: string;
-          p_mode: E["session_mode"];
-          p_phone: string;
-          p_name?: string;
-          p_players?: number;
-          p_package_id?: string;
-          p_minutes?: number;
-          p_payments?: Json;
-        };
-        Returns: string;
-      };
-      pause_session: { Args: { p_session_id: string }; Returns: undefined };
-      resume_session: { Args: { p_session_id: string }; Returns: undefined };
-      extend_session: {
-        Args: { p_session_id: string; p_package_id?: string; p_minutes?: number; p_payments?: Json };
-        Returns: undefined;
-      };
-      transfer_session: { Args: { p_session_id: string; p_to_station_id: string }; Returns: undefined };
-      end_session: { Args: { p_session_id: string }; Returns: Json };
-      checkout: {
-        Args: {
-          p_session_ids: string[];
-          p_discount?: number;
-          p_payments?: Json;
-          p_customer_name?: string;
-          p_customer_phone?: string;
-          p_discount_reason?: string | null;
-        };
-        Returns: string;
-      };
-      quick_sale: {
-        Args: {
-          p_branch_id: string;
-          p_items: Json;
-          p_discount?: number;
-          p_payments?: Json;
-          p_customer_name?: string | null;
-          p_customer_phone?: string | null;
-          p_discount_reason?: string | null;
-        };
-        Returns: string;
-      };
-      create_pairing_code: { Args: { p_station_id: string }; Returns: string };
-      unpair_device: { Args: { p_station_id: string }; Returns: undefined };
-      send_station_command: {
-        Args: { p_station_id: string; p_kind: "message" | "restart" | "shutdown" | "wake"; p_payload?: Json };
-        Returns: string;
-      };
-      set_player_pin: { Args: { p_customer_id: string; p_pin: string }; Returns: undefined };
-      clear_player_pin: { Args: { p_customer_id: string }; Returns: undefined };
-      void_invoice: { Args: { p_invoice_id: string; p_reason: string; p_restock?: boolean }; Returns: Json };
-      adjust_stock: {
-        Args: { p_product_id: string; p_mode: "receive" | "count"; p_qty: number | null; p_note?: string | null };
-        Returns: number | null;
-      };
-      write_off_session: { Args: { p_session_id: string; p_reason: string }; Returns: undefined };
-      create_customer: { Args: { p_org_id: string; p_phone: string; p_name: string }; Returns: string };
-      list_customers: {
-        Args: { p_org_id: string; p_search?: string; p_limit?: number; p_offset?: number };
-        Returns: {
-          id: string;
-          name: string;
-          phone: string;
-          created_at: string;
-          visits: number;
-          total_spent: number;
-          last_visit: string | null;
-          total_count: number;
-        }[];
-      };
-      create_invite: { Args: { p_org_id: string; p_role: E["member_role"] }; Returns: string };
-      accept_invite: { Args: { p_code: string }; Returns: string };
-      report_summary: { Args: { p_branch_id: string; p_from: string; p_to: string }; Returns: Json };
-      report_insights: { Args: { p_branch_id: string; p_from: string; p_to: string }; Returns: Json };
-      save_station_layout: { Args: { p_branch_id: string; p_layout: Json }; Returns: undefined };
-      player_summary: { Args: { p_customer_id: string }; Returns: Json };
-      set_session_players: { Args: { p_session_id: string; p_players: number }; Returns: undefined };
-      /** +1 / -1 frame on a frames session; returns the new count. */
-      change_session_frames: { Args: { p_session_id: string; p_delta: number }; Returns: number };
-      /** Who pays: moves unpaid (or live) sessions to another player. Returns their id. */
-      set_session_payer: { Args: { p_session_ids: string[]; p_phone: string; p_name?: string | null }; Returns: string };
-      set_player_credit_limit: { Args: { p_customer_id: string; p_limit: number | null }; Returns: undefined };
-      public_station: { Args: { p_code: string }; Returns: Json };
-      public_station_request: {
-        Args: { p_code: string; p_kind: "snack" | "extend" | "call"; p_product_id?: string | null; p_quantity?: number };
-        Returns: string;
-      };
-      handle_station_request: { Args: { p_request_id: string; p_accept: boolean }; Returns: undefined };
-      dismiss_pc_alert: { Args: { p_alert_id: string }; Returns: undefined };
-      create_vouchers: {
-        Args: { p_org_id: string; p_count: number; p_amount: number; p_expires_on?: string | null; p_note?: string | null };
-        Returns: string[];
-      };
-      void_voucher: { Args: { p_voucher_id: string }; Returns: undefined };
-      redeem_voucher: { Args: { p_customer_id: string; p_code: string; p_branch_id?: string | null }; Returns: Json };
-      shift_status: { Args: { p_branch_id: string }; Returns: Json };
-      close_shift: {
-        Args: { p_branch_id: string; p_counted: number; p_float_left?: number; p_note?: string | null };
-        Returns: string;
-      };
-      reset_station_code: { Args: { p_station_id: string }; Returns: string };
-      public_booking_info: { Args: { p_slug: string }; Returns: Json };
-      public_booking_slots: {
-        Args: { p_slug: string; p_type: E["station_type"]; p_date: string; p_minutes: number };
-        Returns: Json;
-      };
-      public_create_booking: {
-        Args: {
-          p_slug: string;
-          p_type: E["station_type"];
-          p_starts_at: string;
-          p_minutes: number;
-          p_players: number;
-          p_name: string;
-          p_phone: string;
-          p_note?: string | null;
-        };
-        Returns: string;
-      };
-      save_booking: {
-        Args: {
-          p_booking_id: string | null;
-          p_branch_id: string;
-          p_type: E["station_type"];
-          p_starts_at: string;
-          p_minutes: number;
-          p_players: number;
-          p_phone: string;
-          p_name?: string | null;
-          p_note?: string | null;
-          p_station_id?: string | null;
-        };
-        Returns: string;
-      };
-      set_booking_status: {
-        Args: {
-          p_booking_id: string;
-          p_status: "confirmed" | "arrived" | "cancelled" | "no_show";
-          p_station_id?: string | null;
-        };
-        Returns: undefined;
-      };
-      create_tournament: {
-        Args: {
-          p_branch_id: string;
-          p_name: string;
-          p_game: string;
-          p_entry_fee?: number;
-          p_prize?: string | null;
-          p_starts_at?: string | null;
-          p_team_size?: number;
-          p_station_type?: E["station_type"] | null;
-        };
-        Returns: string;
-      };
-      delete_tournament: { Args: { p_tournament_id: string }; Returns: undefined };
-      add_tournament_player: {
-        Args: {
-          p_tournament_id: string;
-          p_phone: string;
-          p_name?: string | null;
-          p_team_name?: string | null;
-          p_members?: string[];
-        };
-        Returns: string;
-      };
-      /** p_station_id null clears it. */
-      set_match_station: { Args: { p_match_id: string; p_station_id: string | null }; Returns: undefined };
-      remove_tournament_player: { Args: { p_player_id: string }; Returns: undefined };
-      pay_tournament_entry: { Args: { p_player_id: string; p_payments?: Json }; Returns: string };
-      start_tournament: { Args: { p_tournament_id: string }; Returns: undefined };
-      /** p_winner_id null undoes the result. */
-      set_match_winner: { Args: { p_match_id: string; p_winner_id: string | null }; Returns: undefined };
+      accept_invite: { Args: { p_code: string }; Returns: string }
       add_session_item: {
         Args: {
-          p_session_id: string;
-          p_name: string;
-          p_price: number;
-          p_quantity?: number;
-          p_product_id?: string | null;
-        };
-        Returns: string;
-      };
-      remove_session_item: { Args: { p_item_id: string }; Returns: undefined };
-      /** Take some off a line (default 1); down to zero removes it. */
-      reduce_session_item: { Args: { p_item_id: string; p_quantity?: number }; Returns: undefined };
-      /** Public contact form: stores a message for the QueSys team. */
-      submit_contact_message: {
+          p_name: string
+          p_price: number
+          p_product_id?: string
+          p_quantity?: number
+          p_session_id: string
+        }
+        Returns: string
+      }
+      add_tournament_player: {
         Args: {
-          p_name: string;
-          p_email: string | null;
-          p_phone: string | null;
-          p_venue: string | null;
-          p_topic: "setup" | "pricing" | "pc_app" | "support" | "other";
-          p_message: string;
-          p_sender_hash?: string | null;
-        };
-        Returns: undefined;
-      };
-      topup_wallet: {
+          p_members?: string[]
+          p_name?: string
+          p_phone: string
+          p_team_name?: string
+          p_tournament_id: string
+        }
+        Returns: string
+      }
+      adjust_stock: {
         Args: {
-          p_customer_id: string;
-          p_amount: number;
-          p_method?: string;
-          p_note?: string | null;
-          /** Owner only: a hand-picked bonus instead of the venue's offers. */
-          p_bonus?: number | null;
-          /** Branch whose counter took the money (for that branch's cash in drawer). */
-          p_branch_id?: string | null;
-        };
-        Returns: number;
-      };
+          p_mode: string
+          p_note?: string
+          p_product_id: string
+          p_qty: number
+        }
+        Returns: number
+      }
+      agent_ack: {
+        Args: { p_command_id: string; p_result?: string; p_token: string }
+        Returns: undefined
+      }
+      agent_check_staff_pin: {
+        Args: { p_pin: string; p_token: string }
+        Returns: Json
+      }
+      agent_pair: { Args: { p_code: string; p_info?: Json }; Returns: Json }
+      agent_player_login: {
+        Args: { p_mobile: string; p_pin: string; p_token: string }
+        Returns: Json
+      }
+      agent_redeem_voucher: {
+        Args: { p_code: string; p_token: string }
+        Returns: Json
+      }
+      agent_report: {
+        Args: { p_details?: Json; p_kind: string; p_token: string }
+        Returns: undefined
+      }
+      agent_request: {
+        Args: {
+          p_kind: string
+          p_product_id?: string
+          p_quantity?: number
+          p_token: string
+        }
+        Returns: string
+      }
+      agent_set_staff_pin: {
+        Args: { p_pin: string; p_token: string }
+        Returns: undefined
+      }
+      agent_sync: { Args: { p_info?: Json; p_token: string }; Returns: Json }
+      bulk_create_stations: {
+        Args: {
+          p_branch_id: string
+          p_count: number
+          p_prefix: string
+          p_start?: number
+          p_tier?: string
+          p_type: Database["public"]["Enums"]["station_type"]
+          p_zone?: string
+        }
+        Returns: {
+          branch_id: string
+          created_at: string
+          hw_config: Json
+          id: string
+          layout_rot: number
+          layout_x: number | null
+          layout_y: number | null
+          name: string
+          org_id: string
+          public_code: string
+          sort_order: number
+          status: Database["public"]["Enums"]["station_status"]
+          tier: string
+          type: Database["public"]["Enums"]["station_type"]
+          updated_at: string
+          zone: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "stations"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      change_session_frames: {
+        Args: { p_delta: number; p_session_id: string }
+        Returns: number
+      }
+      checkout: {
+        Args: {
+          p_customer_name?: string
+          p_customer_phone?: string
+          p_discount?: number
+          p_discount_reason?: string
+          p_payments?: Json
+          p_session_ids: string[]
+        }
+        Returns: string
+      }
+      clear_player_pin: { Args: { p_customer_id: string }; Returns: undefined }
+      close_shift: {
+        Args: {
+          p_branch_id: string
+          p_counted: number
+          p_float_left?: number
+          p_note?: string
+        }
+        Returns: string
+      }
+      create_branch: {
+        Args: { p_name: string; p_org_id: string; p_timezone?: string }
+        Returns: string
+      }
+      create_customer: {
+        Args: { p_name: string; p_org_id: string; p_phone: string }
+        Returns: string
+      }
+      create_invite: {
+        Args: {
+          p_org_id: string
+          p_role: Database["public"]["Enums"]["member_role"]
+        }
+        Returns: string
+      }
+      create_organization: {
+        Args: {
+          p_branch_name: string
+          p_org_name: string
+          p_station_types?: Database["public"]["Enums"]["station_type"][]
+          p_timezone?: string
+        }
+        Returns: string
+      }
+      create_pairing_code: { Args: { p_station_id: string }; Returns: string }
+      create_tournament: {
+        Args: {
+          p_branch_id: string
+          p_entry_fee?: number
+          p_game: string
+          p_name: string
+          p_prize?: string
+          p_starts_at?: string
+          p_station_type?: Database["public"]["Enums"]["station_type"]
+          p_team_size?: number
+        }
+        Returns: string
+      }
+      create_vouchers: {
+        Args: {
+          p_amount: number
+          p_count: number
+          p_expires_on?: string
+          p_note?: string
+          p_org_id: string
+        }
+        Returns: string[]
+      }
       deduct_wallet: {
         Args: {
-          p_customer_id: string;
-          p_amount: number;
-          p_note?: string | null;
-          p_method?: "cash" | "upi";
-          p_branch_id?: string | null;
-        };
-        Returns: number;
-      };
-    };
+          p_amount: number
+          p_branch_id?: string
+          p_customer_id: string
+          p_method?: string
+          p_note?: string
+        }
+        Returns: number
+      }
+      delete_tournament: {
+        Args: { p_tournament_id: string }
+        Returns: undefined
+      }
+      dismiss_pc_alert: { Args: { p_alert_id: string }; Returns: undefined }
+      end_session: { Args: { p_session_id: string }; Returns: Json }
+      extend_session: {
+        Args: {
+          p_minutes?: number
+          p_package_id?: string
+          p_payments?: Json
+          p_session_id: string
+        }
+        Returns: undefined
+      }
+      handle_station_request: {
+        Args: { p_accept: boolean; p_request_id: string }
+        Returns: undefined
+      }
+      list_customers: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_org_id: string
+          p_search?: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          last_visit: string
+          name: string
+          phone: string
+          total_count: number
+          total_spent: number
+          visits: number
+        }[]
+      }
+      pause_session: { Args: { p_session_id: string }; Returns: undefined }
+      pay_tournament_entry: {
+        Args: { p_payments?: Json; p_player_id: string }
+        Returns: string
+      }
+      player_summary: { Args: { p_customer_id: string }; Returns: Json }
+      public_booking_info: { Args: { p_slug: string }; Returns: Json }
+      public_booking_slots: {
+        Args: {
+          p_date: string
+          p_minutes: number
+          p_slug: string
+          p_type: Database["public"]["Enums"]["station_type"]
+        }
+        Returns: Json
+      }
+      public_create_booking: {
+        Args: {
+          p_minutes: number
+          p_name: string
+          p_note?: string
+          p_phone: string
+          p_players: number
+          p_slug: string
+          p_starts_at: string
+          p_type: Database["public"]["Enums"]["station_type"]
+        }
+        Returns: string
+      }
+      public_station: { Args: { p_code: string }; Returns: Json }
+      public_station_request: {
+        Args: {
+          p_code: string
+          p_kind: string
+          p_product_id?: string
+          p_quantity?: number
+        }
+        Returns: string
+      }
+      quick_sale: {
+        Args: {
+          p_branch_id: string
+          p_customer_name?: string
+          p_customer_phone?: string
+          p_discount?: number
+          p_discount_reason?: string
+          p_items: Json
+          p_payments?: Json
+        }
+        Returns: string
+      }
+      redeem_voucher: {
+        Args: { p_branch_id?: string; p_code: string; p_customer_id: string }
+        Returns: Json
+      }
+      reduce_session_item: {
+        Args: { p_item_id: string; p_quantity?: number }
+        Returns: undefined
+      }
+      remove_session_item: { Args: { p_item_id: string }; Returns: undefined }
+      remove_tournament_player: {
+        Args: { p_player_id: string }
+        Returns: undefined
+      }
+      report_insights: {
+        Args: { p_branch_id: string; p_from: string; p_to: string }
+        Returns: Json
+      }
+      report_summary: {
+        Args: { p_branch_id: string; p_from: string; p_to: string }
+        Returns: Json
+      }
+      reset_station_code: { Args: { p_station_id: string }; Returns: string }
+      resume_session: { Args: { p_session_id: string }; Returns: undefined }
+      save_booking: {
+        Args: {
+          p_booking_id: string
+          p_branch_id: string
+          p_minutes: number
+          p_name?: string
+          p_note?: string
+          p_phone: string
+          p_players: number
+          p_starts_at: string
+          p_station_id?: string
+          p_type: Database["public"]["Enums"]["station_type"]
+        }
+        Returns: string
+      }
+      save_station_layout: {
+        Args: { p_branch_id: string; p_layout: Json }
+        Returns: undefined
+      }
+      send_station_command: {
+        Args: { p_kind: string; p_payload?: Json; p_station_id: string }
+        Returns: string
+      }
+      server_time: { Args: never; Returns: string }
+      set_booking_status: {
+        Args: { p_booking_id: string; p_station_id?: string; p_status: string }
+        Returns: undefined
+      }
+      set_match_station: {
+        Args: { p_match_id: string; p_station_id: string }
+        Returns: undefined
+      }
+      set_match_winner: {
+        Args: { p_match_id: string; p_winner_id: string }
+        Returns: undefined
+      }
+      set_player_credit_limit: {
+        Args: { p_customer_id: string; p_limit: number }
+        Returns: undefined
+      }
+      set_player_pin: {
+        Args: { p_customer_id: string; p_pin: string }
+        Returns: undefined
+      }
+      set_session_payer: {
+        Args: { p_name?: string; p_phone: string; p_session_ids: string[] }
+        Returns: string
+      }
+      set_session_players: {
+        Args: { p_players: number; p_session_id: string }
+        Returns: undefined
+      }
+      shift_status: { Args: { p_branch_id: string }; Returns: Json }
+      start_session: {
+        Args: {
+          p_minutes?: number
+          p_mode: Database["public"]["Enums"]["session_mode"]
+          p_name?: string
+          p_package_id?: string
+          p_payments?: Json
+          p_phone: string
+          p_players?: number
+          p_station_id: string
+        }
+        Returns: string
+      }
+      start_tournament: {
+        Args: { p_tournament_id: string }
+        Returns: undefined
+      }
+      submit_contact_message: {
+        Args: {
+          p_email: string
+          p_message: string
+          p_name: string
+          p_phone: string
+          p_sender_hash?: string
+          p_topic: string
+          p_venue: string
+        }
+        Returns: undefined
+      }
+      topup_wallet: {
+        Args: {
+          p_amount: number
+          p_bonus?: number
+          p_branch_id?: string
+          p_customer_id: string
+          p_method?: string
+          p_note?: string
+        }
+        Returns: number
+      }
+      transfer_session: {
+        Args: { p_session_id: string; p_to_station_id: string }
+        Returns: undefined
+      }
+      unpair_device: { Args: { p_station_id: string }; Returns: undefined }
+      void_invoice: {
+        Args: { p_invoice_id: string; p_reason: string; p_restock?: boolean }
+        Returns: Json
+      }
+      void_voucher: { Args: { p_voucher_id: string }; Returns: undefined }
+      write_off_session: {
+        Args: { p_reason: string; p_session_id: string }
+        Returns: undefined
+      }
+    }
     Enums: {
-      member_role: "owner" | "manager" | "staff";
-      station_type: "pc" | "ps5" | "xbox" | "snooker" | "pool" | "other";
-      station_status: "active" | "maintenance" | "disabled";
-      session_mode: "open" | "prepaid" | "frames";
-      session_status: "running" | "paused" | "ended";
-      payment_method: "cash" | "upi" | "card" | "wallet";
       expense_category:
         | "salary"
         | "rent"
@@ -793,16 +2599,158 @@ export type Database = {
         | "maintenance"
         | "supplies"
         | "marketing"
-        | "other";
-      leftover_policy: "keep_days" | "same_day" | "forfeit";
-    };
-    CompositeTypes: { [_ in never]: never };
-  };
-};
+        | "other"
+      leftover_policy: "keep_days" | "same_day" | "forfeit"
+      member_role: "owner" | "manager" | "staff"
+      payment_method: "cash" | "upi" | "card" | "wallet"
+      session_mode: "open" | "prepaid" | "frames"
+      session_status: "running" | "paused" | "ended"
+      station_status: "active" | "maintenance" | "disabled"
+      station_type: "pc" | "ps5" | "xbox" | "snooker" | "pool" | "other"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
 
-type PublicSchema = Database["public"];
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-export type Tables<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Row"];
-export type TablesInsert<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Insert"];
-export type TablesUpdate<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Update"];
-export type Enums<T extends keyof PublicSchema["Enums"]> = PublicSchema["Enums"][T];
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never) = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never) = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      expense_category: [
+        "salary",
+        "rent",
+        "electricity",
+        "internet",
+        "maintenance",
+        "supplies",
+        "marketing",
+        "other",
+      ],
+      leftover_policy: ["keep_days", "same_day", "forfeit"],
+      member_role: ["owner", "manager", "staff"],
+      payment_method: ["cash", "upi", "card", "wallet"],
+      session_mode: ["open", "prepaid", "frames"],
+      session_status: ["running", "paused", "ended"],
+      station_status: ["active", "maintenance", "disabled"],
+      station_type: ["pc", "ps5", "xbox", "snooker", "pool", "other"],
+    },
+  },
+} as const

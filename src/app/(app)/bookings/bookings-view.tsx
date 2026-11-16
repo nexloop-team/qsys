@@ -171,7 +171,7 @@ function BookingCard({
       const { error } = await createClient().rpc("set_booking_status", {
         p_booking_id: b.id,
         p_status: status,
-        p_station_id: status === "confirmed" ? stationId || null : undefined,
+        p_station_id: status === "confirmed" ? stationId || undefined : undefined,
       });
       if (error) return setError(friendlyError(error));
       router.refresh();

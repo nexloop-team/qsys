@@ -39,7 +39,7 @@ async function Tournament({ params }: { params: PageProps<"/tournaments/[id]">["
 
   return (
     <>
-      <Link href="/tournaments" className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
+      <Link href="/tournaments" className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg print:hidden">
         <ArrowLeft className="size-4" /> Tournaments
       </Link>
       <TournamentView

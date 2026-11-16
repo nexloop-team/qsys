@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, MapPin, Play, Trash2, Trophy, UserPlus, Users, X } from "lucide-react";
+import { Check, MapPin, Play, Printer, Trash2, Trophy, UserPlus, Users, X } from "lucide-react";
 import type { Tables } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/client";
 import { friendlyError } from "@/lib/errors";
@@ -15,6 +15,7 @@ import { Button, ErrorText, Field, Input, Select, cx } from "@/components/ui";
 import { entryWord, teamLabel } from "../labels";
 import { PlayerField, type PlayerValue } from "../../dashboard/player-field";
 import { PaymentFields, type PaymentRow } from "../../dashboard/payment-fields";
+import { sqlNull } from "@/lib/sql-null";
 
 export type Player = {
   id: string;
@@ -112,7 +113,7 @@ export function TournamentView({
   const pickStation = (matchId: string, stationId: string | null) => {
     setStationPick((p) => ({ ...p, [matchId]: stationId }));
     run(
-      () => supabase.rpc("set_match_station", { p_match_id: matchId, p_station_id: stationId }),
+      () => supabase.rpc("set_match_station", { p_match_id: matchId, p_station_id: sqlNull(stationId) }),
       undefined,
       () =>
         setStationPick((p) => {
@@ -123,22 +124,42 @@ export function TournamentView({
     );
   };
 
+  const description = [
+    t.game,
+    t.station_type ? `on ${STATION_TYPE_LABEL[t.station_type]}` : null,
+    teams ? teamLabel(t.team_size) : null,
+    fee > 0 ? `${formatINR(fee)} entry${teams ? " per team" : ""}` : "Free entry",
+    t.prize ? `Prize: ${t.prize}` : null,
+    t.starts_at ? formatDateTime(t.starts_at, timezone) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <>
+      {/* Paper copy for the wall or the counter. Everything else on the page stays off the print. */}
+      {rounds > 0 && (
+        <PrintBracket
+          name={t.name}
+          description={description}
+          rounds={rounds}
+          matches={matches}
+          byId={byId}
+          stations={stations}
+          winner={winner ? entryName(winner) : null}
+        />
+      )}
+      <div className="print:hidden">
       <PageHeader
         title={t.name}
-        description={[
-          t.game,
-          t.station_type ? `on ${STATION_TYPE_LABEL[t.station_type]}` : null,
-          teams ? teamLabel(t.team_size) : null,
-          fee > 0 ? `${formatINR(fee)} entry${teams ? " per team" : ""}` : "Free entry",
-          t.prize ? `Prize: ${t.prize}` : null,
-          t.starts_at ? formatDateTime(t.starts_at, timezone) : null,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
+        description={description}
         actions={
           <>
+            {rounds > 0 && (
+              <Button size="sm" variant="secondary" onClick={() => window.print()}>
+                <Printer /> Print bracket
+              </Button>
+            )}
             <Badge tone={t.status === "open" ? "free" : t.status === "running" ? "ending" : "neutral"}>
               {t.status === "open" ? "Taking players" : t.status === "running" ? "In progress" : "Finished"}
             </Badge>
@@ -210,7 +231,7 @@ export function TournamentView({
                         stations={stations}
                         stationId={m.id in stationPick ? stationPick[m.id] : m.station_id}
                         onStation={(id) => pickStation(m.id, id)}
-                        onWinner={(id) => run(() => supabase.rpc("set_match_winner", { p_match_id: m.id, p_winner_id: id }))}
+                        onWinner={(id) => run(() => supabase.rpc("set_match_winner", { p_match_id: m.id, p_winner_id: sqlNull(id) }))}
                       />
                     ))}
                 </ul>
@@ -283,8 +304,8 @@ export function TournamentView({
                       supabase.rpc("add_tournament_player", {
                         p_tournament_id: t.id,
                         p_phone: adding.phone,
-                        p_name: adding.isNew ? adding.name : null,
-                        p_team_name: teams ? teamName.trim() : null,
+                        p_name: adding.isNew ? adding.name : undefined,
+                        p_team_name: teams ? teamName.trim() : undefined,
                         p_members: teams ? members.filter((m) => m.trim()) : [],
                       }),
                     () => {
@@ -349,6 +370,8 @@ export function TournamentView({
             </ul>
           )}
         </Panel>
+      </div>
+
       </div>
 
       {paying && (
@@ -527,5 +550,70 @@ function EntryFeeDialog({
         </StickyActions>
       </div>
     </Modal>
+  );
+}
+
+// The bracket on paper: one column per round, each match with its two entries (the winner in
+// bold), its station, and blank lines where the result isn't known yet, to fill in by hand.
+function PrintBracket({
+  name,
+  description,
+  rounds,
+  matches,
+  byId,
+  stations,
+  winner,
+}: {
+  name: string;
+  description: string;
+  rounds: number;
+  matches: Match[];
+  byId: Map<string, Player>;
+  stations: Station[];
+  winner: string | null;
+}) {
+  const line = (id: string | null, m: Match, bye: boolean) => {
+    const p = id ? byId.get(id) : undefined;
+    const won = Boolean(p && m.winner_id === p.id);
+    return (
+      <div className={cx("flex h-7 items-end border-b border-black/60 px-1 text-[11pt]", won && "font-bold")}>
+        {p ? entryName(p) : bye ? <span className="text-black/50">No opponent</span> : ""}
+        {won && <span className="ml-auto text-[9pt]">✓</span>}
+      </div>
+    );
+  };
+  return (
+    <div className="hidden text-black print:block">
+      {/* Wide paper for a bracket; only while this page is open (bills keep their own size). */}
+      <style>{"@page { size: A4 landscape; margin: 12mm; }"}</style>
+      <h1 className="text-[18pt] font-bold">{name}</h1>
+      <p className="mb-4 text-[10pt]">{description}</p>
+      <div className="flex items-stretch gap-4">
+        {Array.from({ length: rounds }, (_, i) => i + 1).map((r) => (
+          <div key={r} className="flex min-w-0 flex-1 flex-col">
+            <p className="mb-2 text-[10pt] font-bold uppercase tracking-wide">{roundName(r, rounds)}</p>
+            <div className="flex flex-1 flex-col justify-around gap-3">
+              {matches
+                .filter((m) => m.round === r)
+                .map((m) => {
+                  const bye = m.round === 1 && Boolean(m.player1_id) !== Boolean(m.player2_id);
+                  const station = m.station_id ? stations.find((st) => st.id === m.station_id)?.name : undefined;
+                  return (
+                    <div key={m.id} className="break-inside-avoid">
+                      {line(m.player1_id, m, bye)}
+                      {line(m.player2_id, m, bye)}
+                      {station && <p className="mt-0.5 text-[8pt]">{station}</p>}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        ))}
+        <div className="flex w-32 shrink-0 flex-col justify-center">
+          <p className="mb-2 text-[10pt] font-bold uppercase tracking-wide">Winner</p>
+          <div className="flex h-8 items-end border-b-2 border-black px-1 text-[12pt] font-bold">{winner ?? ""}</div>
+        </div>
+      </div>
+    </div>
   );
 }

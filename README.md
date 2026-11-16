@@ -38,12 +38,17 @@ Stack: Next.js 16 (App Router, Cache Components) + Supabase (Postgres, Auth, RLS
    or set the "Confirm signup" email template link to
    `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/onboarding`.
 
-5. **Regenerate DB types** (replaces the hand-written file). Run in **Git Bash**. PowerShell's `>`
-   writes UTF-16, which TypeScript can't read. If the command fails, the redirect leaves an empty file:
+5. **Regenerate DB types** after every database change (generated from the live database, so the app's
+   types can't drift from the real tables). Link the CLI once (`npx supabase link --project-ref <project-ref>`),
+   then:
 
    ```
-   npx supabase gen types typescript --project-id <project-ref> --schema public > src/lib/database.types.ts
+   npm run db:types
    ```
+
+   It works in PowerShell too (npm runs it through cmd, which keeps UTF-8). If it fails it leaves an empty
+   file: `git checkout src/lib/database.types.ts` and try again. Function arguments that are optional are left
+   out rather than sent as null; `sqlNull()` in `src/lib/sql-null.ts` marks the few that need a real NULL.
 
 6. **Run:** `npm run dev` → http://localhost:3000
 

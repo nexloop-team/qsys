@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { memo, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -585,84 +585,22 @@ export function FloorBoard({ initial }: { initial: FloorData }) {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
             {tiles
               .filter((t) => t.station.type === type)
-              .map(({ station, session, info }) => (
-                <button
-                  key={station.id}
-                  type="button"
-                  onClick={() => setSelectedId(station.id)}
-                  className={cx(
-                    "group relative flex min-h-[116px] flex-col overflow-hidden rounded-xl border bg-panel p-3 pt-3.5 text-left transition-colors active:bg-subtle",
-                    TILE_STYLE[info.state],
-                  )}
-                >
-                  <span aria-hidden className={cx("absolute inset-x-0 top-0 h-[3px]", EDGE[info.state])} />
-                  <div className="flex items-center gap-2">
-                    <span className={cx("size-2 shrink-0 rounded-full", DOT[info.state])} />
-                    <span className="truncate text-sm font-semibold tracking-tight">{station.name}</span>
-                    {deviceByStation.has(station.id) && !isOnline(deviceByStation.get(station.id), now) && (
-                      <MonitorOff className="size-3.5 shrink-0 text-faint" aria-label="PC app offline" />
-                    )}
-                    {(() => {
-                      const warnings = healthWarnings(readHealth(deviceByStation.get(station.id), now));
-                      return warnings.length > 0 ? (
-                        <span title={warnings.join(" · ")} className="inline-flex shrink-0">
-                          <TriangleAlert className="size-3.5 text-ending" aria-label={warnings.join(", ")} />
-                        </span>
-                      ) : null;
-                    })()}
-                    {station.tier !== "standard" && (
-                      <span className="ml-auto shrink-0 rounded-md bg-subtle px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted">
-                        {station.tier}
-                      </span>
-                    )}
-                  </div>
-
-                  {info.state === "free" || info.state === "off" ? (
-                    <span className={cx("mt-auto flex items-center justify-between text-[13px] font-medium capitalize", STATE_TEXT[info.state])}>
-                      {info.clockLabel}
-                      {info.state === "free" && soonByStation.has(station.id) ? (
-                        <span className="truncate text-xs font-medium normal-case text-ending">
-                          Booked {formatTime(soonByStation.get(station.id)!.starts_at, branch.timezone)}
-                        </span>
-                      ) : (
-                        info.state === "free" && (
-                          // Always visible on touch screens; fades in on hover with a mouse.
-                          <span className="text-xs font-medium normal-case text-muted [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:group-hover:opacity-100">
-                            Start
-                          </span>
-                        )
-                      )}
-                    </span>
-                  ) : (
-                    <div className="mt-auto">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className={cx("num text-[24px] font-semibold leading-none tracking-tight", STATE_TEXT[info.state])}>
-                          {info.clock}
-                        </span>
-                        {info.state === "paused" && <Pause className="size-3.5 text-paused" />}
-                      </div>
-                      {session?.mode === "prepaid" && session.prepaid_minutes > 0 && info.remaining !== null && (
-                        <div className="mt-2 h-1 overflow-hidden rounded-full bg-subtle">
-                          <div
-                            className={cx("h-full rounded-full", DOT[info.state].replace(" blink", ""))}
-                            style={{
-                              width: `${Math.min(100, Math.max(0, 100 - (info.remaining / (session.prepaid_minutes * 60)) * 100))}%`,
-                            }}
-                          />
-                        </div>
-                      )}
-                      <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-muted">
-                        <span className="truncate">
-                          {session?.mode === "frames" && `Frame ${session.frames}${session.customer_name ? " · " : ""}`}
-                          {session?.customer_name ||
-                            (session?.mode === "prepaid" ? info.clockLabel : session?.mode === "frames" ? "" : "Open time")}
-                        </span>
-                        <span className="num shrink-0 font-medium text-fg">{formatINR(info.charge?.total ?? 0)}</span>
-                      </div>
-                    </div>
-                  )}
-                </button>
-              ))}
+              .map(({ station, session, info }) => {
+                const device = deviceByStation.get(station.id);
+                const soon = info.state === "free" ? soonByStation.get(station.id) : undefined;
+                return (
+                  <StationTile
+                    key={station.id}
+                    station={station}
+                    session={session}
+                    info={info}
+                    pcOffline={Boolean(device) && !isOnline(device, now)}
+                    warnings={healthWarnings(readHealth(device, now)).join(" · ")}
+                    bookedAt={soon ? formatTime(soon.starts_at, branch.timezone) : null}
+                    onSelect={setSelectedId}
+                  />
+                );
+              })}
           </div>
         </section>
       ))}
@@ -892,3 +830,104 @@ function Count({
     </span>
   );
 }
+
+// One station on the grid. The Floor ticks every second, but a tile redraws only when what it
+// shows changes: free and switched-off tiles stay put, busy ones update their clock and amount.
+type StationTileProps = {
+  station: FloorStation;
+  session: LiveSession | undefined;
+  info: TileInfo;
+  pcOffline: boolean;
+  /** Health warnings joined for the tooltip; "" when there are none. */
+  warnings: string;
+  /** "6:30 pm" when a booking is coming up on a free station. */
+  bookedAt: string | null;
+  onSelect: (stationId: string) => void;
+};
+
+const StationTile = memo(
+  function StationTile({ station, session, info, pcOffline, warnings, bookedAt, onSelect }: StationTileProps) {
+    return (
+      <button
+        type="button"
+        onClick={() => onSelect(station.id)}
+        className={cx(
+          "group relative flex min-h-[116px] flex-col overflow-hidden rounded-xl border bg-panel p-3 pt-3.5 text-left transition-colors active:bg-subtle",
+          TILE_STYLE[info.state],
+        )}
+      >
+        <span aria-hidden className={cx("absolute inset-x-0 top-0 h-[3px]", EDGE[info.state])} />
+        <div className="flex items-center gap-2">
+          <span className={cx("size-2 shrink-0 rounded-full", DOT[info.state])} />
+          <span className="truncate text-sm font-semibold tracking-tight">{station.name}</span>
+          {pcOffline && <MonitorOff className="size-3.5 shrink-0 text-faint" aria-label="PC app offline" />}
+          {warnings && (
+            <span title={warnings} className="inline-flex shrink-0">
+              <TriangleAlert className="size-3.5 text-ending" aria-label={warnings} />
+            </span>
+          )}
+          {station.tier !== "standard" && (
+            <span className="ml-auto shrink-0 rounded-md bg-subtle px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted">
+              {station.tier}
+            </span>
+          )}
+        </div>
+
+        {info.state === "free" || info.state === "off" ? (
+          <span className={cx("mt-auto flex items-center justify-between text-[13px] font-medium capitalize", STATE_TEXT[info.state])}>
+            {info.clockLabel}
+            {info.state === "free" && bookedAt ? (
+              <span className="truncate text-xs font-medium normal-case text-ending">Booked {bookedAt}</span>
+            ) : (
+              info.state === "free" && (
+                // Always visible on touch screens; fades in on hover with a mouse.
+                <span className="text-xs font-medium normal-case text-muted [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:group-hover:opacity-100">
+                  Start
+                </span>
+              )
+            )}
+          </span>
+        ) : (
+          <div className="mt-auto">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className={cx("num text-[24px] font-semibold leading-none tracking-tight", STATE_TEXT[info.state])}>
+                {info.clock}
+              </span>
+              {info.state === "paused" && <Pause className="size-3.5 text-paused" />}
+            </div>
+            {session?.mode === "prepaid" && session.prepaid_minutes > 0 && info.remaining !== null && (
+              <div className="mt-2 h-1 overflow-hidden rounded-full bg-subtle">
+                <div
+                  className={cx("h-full rounded-full", DOT[info.state].replace(" blink", ""))}
+                  style={{
+                    width: `${Math.min(100, Math.max(0, 100 - (info.remaining / (session.prepaid_minutes * 60)) * 100))}%`,
+                  }}
+                />
+              </div>
+            )}
+            <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-muted">
+              <span className="truncate">
+                {session?.mode === "frames" && `Frame ${session.frames}${session.customer_name ? " · " : ""}`}
+                {session?.customer_name ||
+                  (session?.mode === "prepaid" ? info.clockLabel : session?.mode === "frames" ? "" : "Open time")}
+              </span>
+              <span className="num shrink-0 font-medium text-fg">{formatINR(info.charge?.total ?? 0)}</span>
+            </div>
+          </div>
+        )}
+      </button>
+    );
+  },
+  (a, b) =>
+    a.station === b.station &&
+    a.session === b.session &&
+    a.pcOffline === b.pcOffline &&
+    a.warnings === b.warnings &&
+    a.bookedAt === b.bookedAt &&
+    a.onSelect === b.onSelect &&
+    a.info.state === b.info.state &&
+    a.info.clock === b.info.clock &&
+    a.info.clockLabel === b.info.clockLabel &&
+    a.info.remaining === b.info.remaining &&
+    a.info.charge?.total === b.info.charge?.total,
+);

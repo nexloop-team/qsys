@@ -249,7 +249,7 @@ pub struct SyncData {
     pub commands: Vec<Command>,
     #[serde(default)]
     pub games: Vec<Game>,
-    /// task_manager | control_panel | command_line | usb_drives
+    /// task_manager | control_panel | command_line | usb_drives | installs
     #[serde(default)]
     pub restrictions: Vec<String>,
     /// Players can order snacks (Settings › Online, shared with the QR page).

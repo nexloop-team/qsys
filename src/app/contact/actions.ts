@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { firstIssue, type ActionState } from "@/lib/action-state";
 import { TOPICS, type Topic } from "./topics";
+import { sqlNull } from "@/lib/sql-null";
 
 const schema = z
   .object({
@@ -53,12 +54,12 @@ export async function sendContactMessage(_prev: ActionState, formData: FormData)
   const supabase = await createClient();
   const { error } = await supabase.rpc("submit_contact_message", {
     p_name: parsed.data.name,
-    p_email: parsed.data.email,
-    p_phone: parsed.data.phone,
-    p_venue: parsed.data.venue,
+    p_email: sqlNull(parsed.data.email),
+    p_phone: sqlNull(parsed.data.phone),
+    p_venue: sqlNull(parsed.data.venue),
     p_topic: parsed.data.topic,
     p_message: parsed.data.message,
-    p_sender_hash: senderHash,
+    p_sender_hash: senderHash ?? undefined,
   });
   if (error) {
     return { error: error.code === "22023" ? error.message : "Couldn't send your message. Please try again in a minute." };

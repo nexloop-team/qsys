@@ -61,10 +61,10 @@ export function NewTournamentButton({
         p_name: name.trim(),
         p_game: game.trim(),
         p_entry_fee: Number(fee) || 0,
-        p_prize: prize.trim() || null,
-        p_starts_at: startsAt,
+        p_prize: prize.trim() || undefined,
+        p_starts_at: startsAt ?? undefined,
         p_team_size: teamSize,
-        p_station_type: on || null,
+        p_station_type: on || undefined,
       });
       if (error || !data) return setError(friendlyError(error, "Couldn't create the tournament."));
       // Replace (not push) the dialog's own history entry, and leave the dialog open: closing it

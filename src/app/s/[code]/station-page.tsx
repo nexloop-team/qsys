@@ -49,7 +49,9 @@ const CATEGORY_LABEL: Record<string, string> = {
   other: "Other",
 };
 
-const POLL_MS = 10_000;
+// The page reloads the moment the venue changes something (a Realtime signal from the database).
+// Asking every minute is only the backstop, for a dropped connection.
+const POLL_MS = 60_000;
 
 export function StationPage({ code }: { code: string }) {
   const [supabase] = useState(createClient);
@@ -72,6 +74,18 @@ export function StationPage({ code }: { code: string }) {
 
   useEffect(() => {
     const first = window.setTimeout(() => void load(), 0);
+    // A burst of changes (a checkout, several snacks) reloads once.
+    let soon: number | undefined;
+    const reload = () => {
+      window.clearTimeout(soon);
+      soon = window.setTimeout(() => void load(), 250);
+    };
+    const channel = supabase
+      .channel(`qs-station-${code.toLowerCase()}`)
+      .on("broadcast", { event: "changed" }, reload)
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") reload(); // (re)connected: catch up
+      });
     const poll = window.setInterval(() => {
       if (!document.hidden) void load();
     }, POLL_MS);
@@ -81,10 +95,12 @@ export function StationPage({ code }: { code: string }) {
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.clearTimeout(first);
+      window.clearTimeout(soon);
       window.clearInterval(poll);
       document.removeEventListener("visibilitychange", onVisible);
+      void supabase.removeChannel(channel);
     };
-  }, [load]);
+  }, [load, supabase, code]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -224,7 +240,7 @@ function useSend(code: string, onSent: () => Promise<void>) {
       const { error } = await supabase.rpc("public_station_request", {
         p_code: code,
         p_kind: kind,
-        p_product_id: opts.productId ?? null,
+        p_product_id: opts.productId ?? undefined,
         p_quantity: opts.quantity ?? 1,
       });
       setMessage(error ? { ok: false, text: friendlyError(error) } : { ok: true, text: ok });

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { BellRing, Clock, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { subscribeSessionChanges } from "@/lib/live-sessions";
 import { beep, useMuted } from "./dashboard/use-floor";
 
 type Live = {
@@ -57,15 +58,18 @@ export function TimeUpWatcher({ branchId }: { branchId: string }) {
     // First load runs after the current render (as the realtime refreshes do).
     void Promise.resolve().then(load);
 
-    const channel = supabase
-      .channel(`timeup:${branchId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "sessions", filter: `branch_id=eq.${branchId}` }, () =>
-        void load(),
-      )
+    // The same channel as the Floor's (one per branch). A burst of changes reloads once.
+    let timer: number | undefined;
+    const unsubscribe = subscribeSessionChanges(supabase, branchId, {
+      onChange: () => {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(() => void load(), 300);
+      },
       // (Re)connected: catch up on anything missed while offline.
-      .subscribe((status) => {
+      onStatus: (status) => {
         if (status === "SUBSCRIBED") void load();
-      });
+      },
+    });
     // A sleeping tablet misses changes: reload when the screen comes back.
     const onVisible = () => {
       if (!document.hidden) void load();
@@ -86,8 +90,9 @@ export function TimeUpWatcher({ branchId }: { branchId: string }) {
     return () => {
       cancelled = true;
       window.clearTimeout(ask);
+      window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
-      void supabase.removeChannel(channel);
+      unsubscribe();
     };
   }, [supabase, branchId, load]);
 

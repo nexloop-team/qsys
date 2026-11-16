@@ -56,7 +56,7 @@ async function Player({ params }: { params: PageProps<"/players/[id]">["params"]
     phone: string;
     created_at: string;
     wallet_balance?: number;
-    pin_set?: boolean;
+    pin_set?: boolean | null;
   } | null = null;
 
   const [

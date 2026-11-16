@@ -1,6 +1,7 @@
 "use client"; // Error boundaries must be Client Components
 
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import Link from "next/link";
 import { RotateCcw, TriangleAlert } from "lucide-react";
 import { Button, buttonClass } from "@/components/ui";
@@ -9,6 +10,7 @@ import { Button, buttonClass } from "@/components/ui";
 export default function AppError({ error, retry }: { error: unknown; retry: () => void }) {
   useEffect(() => {
     console.error(error);
+    Sentry.captureException(error);
   }, [error]);
 
   const digest = error instanceof Error && "digest" in error ? String((error as { digest?: string }).digest ?? "") : "";

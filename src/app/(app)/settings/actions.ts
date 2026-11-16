@@ -261,7 +261,7 @@ function gameTargetError(target: string): string | null {
   return /\.(exe|lnk|url)$/i.test(target) ? null : "must end in .exe, .lnk or .url.";
 }
 
-const RESTRICTIONS = ["task_manager", "control_panel", "command_line", "usb_drives"] as const;
+const RESTRICTIONS = ["task_manager", "control_panel", "command_line", "usb_drives", "installs"] as const;
 
 export async function savePcSettings(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { branch } = await requireRole(["owner"]);

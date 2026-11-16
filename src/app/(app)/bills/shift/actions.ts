@@ -26,7 +26,7 @@ export async function closeShift(_prev: ActionState, formData: FormData): Promis
     p_branch_id: branch.id,
     p_counted: parsed.data.counted,
     p_float_left: parsed.data.float_left,
-    p_note: parsed.data.note || null,
+    p_note: parsed.data.note || undefined,
   });
   if (error) return { error: friendlyDbError(error) };
   refresh();

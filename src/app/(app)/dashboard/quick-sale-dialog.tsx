@@ -220,9 +220,9 @@ export function QuickSaleDialog({
         p_items: itemsPayload,
         p_discount: discountAmount,
         p_payments: payments,
-        p_customer_name: customerName.trim() || null,
-        p_customer_phone: customerPhone.trim() || null,
-        p_discount_reason: discountAmount > 0 ? discountReason.trim() : null,
+        p_customer_name: customerName.trim() || undefined,
+        p_customer_phone: customerPhone.trim() || undefined,
+        p_discount_reason: discountAmount > 0 ? discountReason.trim() : undefined,
       });
 
       if (rpcErr || !invoiceId) {
